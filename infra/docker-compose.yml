@@ -291,7 +291,7 @@ services:
 
   dl-gbrain:
     build:
-      context: ../dato-knowledge-gbrain
+      context: ../dl-gbrain
       dockerfile: Dockerfile
     image: dl-gbrain:latest
     container_name: dl-gbrain

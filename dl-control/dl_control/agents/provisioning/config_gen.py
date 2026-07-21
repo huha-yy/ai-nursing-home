@@ -179,6 +179,11 @@ def render_env_file(
     cognee_internal_token: str = "",  # P5: fresh token minted at provision time
     gbrain_env_lines: str = "",  # P9: carried forward from existing .env
     comfyui_url: str = "",  # P10: ComfyUI remote URL (e.g. http://192.168.10.70:8188)
+    # Nursing context (Task 3) — injected into agent containers for role-based access.
+    nursing_role: str = "",
+    nursing_dept: str = "",
+    nursing_building: str = "",
+    nursing_floor: str = "",
 ) -> str:
     """Generate per-agent .env content (spec §6.4). Every value is
     single-quoted so `sh source`/`. ` cannot misinterpret it. P3: existing
@@ -210,6 +215,11 @@ def render_env_file(
         result += gbrain_env_lines
     if comfyui_url:
         result += f"COMFYUI_URL={_sh_single_quote(comfyui_url)}\n"
+    # Nursing context env vars (Task 3) — injected for role-based agent access.
+    result += f"NURSING_ROLE={_sh_single_quote(nursing_role)}\n"
+    result += f"NURSING_DEPT={_sh_single_quote(nursing_dept)}\n"
+    result += f"NURSING_BUILDING={_sh_single_quote(nursing_building)}\n"
+    result += f"NURSING_FLOOR={_sh_single_quote(nursing_floor)}\n"
     # P13d: task-receiver agent command — ensure --session-id is set so the
     # OpenClaw CLI can route to an existing session rather than erroring.
     result += (

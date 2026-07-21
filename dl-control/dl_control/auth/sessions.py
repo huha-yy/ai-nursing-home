@@ -26,6 +26,12 @@ class Session:
     ip: str
     ua_fingerprint: str
     csrf_token: str
+    # Nursing context fields (None for non-nursing sessions)
+    name: str | None = None
+    dept: str | None = None
+    building: str | None = None
+    floor: str | None = None
+    username: str | None = None
 
 
 def _sess_key(sid: str) -> str:
@@ -55,23 +61,43 @@ class SessionStore:
             return None
 
     # -- session lifecycle --------------------------------------------
-    async def create(self, *, user_id: str, role: str, ip: str, ua_fingerprint: str) -> Session:
+    async def create(
+        self,
+        *,
+        user_id: str,
+        role: str,
+        ip: str,
+        ua_fingerprint: str,
+        name: str | None = None,
+        dept: str | None = None,
+        building: str | None = None,
+        floor: str | None = None,
+        username: str | None = None,
+    ) -> Session:
         sid = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
         created = int(time.time())
+        mapping = {
+            "user_id": user_id,
+            "role": role,
+            "created_at": str(created),
+            "ip": ip,
+            "ua_fingerprint": ua_fingerprint,
+            "csrf_token": csrf,
+        }
+        if name is not None:
+            mapping["name"] = name
+        if dept is not None:
+            mapping["dept"] = dept
+        if building is not None:
+            mapping["building"] = building
+        if floor is not None:
+            mapping["floor"] = floor
+        if username is not None:
+            mapping["username"] = username
         async with self._r.pipeline(transaction=True) as pipe:
             key = _sess_key(sid)
-            pipe.hset(
-                key,
-                mapping={
-                    "user_id": user_id,
-                    "role": role,
-                    "created_at": str(created),
-                    "ip": ip,
-                    "ua_fingerprint": ua_fingerprint,
-                    "csrf_token": csrf,
-                },
-            )
+            pipe.hset(key, mapping=mapping)
             pipe.expire(key, self._ttl)
             pipe.sadd(_user_key(user_id), sid)
             pipe.expire(_user_key(user_id), self._ttl)
@@ -84,6 +110,11 @@ class SessionStore:
             ip=ip,
             ua_fingerprint=ua_fingerprint,
             csrf_token=csrf,
+            name=name,
+            dept=dept,
+            building=building,
+            floor=floor,
+            username=username,
         )
 
     async def load(self, sid: str) -> Session | None:
@@ -100,6 +131,11 @@ class SessionStore:
             ip=data["ip"],
             ua_fingerprint=data["ua_fingerprint"],
             csrf_token=data["csrf_token"],
+            name=data.get("name"),
+            dept=data.get("dept"),
+            building=data.get("building"),
+            floor=data.get("floor"),
+            username=data.get("username"),
         )
 
     async def renew(self, sid: str) -> None:

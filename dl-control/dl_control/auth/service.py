@@ -156,3 +156,97 @@ async def try_login(
         )
     await _reset_counters(redis, username=username, ip=ip)
     return LoginResult(user_id=user_id, role=role)
+
+
+@dataclass(frozen=True, slots=True)
+class NursingLoginResult:
+    user_id: str
+    username: str
+    name: str
+    role: str
+    dept: str | None
+    building: str | None
+    floor: str | None
+
+
+async def try_nursing_login(
+    db: Database,
+    redis: Redis,
+    *,
+    username: str,
+    password: str,
+    ip: str,
+    rate_limit_fails: int,
+    rate_limit_window: int,
+) -> NursingLoginResult:
+    """Validate nursing_users credentials; return a NursingLoginResult or raise LoginError."""
+    # 1. Pre-hash lockout gate — no argon2 runs if already locked.
+    if await _over_limit(redis, username=username, ip=ip, fails=rate_limit_fails):
+        async with db.conn(user_id=None, role="system") as conn:
+            await write_event(
+                conn,
+                actor_user_id=None,
+                action="nursing_login_failed",
+                target="login",
+                meta={"reason": "rate_limited", "ip": ip},
+            )
+        raise LoginError("rate_limited")
+
+    # 2. Look up the nursing user.
+    async with db.conn(user_id=None, role="system") as conn:
+        cur = await conn.execute(
+            "SELECT user_id, username, name, role, password, dept, building, floor "
+            "FROM nursing_users WHERE username = %s",
+            (username,),
+        )
+        row = await cur.fetchone()
+
+    # 3. Missing user — dummy verify (constant-time), bump, audit, raise.
+    if row is None:
+        verify_password(password, _DUMMY_HASH)
+        await _bump_counters(redis, username=username, ip=ip, window=rate_limit_window)
+        async with db.conn(user_id=None, role="system") as conn:
+            await write_event(
+                conn,
+                actor_user_id=None,
+                action="nursing_login_failed",
+                target="login",
+                meta={"reason": "missing_user", "ip": ip},
+            )
+        raise LoginError("missing_user")
+
+    user_id, db_username, name, role, password_hash, dept, building, floor = row
+    user_id = str(user_id)
+
+    # 4. Password mismatch.
+    if not verify_password(password, password_hash):
+        await _bump_counters(redis, username=username, ip=ip, window=rate_limit_window)
+        async with db.conn(user_id=user_id, role="system") as conn:
+            await write_event(
+                conn,
+                actor_user_id=user_id,
+                action="nursing_login_failed",
+                target="login",
+                meta={"reason": "password_mismatch", "ip": ip},
+            )
+        raise LoginError("password_mismatch")
+
+    # 5. Success.
+    async with db.conn(user_id=user_id, role="system") as conn:
+        await write_event(
+            conn,
+            actor_user_id=user_id,
+            action="nursing_login_succeeded",
+            target="login",
+            meta={"ip": ip},
+        )
+    await _reset_counters(redis, username=username, ip=ip)
+    return NursingLoginResult(
+        user_id=user_id,
+        username=db_username,
+        name=name,
+        role=role,
+        dept=dept,
+        building=building,
+        floor=floor,
+    )

@@ -1,4 +1,4 @@
-"""HTTP routes: GET/POST /login, POST /logout."""
+"""HTTP routes: GET/POST /login, POST /logout, POST /auth/nursing-login."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from dl_control.auth.middleware import (
     set_session_cookie,
     ua_fingerprint,
 )
-from dl_control.auth.service import LoginError, try_login
+from dl_control.auth.service import LoginError, try_login, try_nursing_login
 from dl_control.auth.sessions import SessionStore
 from dl_control.db import Database
 from dl_control.i18n_routes import translator_for
@@ -67,6 +67,46 @@ def make_router(
             role=result.role,
             ip=ip,
             ua_fingerprint=ua_fingerprint(request.headers.get("user-agent")),
+        )
+        resp = RedirectResponse(url="/admin", status_code=302)
+        set_session_cookie(resp, token=sessions.sign(sess.sid))
+        return resp
+
+    @r.post("/auth/nursing-login")
+    async def nursing_login_post(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+    ):
+        ip = request.client.host if request.client else "unknown"
+        try:
+            result = await try_nursing_login(
+                db,
+                redis,
+                username=username,
+                password=password,
+                ip=ip,
+                rate_limit_fails=settings.login_rate_limit_fails,
+                rate_limit_window=settings.login_rate_limit_window_seconds,
+            )
+        except LoginError:
+            t = translator_for(request)
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {"error": t("auth.err.invalid")},
+                status_code=401,
+            )
+        sess = await sessions.create(
+            user_id=result.user_id,
+            role=result.role,
+            ip=ip,
+            ua_fingerprint=ua_fingerprint(request.headers.get("user-agent")),
+            name=result.name,
+            dept=result.dept,
+            building=result.building,
+            floor=result.floor,
+            username=result.username,
         )
         resp = RedirectResponse(url="/admin", status_code=302)
         set_session_cookie(resp, token=sessions.sign(sess.sid))

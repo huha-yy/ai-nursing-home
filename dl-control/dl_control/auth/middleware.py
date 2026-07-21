@@ -1,4 +1,4 @@
-"""Auth dependencies: login/admin gates, CSRF, password-rotation gate.
+"""Auth dependencies: login/admin gates, CSRF, password-rotation gate, nursing context.
 
 FastAPI dependencies (not Starlette middleware) — composable per route.
 The session cookie carries the itsdangerous-signed sid; require_login
@@ -154,5 +154,59 @@ def require_password_rotated(*, db: Database, store: SessionStore):
             status_code=303 if request.method == "POST" else 302,
             headers={"location": "/admin/password-change"},
         )
+
+    return Depends(dep)
+
+
+# ---------------------------------------------------------------------------
+# Nursing context injection (Task 3)
+# ---------------------------------------------------------------------------
+
+# Recognised nursing roles that carry building/floor/dept context.
+_NURSING_ROLES = frozenset(
+    {"director", "nursing_dept", "logistics_dept", "building", "floor", "general"}
+)
+
+
+@dataclass
+class NursingContext:
+    """Context extracted from a nursing session, attached to request.state."""
+
+    user_id: str | None = None
+    username: str | None = None
+    name: str | None = None
+    role: str | None = None
+    dept: str | None = None
+    building: str | None = None
+    floor: str | None = None
+    is_nursing: bool = False
+
+
+def inject_nursing_context(store: SessionStore):
+    """Dependency: if the current session is a nursing session, extract
+    role / dept / building / floor and attach them to request.state as
+    request.state.nursing_context. Non-nursing sessions get an empty context."""
+
+    async def dep(request: Request) -> NursingContext:
+        raw = request.cookies.get(COOKIE_NAME, "")
+        sid = store.unsign(raw) if raw else None
+        sess = await store.load(sid) if sid else None
+        ctx = NursingContext()
+        if sess is None:
+            request.state.nursing_context = ctx
+            return ctx
+        if sess.role not in _NURSING_ROLES:
+            request.state.nursing_context = ctx
+            return ctx
+        ctx.user_id = sess.user_id
+        ctx.username = sess.username
+        ctx.name = sess.name
+        ctx.role = sess.role
+        ctx.dept = sess.dept
+        ctx.building = sess.building
+        ctx.floor = sess.floor
+        ctx.is_nursing = True
+        request.state.nursing_context = ctx
+        return ctx
 
     return Depends(dep)

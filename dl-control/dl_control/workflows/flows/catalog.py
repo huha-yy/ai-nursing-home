@@ -32,4 +32,15 @@ SHIPPED_FLOWS = [
             "compliance check → Feishu publishing."
         ),
     ),
+    FlowDescriptor(
+        id="nursing.ops",
+        version="1.0.0",
+        code_ref="dl_control.workflows.flows.nursing_ops:nursing_ops_flow",
+        display_name="Nursing operations workflow",
+        default_trigger="event",
+        description=(
+            "Multi-agent nursing operations: 护理科 schedule → 总务科 "
+            "logistics → 财务科 finance estimate → 院长 weekly report."
+        ),
+    ),
 ]

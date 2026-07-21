@@ -11,7 +11,7 @@ from pathlib import Path
 
 import structlog
 from dl_shared.rate_limit import RateLimitMiddleware
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -400,6 +400,59 @@ async def build_app() -> FastAPI:
             "completion_rate": completion_rate,
             "building_distribution": building_distribution,
         }
+
+    # -- Nursing workflow trigger (Task 9) --
+    from pydantic import BaseModel as _NursingWfBaseModel
+
+    class _NursingWorkflowStart(_NursingWfBaseModel):
+        building: str = "3号楼"
+        nursing_agent_id: str | None = None
+        logistics_agent_id: str | None = None
+        general_agent_id: str | None = None
+        director_agent_id: str | None = None
+
+    @app.post("/api/nursing/workflow/start")
+    async def nursing_workflow_start(request: _Request, body: _NursingWorkflowStart):
+        """Trigger the multi-agent nursing ops workflow.
+
+        Requires a valid nursing session cookie. The director/dept head
+        starts the chain: 护理科 → 总务科 → 财务科 → 院长报告.
+        """
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            raise HTTPException(status_code=401, detail="需要护理系统登录")
+        from dl_control.workflows import runs as _wfruns
+
+        run_input: dict = {"building": body.building}
+        if body.nursing_agent_id:
+            run_input["nursing_agent_id"] = body.nursing_agent_id
+        if body.logistics_agent_id:
+            run_input["logistics_agent_id"] = body.logistics_agent_id
+        if body.general_agent_id:
+            run_input["general_agent_id"] = body.general_agent_id
+        if body.director_agent_id:
+            run_input["director_agent_id"] = body.director_agent_id
+        try:
+            async with db.conn(user_id=None, role="system") as conn:
+                run_id = await _wfruns.start_run(
+                    conn,
+                    workflow_id="nursing.ops",
+                    trigger="manual",
+                    run_input=run_input,
+                    actor_user_id=sess.user_id,
+                )
+        except _wfruns.UnknownWorkflowError:
+            raise HTTPException(status_code=404, detail="nursing.ops workflow not found") from None
+        except _wfruns.WorkflowDisabledError:
+            raise HTTPException(status_code=409, detail="nursing.ops workflow is disabled") from None
+        except _wfruns.DuplicateActiveRunError:
+            raise HTTPException(status_code=409, detail="a nursing ops run is already active") from None
+        from dl_control.workflows.wake import publish_wake as _wfpw
+
+        await _wfpw(redis, reason="nursing_workflow_start")
+        return {"run_id": str(run_id)}
 
     @app.exception_handler(MustRotatePasswordError)
     async def _rotate_handler(_request, exc: MustRotatePasswordError):

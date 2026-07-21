@@ -13,7 +13,7 @@ import structlog
 from dl_shared.rate_limit import RateLimitMiddleware
 from fastapi import FastAPI
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from redis.asyncio import Redis
@@ -206,6 +206,43 @@ async def build_app() -> FastAPI:
     @app.get("/")
     async def root():
         return RedirectResponse(url="/admin", status_code=302)
+
+    # -- Nursing web UI routes (Task 4) --
+    from dl_control.auth.middleware import COOKIE_NAME as _NURSING_COOKIE
+
+    _NURSING_ROLES = frozenset(
+        {"director", "nursing_dept", "logistics_dept", "building", "floor", "general"}
+    )
+
+    @app.get("/chat", response_class=HTMLResponse)
+    async def nursing_chat(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return RedirectResponse(url="/login", status_code=302)
+        nursing_user = {
+            "user_id": sess.user_id,
+            "username": sess.username,
+            "name": sess.name,
+            "role": sess.role,
+            "dept": sess.dept,
+            "building": sess.building,
+            "floor": sess.floor,
+        }
+        return TEMPLATES.TemplateResponse(
+            request,
+            "nursing/chat.html",
+            {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
+        )
+
+    @app.get("/nursing/test-roles", response_class=HTMLResponse)
+    async def nursing_test_roles(request: _Request):
+        return TEMPLATES.TemplateResponse(
+            request,
+            "nursing/test-roles.html",
+            {"active": "test"},
+        )
 
     @app.exception_handler(MustRotatePasswordError)
     async def _rotate_handler(_request, exc: MustRotatePasswordError):

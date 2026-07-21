@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}AI 养老院院长 — 角色测试{% endblock %}
+{% block body %}
+
+{% set label_map = {
+  'director': '院长',
+  'nursing_dept': '护理科',
+  'logistics_dept': '总务科',
+  'building': '楼长',
+  'floor': '楼层组长',
+  'general': '工作人员',
+} %}
+
+<div class="nh-test-page">
+  <h2>角色侧边栏测试</h2>
+  <p style="color: var(--nh-text-dim); margin-bottom: 1.5rem;">
+    点击下方用户卡片切换测试角色，查看不同角色的聊天侧边栏内容。
+    当前活跃角色: <strong id="current-role-label">无</strong>
+  </p>
+
+  <div class="nh-test-grid" id="role-cards">
+    {% set test_users = [
+      {'id': 'u001', 'name': '王建国', 'role': 'director', 'dept': '', 'building': '', 'floor': '', 'username': 'wang_jianguo'},
+      {'id': 'u002', 'name': '张护士', 'role': 'nursing_dept', 'dept': '护理科', 'building': '', 'floor': '', 'username': 'nurse_zhang'},
+      {'id': 'u003', 'name': '李护士', 'role': 'nursing_dept', 'dept': '护理科', 'building': '', 'floor': '', 'username': 'nurse_li'},
+      {'id': 'u005', 'name': '陈总务', 'role': 'logistics_dept', 'dept': '总务科', 'building': '', 'floor': '', 'username': 'logi_chen'},
+      {'id': 'u006', 'name': '赵总务', 'role': 'logistics_dept', 'dept': '总务科', 'building': '', 'floor': '', 'username': 'logi_zhao'},
+      {'id': 'u007', 'name': '刘主任', 'role': 'building', 'dept': '', 'building': '1号楼', 'floor': '', 'username': 'b1_liu'},
+      {'id': 'u008', 'name': '张主任', 'role': 'building', 'dept': '', 'building': '2号楼', 'floor': '', 'username': 'b2_zhang'},
+      {'id': 'u009', 'name': '李卫东', 'role': 'building', 'dept': '', 'building': '3号楼', 'floor': '', 'username': 'b3_li_weidong'},
+      {'id': 'u010', 'name': '吴主任', 'role': 'building', 'dept': '', 'building': '4号楼', 'floor': '', 'username': 'b4_wu'},
+      {'id': 'u011', 'name': '刘主任', 'role': 'building', 'dept': '', 'building': '5号楼', 'floor': '', 'username': 'b5_liu_zhuren'},
+      {'id': 'u012', 'name': '周主任', 'role': 'building', 'dept': '', 'building': '6号楼', 'floor': '', 'username': 'b6_zhou'},
+      {'id': 'u013', 'name': '王组长', 'role': 'floor', 'dept': '', 'building': '1号楼', 'floor': '1层', 'username': 'b1f1_wang'},
+      {'id': 'u014', 'name': '陈组长', 'role': 'floor', 'dept': '', 'building': '2号楼', 'floor': '1层', 'username': 'b2f1_chen'},
+      {'id': 'u015', 'name': '赵小明', 'role': 'floor', 'dept': '', 'building': '3号楼', 'floor': '2层', 'username': 'b3f2_zhao'},
+      {'id': 'u016', 'name': '孙组长', 'role': 'floor', 'dept': '', 'building': '4号楼', 'floor': '1层', 'username': 'b4f1_sun'},
+      {'id': 'u017', 'name': '钱小红', 'role': 'floor', 'dept': '', 'building': '5号楼', 'floor': '2层', 'username': 'b5f2_qian'},
+      {'id': 'u018', 'name': '黄组长', 'role': 'floor', 'dept': '', 'building': '6号楼', 'floor': '1层', 'username': 'b6f1_huang'},
+      {'id': 'u019', 'name': '刘行政', 'role': 'general', 'dept': '综合办', 'building': '', 'floor': '', 'username': 'admin_liu'},
+      {'id': 'u020', 'name': '冯医务', 'role': 'general', 'dept': '医务康复科', 'building': '', 'floor': '', 'username': 'med_feng'},
+      {'id': 'u021', 'name': '孙财务', 'role': 'general', 'dept': '财务科', 'building': '', 'floor': '', 'username': 'fin_sun'},
+      {'id': 'u022', 'name': '周安保', 'role': 'general', 'dept': '安全保卫科', 'building': '', 'floor': '', 'username': 'sec_zhou'},
+    ] %}
+
+    {% for u in test_users %}
+    <div class="nh-test-card"
+         data-role="{{ u.role }}"
+         data-name="{{ u.name }}"
+         data-dept="{{ u.dept }}"
+         data-building="{{ u.building }}"
+         data-floor="{{ u.floor }}"
+         onclick="selectRole(this)">
+      <div class="nh-test-name">{{ u.name }}</div>
+      <div class="nh-test-meta">
+        {{ label_map.get(u.role, u.role) }}
+        {% if u.dept %} · {{ u.dept }}{% endif %}
+        {% if u.building %} · {{ u.building }}{% endif %}
+        {% if u.floor %} {{ u.floor }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="nh-test-active" id="test-active" style="display:none;">
+    <h3>当前活跃角色侧边栏预览</h3>
+    <div class="nh-test-context" id="test-tags"></div>
+    <p style="color: var(--nh-text-dim); font-size: 0.88rem;">
+      提示: 在实际部署中，请使用对应的用户名和密码 (123456) 登录查看完整聊天界面。
+      测试账号格式: {{ '<code>角色前缀_姓名拼音</code>'|safe }}，例如 <code>nurse_zhang</code>。
+    </p>
+  </div>
+</div>
+
+<script>
+(function() {
+  var labelMap = {
+    'director': '院长',
+    'nursing_dept': '护理科',
+    'logistics_dept': '总务科',
+    'building': '楼长',
+    'floor': '楼层组长',
+    'general': '工作人员',
+  };
+
+  window.selectRole = function(card) {
+    // Clear all selections
+    document.querySelectorAll('.nh-test-card').forEach(function(c) {
+      c.classList.remove('selected');
+    });
+    card.classList.add('selected');
+
+    var role = card.dataset.role;
+    var name = card.dataset.name;
+    var dept = card.dataset.dept;
+    var building = card.dataset.building;
+    var floor = card.dataset.floor;
+
+    document.getElementById('current-role-label').textContent =
+      name + ' (' + (labelMap[role] || role) + ')';
+
+    var active = document.getElementById('test-active');
+    active.style.display = 'block';
+
+    var tags = document.getElementById('test-tags');
+    var html = '<span class="nh-test-tag">角色: ' + (labelMap[role] || role) + '</span>';
+    html += '<span class="nh-test-tag">姓名: ' + name + '</span>';
+    if (dept) html += '<span class="nh-test-tag">科室: ' + dept + '</span>';
+    if (building) html += '<span class="nh-test-tag">楼栋: ' + building + '</span>';
+    if (floor) html += '<span class="nh-test-tag">楼层: ' + floor + '</span>';
+    tags.innerHTML = html;
+  };
+})();
+</script>
+
+{% endblock %}

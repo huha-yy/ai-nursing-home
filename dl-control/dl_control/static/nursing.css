@@ -1,0 +1,502 @@
+/* ============================================================
+   AI 养老院院长 — Nursing Home Theme
+   Warm orange/amber palette, cream background, accessible sizing
+   ============================================================ */
+
+:root {
+  --nh-bg: #FFF8F0;
+  --nh-surface: #FFFFFF;
+  --nh-border: #E8D5C4;
+  --nh-text: #4A3728;
+  --nh-text-dim: #8B7355;
+  --nh-primary: #E67E22;
+  --nh-primary-hover: #D35400;
+  --nh-primary-light: #FDEBD0;
+  --nh-accent: #27AE60;
+  --nh-danger: #E74C3C;
+  --nh-warning: #F39C12;
+  --nh-info: #3498DB;
+  --nh-radius: 10px;
+  --nh-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  --nh-shadow-hover: 0 4px 16px rgba(0,0,0,0.1);
+  --nh-sidebar-w: 300px;
+}
+
+/* -- Login page ------------------------------------------------------- */
+.nursing-auth-card {
+  text-align: center;
+  padding: 3rem 2.5rem;
+  max-width: 420px;
+}
+
+.nursing-auth-card .nursing-brand {
+  font-size: 2rem;
+  color: var(--nh-primary);
+  margin-bottom: 0.25rem;
+}
+
+.nursing-auth-card .auth-sub {
+  color: var(--nh-text-dim);
+  font-size: 1rem;
+  margin-bottom: 2rem;
+}
+
+.nursing-auth-card .stacked-form label {
+  color: var(--nh-text);
+  font-weight: 500;
+}
+
+.nursing-auth-card .stacked-form input {
+  border: 1px solid var(--nh-border);
+  border-radius: var(--nh-radius);
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  background: var(--nh-bg);
+  color: var(--nh-text);
+}
+
+.nursing-auth-card .stacked-form input:focus {
+  outline: none;
+  border-color: var(--nh-primary);
+  box-shadow: 0 0 0 3px var(--nh-primary-light);
+}
+
+.nursing-btn {
+  background: var(--nh-primary) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: var(--nh-radius) !important;
+  padding: 0.7rem 1.5rem !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.nursing-btn:hover {
+  background: var(--nh-primary-hover) !important;
+}
+
+/* -- Nursing top bar -------------------------------------------------- */
+.nursing-topbar {
+  background: var(--nh-surface);
+  border-bottom: 1px solid var(--nh-border);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.nursing-topbar .nh-brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--nh-primary);
+  white-space: nowrap;
+}
+
+.nursing-topbar nav {
+  display: flex;
+  gap: 1.2rem;
+  flex: 1;
+}
+
+.nursing-topbar nav a {
+  color: var(--nh-text-dim);
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 0.3rem 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.nursing-topbar nav a:hover {
+  color: var(--nh-text);
+  text-decoration: none;
+}
+
+.nursing-topbar nav a.active {
+  color: var(--nh-primary);
+  border-bottom-color: var(--nh-primary);
+  font-weight: 600;
+}
+
+.nursing-topbar .nh-user-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  color: var(--nh-text);
+}
+
+.nh-role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.nh-role-badge.role-director       { background: #FDEBD0; color: #D35400; }
+.nh-role-badge.role-nursing_dept   { background: #D5F5E3; color: #1E8449; }
+.nh-role-badge.role-logistics_dept { background: #D6EAF8; color: #2471A3; }
+.nh-role-badge.role-building       { background: #F5EEF8; color: #7D3C98; }
+.nh-role-badge.role-floor          { background: #FCF3CF; color: #B7950B; }
+.nh-role-badge.role-general        { background: #E5E7E9; color: #5D6D7E; }
+
+.nursing-topbar .logout-form { margin: 0; }
+.nursing-topbar .ghost-btn {
+  background: none;
+  border: 1px solid var(--nh-border);
+  color: var(--nh-text-dim);
+  border-radius: var(--nh-radius);
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.nursing-topbar .ghost-btn:hover {
+  color: var(--nh-danger);
+  border-color: var(--nh-danger);
+}
+
+/* -- Chat layout ------------------------------------------------------ */
+.nh-chat-layout {
+  display: flex;
+  height: calc(100vh - 56px);
+  max-width: 100%;
+}
+
+/* -- Sidebar ---------------------------------------------------------- */
+.nh-sidebar {
+  width: var(--nh-sidebar-w);
+  min-width: var(--nh-sidebar-w);
+  background: var(--nh-surface);
+  border-right: 1px solid var(--nh-border);
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nh-sidebar-section {
+  background: var(--nh-bg);
+  border-radius: var(--nh-radius);
+  padding: 1rem;
+}
+
+.nh-sidebar-section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--nh-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nh-sidebar-section .nh-stat {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--nh-primary);
+  margin-bottom: 0.15rem;
+}
+
+.nh-sidebar-section .nh-stat-label {
+  font-size: 0.8rem;
+  color: var(--nh-text-dim);
+}
+
+.nh-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--nh-border);
+  font-size: 0.88rem;
+}
+
+.nh-stat-row:last-child {
+  border-bottom: none;
+}
+
+.nh-stat-row .nh-stat-val {
+  font-weight: 600;
+  color: var(--nh-text);
+}
+
+.nh-stat-row .nh-stat-val.warn { color: var(--nh-warning); }
+.nh-stat-row .nh-stat-val.danger { color: var(--nh-danger); }
+.nh-stat-row .nh-stat-val.ok { color: var(--nh-accent); }
+
+.nh-alert-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--nh-border);
+  font-size: 0.82rem;
+  color: var(--nh-text);
+}
+
+.nh-alert-item:last-child { border-bottom: none; }
+
+.nh-alert-item .nh-alert-sev {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-right: 0.35rem;
+}
+
+.nh-alert-item .nh-alert-sev.danger  { background: #FADBD8; color: var(--nh-danger); }
+.nh-alert-item .nh-alert-sev.warning { background: #FCF3CF; color: var(--nh-warning); }
+.nh-alert-item .nh-alert-sev.info    { background: #D6EAF8; color: var(--nh-info); }
+
+.nh-resident-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nh-resident-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--nh-border);
+  font-size: 0.82rem;
+  color: var(--nh-text);
+}
+
+.nh-resident-list li:last-child { border-bottom: none; }
+
+.nh-resident-list .nh-care-tag {
+  display: inline-block;
+  padding: 0.08rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  margin-left: 0.3rem;
+  font-weight: 600;
+}
+
+.nh-care-tag.自理 { background: #D5F5E3; color: #1E8449; }
+.nh-care-tag.半护 { background: #FCF3CF; color: #B7950B; }
+.nh-care-tag.全护 { background: #FADBD8; color: var(--nh-danger); }
+.nh-care-tag.失智 { background: #E8DAEF; color: #7D3C98; }
+
+.nh-sidebar-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--nh-border);
+  font-size: 0.78rem;
+  color: var(--nh-text-dim);
+  text-align: center;
+}
+
+/* -- Chat area -------------------------------------------------------- */
+.nh-chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--nh-bg);
+  min-width: 0;
+}
+
+.nh-chat-header {
+  padding: 1rem 1.5rem;
+  background: var(--nh-surface);
+  border-bottom: 1px solid var(--nh-border);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--nh-text);
+}
+
+.nh-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nh-msg {
+  max-width: 75%;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--nh-radius);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.nh-msg-ai {
+  align-self: flex-start;
+  background: var(--nh-surface);
+  border: 1px solid var(--nh-border);
+  color: var(--nh-text);
+  box-shadow: var(--nh-shadow);
+}
+
+.nh-msg-user {
+  align-self: flex-end;
+  background: var(--nh-primary-light);
+  color: var(--nh-text);
+  border: 1px solid #F5CBA7;
+}
+
+.nh-msg-meta {
+  font-size: 0.72rem;
+  color: var(--nh-text-dim);
+  margin-bottom: 0.35rem;
+}
+
+.nh-chat-input-area {
+  padding: 1rem 1.5rem;
+  background: var(--nh-surface);
+  border-top: 1px solid var(--nh-border);
+  display: flex;
+  gap: 0.75rem;
+}
+
+.nh-chat-input-area textarea {
+  flex: 1;
+  border: 1px solid var(--nh-border);
+  border-radius: var(--nh-radius);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--nh-bg);
+  color: var(--nh-text);
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+}
+
+.nh-chat-input-area textarea:focus {
+  outline: none;
+  border-color: var(--nh-primary);
+  box-shadow: 0 0 0 3px var(--nh-primary-light);
+}
+
+.nh-chat-input-area button {
+  background: var(--nh-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--nh-radius);
+  padding: 0.65rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.nh-chat-input-area button:hover {
+  background: var(--nh-primary-hover);
+}
+
+.nh-chat-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nh-text-dim);
+  font-size: 1.1rem;
+}
+
+/* -- Test roles page -------------------------------------------------- */
+.nh-test-page {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+}
+
+.nh-test-page h2 {
+  color: var(--nh-text);
+  margin-bottom: 1rem;
+}
+
+.nh-test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.nh-test-card {
+  background: var(--nh-surface);
+  border: 1px solid var(--nh-border);
+  border-radius: var(--nh-radius);
+  padding: 1rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  box-shadow: var(--nh-shadow);
+}
+
+.nh-test-card:hover {
+  box-shadow: var(--nh-shadow-hover);
+  border-color: var(--nh-primary);
+}
+
+.nh-test-card.selected {
+  border-color: var(--nh-primary);
+  background: var(--nh-primary-light);
+}
+
+.nh-test-card .nh-test-name {
+  font-weight: 600;
+  color: var(--nh-text);
+  margin-bottom: 0.3rem;
+}
+
+.nh-test-card .nh-test-meta {
+  font-size: 0.82rem;
+  color: var(--nh-text-dim);
+}
+
+.nh-test-active {
+  background: var(--nh-surface);
+  border: 2px solid var(--nh-primary);
+  border-radius: var(--nh-radius);
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  box-shadow: var(--nh-shadow);
+}
+
+.nh-test-active h3 {
+  margin-top: 0;
+  color: var(--nh-primary);
+}
+
+.nh-test-active .nh-test-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.nh-test-active .nh-test-tag {
+  background: var(--nh-bg);
+  border: 1px solid var(--nh-border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  color: var(--nh-text);
+}
+
+/* -- Responsive ------------------------------------------------------- */
+@media (max-width: 960px) {
+  .nh-sidebar {
+    width: 240px;
+    min-width: 240px;
+  }
+
+  .nh-msg {
+    max-width: 85%;
+  }
+}
+
+@media (max-width: 768px) {
+  .nh-sidebar {
+    display: none;
+  }
+
+  .nh-msg {
+    max-width: 90%;
+  }
+}

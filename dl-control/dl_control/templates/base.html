@@ -3,13 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}dl-control{% endblock %}</title>
+  <title>{% block title %}AI 养老院院长{% endblock %}</title>
   {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <link rel="stylesheet" href="/static/styles.css">
+  {% if nursing_user %}<link rel="stylesheet" href="/static/nursing.css">{% endif %}
   <script src="/static/htmx.min.js" defer></script>
 </head>
 <body>
-  {% if current_user %}
+  {% if nursing_user %}
+  {# -- Nursing top bar -- #}
+  <header class="nursing-topbar">
+    <span class="nh-brand">AI 养老院院长</span>
+    <nav>
+      <a href="/chat"{% if active == 'chat' %} class="active"{% endif %}>对话</a>
+      <a href="/dashboard"{% if active == 'dashboard' %} class="active"{% endif %}>大屏</a>
+    </nav>
+    <div class="nh-user-area">
+      {% set label_map = {
+        'director': '院长',
+        'nursing_dept': '护理科',
+        'logistics_dept': '总务科',
+        'building': '楼长',
+        'floor': '楼层组长',
+        'general': '工作人员',
+      } %}
+      {% set lbl = label_map.get(nursing_user.role, nursing_user.role) %}
+      <span class="nh-role-badge role-{{ nursing_user.role }}">{{ lbl }}</span>
+      <span>{{ nursing_user.name }}</span>
+    </div>
+    <form method="post" action="/logout" class="logout-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="ghost-btn">退出</button>
+    </form>
+  </header>
+  {% elif current_user %}
+  {# -- Admin top bar (unchanged) -- #}
   <header class="topbar">
     <span class="brand">dato<span class="brand-sub">dl-control</span></span>
     <nav>
@@ -27,6 +55,6 @@
   {% else %}
   <div class="lang-toggle-floating">{% include "_lang_toggle.html" %}</div>
   {% endif %}
-  <main class="page">{% block body %}{% endblock %}</main>
+  <main>{% block body %}{% endblock %}</main>
 </body>
 </html>

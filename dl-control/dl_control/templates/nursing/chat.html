@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}AI 养老院院长 — 对话{% endblock %}
+{% block body %}
+
+{% set role = nursing_user.role %}
+{% set dept = nursing_user.dept or '' %}
+{% set building = nursing_user.building or '' %}
+{% set floor = nursing_user.floor or '' %}
+
+{% set label_map = {
+  'director': '院长',
+  'nursing_dept': '护理科',
+  'logistics_dept': '总务科',
+  'building': '楼长',
+  'floor': '楼层组长',
+  'general': '工作人员',
+} %}
+{% set role_label = label_map.get(role, role) %}
+
+<div class="nh-chat-layout">
+
+  {# -- Sidebar -- #}
+  <aside class="nh-sidebar">
+
+    {# User info section #}
+    <div class="nh-sidebar-section">
+      <h3>当前用户</h3>
+      <div class="nh-stat-row"><span>角色</span><span class="nh-stat-val">{{ role_label }}</span></div>
+      <div class="nh-stat-row"><span>姓名</span><span class="nh-stat-val">{{ nursing_user.name }}</span></div>
+      {% if dept %}<div class="nh-stat-row"><span>科室</span><span class="nh-stat-val">{{ dept }}</span></div>{% endif %}
+      {% if building %}<div class="nh-stat-row"><span>楼栋</span><span class="nh-stat-val">{{ building }}</span></div>{% endif %}
+      {% if floor %}<div class="nh-stat-row"><span>楼层</span><span class="nh-stat-val">{{ floor }}</span></div>{% endif %}
+    </div>
+
+    {# -- Role-specific overview -- #}
+
+    {% if role == 'director' %}
+    {# director: 全院在院人数, 今日值班人数, 库存预警数, 未处理告警 #}
+    <div class="nh-sidebar-section">
+      <h3>全院概览</h3>
+      <div class="nh-stat">36</div>
+      <div class="nh-stat-label">在院老人总数</div>
+    </div>
+    <div class="nh-sidebar-section">
+      <div class="nh-stat-row"><span>今日值班人数</span><span class="nh-stat-val">12人</span></div>
+      <div class="nh-stat-row"><span>白班</span><span class="nh-stat-val">6人</span></div>
+      <div class="nh-stat-row"><span>夜班</span><span class="nh-stat-val">6人</span></div>
+      <div class="nh-stat-row"><span>库存预警</span><span class="nh-stat-val warn">3项</span></div>
+      <div class="nh-stat-row"><span>未处理告警</span><span class="nh-stat-val danger">7条</span></div>
+    </div>
+    <div class="nh-sidebar-section">
+      <h3>今日概览</h3>
+      <div class="nh-stat-row"><span>今日工单</span><span class="nh-stat-val">24条</span></div>
+      <div class="nh-stat-row"><span>完成率</span><span class="nh-stat-val ok">85%</span></div>
+      <div class="nh-stat-row"><span>今日活动</span><span class="nh-stat-val">1场</span></div>
+      <div class="nh-stat-row"><span>待处理投诉</span><span class="nh-stat-val warn">2条</span></div>
+    </div>
+
+    {% elif role == 'nursing_dept' %}
+    {# nursing_dept: 今日排班概况, 工单完成率 #}
+    <div class="nh-sidebar-section">
+      <h3>今日排班概况</h3>
+      <div class="nh-stat">20</div>
+      <div class="nh-stat-label">在岗护工</div>
+    </div>
+    <div class="nh-sidebar-section">
+      <div class="nh-stat-row"><span>白班</span><span class="nh-stat-val">10人</span></div>
+      <div class="nh-stat-row"><span>夜班</span><span class="nh-stat-val">10人</span></div>
+      <div class="nh-stat-row"><span>1号楼</span><span class="nh-stat-val">4人</span></div>
+      <div class="nh-stat-row"><span>2号楼</span><span class="nh-stat-val">3人</span></div>
+      <div class="nh-stat-row"><span>3号楼</span><span class="nh-stat-val">3人</span></div>
+      <div class="nh-stat-row"><span>4号楼</span><span class="nh-stat-val">3人</span></div>
+      <div class="nh-stat-row"><span>5号楼</span><span class="nh-stat-val">3人</span></div>
+      <div class="nh-stat-row"><span>6号楼</span><span class="nh-stat-val">4人</span></div>
+    </div>
+    <div class="nh-sidebar-section">
+      <h3>工单完成率</h3>
+      <div class="nh-stat">85%</div>
+      <div class="nh-stat-label">今日已完成 / 总计</div>
+      <div class="nh-stat-row"><span>已完成</span><span class="nh-stat-val ok">22条</span></div>
+      <div class="nh-stat-row"><span>待完成</span><span class="nh-stat-val warn">4条</span></div>
+    </div>
+
+    {% elif role == 'logistics_dept' %}
+    {# logistics_dept: 库存概况, 预警清单 #}
+    <div class="nh-sidebar-section">
+      <h3>库存概况</h3>
+      <div class="nh-stat">15</div>
+      <div class="nh-stat-label">物品种类</div>
+    </div>
+    <div class="nh-sidebar-section">
+      <h3>预警清单</h3>
+      <div class="nh-alert-item">
+        <span class="nh-alert-sev danger">缺货</span>尿不湿 L码 库存不足
+      </div>
+      <div class="nh-alert-item">
+        <span class="nh-alert-sev warning">低库存</span>胃管 低于安全库存
+      </div>
+      <div class="nh-alert-item">
+        <span class="nh-alert-sev warning">低库存</span>消毒液 低于安全库存
+      </div>
+    </div>
+    <div class="nh-sidebar-section">
+      <div class="nh-stat-row"><span>护理耗材</span><span class="nh-stat-val">6种</span></div>
+      <div class="nh-stat-row"><span>医疗器械</span><span class="nh-stat-val">5种</span></div>
+      <div class="nh-stat-row"><span>防护用品</span><span class="nh-stat-val">1种</span></div>
+      <div class="nh-stat-row"><span>辅助器具</span><span class="nh-stat-val">1种</span></div>
+      <div class="nh-stat-row"><span>清洁消毒</span><span class="nh-stat-val">1种</span></div>
+    </div>
+
+    {% elif role in ('building', 'floor') %}
+    {# building/floor: 本楼老人列表, 本楼预警 #}
+    <div class="nh-sidebar-section">
+      <h3>{% if building %}{{ building }}{% endif %}{% if floor %} {{ floor }}{% endif %}</h3>
+      <div class="nh-stat">6</div>
+      <div class="nh-stat-label">本区域老人</div>
+    </div>
+    <div class="nh-sidebar-section">
+      <h3>老人列表</h3>
+      <ul class="nh-resident-list">
+        {% if building == '1号楼' %}
+        <li>张国栋 <span class="nh-care-tag 自理">自理</span></li>
+        <li>李秀兰 <span class="nh-care-tag 半护">半护</span></li>
+        <li>陈永发 <span class="nh-care-tag 自理">自理</span></li>
+        <li>赵玉芬 <span class="nh-care-tag 全护">全护</span></li>
+        <li>王淑珍 <span class="nh-care-tag 自理">自理</span></li>
+        <li>刘明德 <span class="nh-care-tag 半护">半护</span></li>
+        {% elif building == '2号楼' %}
+        <li>吴桂英 <span class="nh-care-tag 失智">失智</span></li>
+        <li>周德胜 <span class="nh-care-tag 自理">自理</span></li>
+        <li>黄美华 <span class="nh-care-tag 半护">半护</span></li>
+        <li>杨国华 <span class="nh-care-tag 失智">失智</span></li>
+        <li>徐秀英 <span class="nh-care-tag 自理">自理</span></li>
+        <li>马德才 <span class="nh-care-tag 半护">半护</span></li>
+        {% elif building == '3号楼' %}
+        <li>沈桂花 <span class="nh-care-tag 全护">全护</span></li>
+        <li>朱长福 <span class="nh-care-tag 半护">半护</span></li>
+        <li>许美玲 <span class="nh-care-tag 自理">自理</span></li>
+        <li>郑国平 <span class="nh-care-tag 全护">全护</span></li>
+        <li>吕玉兰 <span class="nh-care-tag 自理">自理</span></li>
+        <li>何伟民 <span class="nh-care-tag 半护">半护</span></li>
+        {% elif building == '4号楼' %}
+        <li>胡秀珍 <span class="nh-care-tag 失智">失智</span></li>
+        <li>林德茂 <span class="nh-care-tag 自理">自理</span></li>
+        <li>孙玉梅 <span class="nh-care-tag 全护">全护</span></li>
+        <li>高建平 <span class="nh-care-tag 半护">半护</span></li>
+        <li>郭秀英 <span class="nh-care-tag 自理">自理</span></li>
+        <li>彭国栋 <span class="nh-care-tag 自理">自理</span></li>
+        {% elif building == '5号楼' %}
+        <li>唐玉芬 <span class="nh-care-tag 全护">全护</span></li>
+        <li>宋长贵 <span class="nh-care-tag 半护">半护</span></li>
+        <li>田桂花 <span class="nh-care-tag 半护">半护</span></li>
+        <li>范德明 <span class="nh-care-tag 自理">自理</span></li>
+        <li>曹美凤 <span class="nh-care-tag 失智">失智</span></li>
+        <li>廖永强 <span class="nh-care-tag 全护">全护</span></li>
+        {% elif building == '6号楼' %}
+        <li>许桂兰 <span class="nh-care-tag 全护">全护</span></li>
+        <li>袁建华 <span class="nh-care-tag 自理">自理</span></li>
+        <li>邓秀珍 <span class="nh-care-tag 半护">半护</span></li>
+        <li>苏国平 <span class="nh-care-tag 自理">自理</span></li>
+        <li>万玉梅 <span class="nh-care-tag 全护">全护</span></li>
+        <li>石明远 <span class="nh-care-tag 自理">自理</span></li>
+        {% else %}
+        <li>暂无本楼数据</li>
+        {% endif %}
+      </ul>
+    </div>
+    <div class="nh-sidebar-section">
+      <h3>本楼预警</h3>
+      <div class="nh-stat-row"><span>健康预警</span><span class="nh-stat-val danger">2条</span></div>
+      <div class="nh-stat-row"><span>待处理工单</span><span class="nh-stat-val warn">1条</span></div>
+    </div>
+
+    {% elif role == 'general' %}
+    {# general: 按 dept 显示相关信息 #}
+    <div class="nh-sidebar-section">
+      <h3>{{ dept or '科室' }}</h3>
+      {% if dept == '综合办' %}
+      <div class="nh-stat-row"><span>今日访客</span><span class="nh-stat-val">3人</span></div>
+      <div class="nh-stat-row"><span>待处理投诉</span><span class="nh-stat-val warn">2条</span></div>
+      <div class="nh-stat-row"><span>今日文件</span><span class="nh-stat-val">5份</span></div>
+      {% elif dept == '医务康复科' %}
+      <div class="nh-stat-row"><span>今日就诊</span><span class="nh-stat-val">8人</span></div>
+      <div class="nh-stat-row"><span>康复训练</span><span class="nh-stat-val">12人</span></div>
+      <div class="nh-stat-row"><span>重点监护</span><span class="nh-stat-val danger">3人</span></div>
+      {% elif dept == '财务科' %}
+      <div class="nh-stat-row"><span>本月应收</span><span class="nh-stat-val">18.2万</span></div>
+      <div class="nh-stat-row"><span>已收</span><span class="nh-stat-val ok">14.6万</span></div>
+      <div class="nh-stat-row"><span>待催缴</span><span class="nh-stat-val warn">3.6万</span></div>
+      {% elif dept == '安全保卫科' %}
+      <div class="nh-stat-row"><span>今日巡逻</span><span class="nh-stat-val">6次</span></div>
+      <div class="nh-stat-row"><span>消防检查</span><span class="nh-stat-val ok">正常</span></div>
+      <div class="nh-stat-row"><span>来访登记</span><span class="nh-stat-val">5人次</span></div>
+      {% else %}
+      <div class="nh-stat-row"><span>在院老人</span><span class="nh-stat-val">36人</span></div>
+      <div class="nh-stat-row"><span>今日值班</span><span class="nh-stat-val">12人</span></div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# Sidebar footer #}
+    <div class="nh-sidebar-footer">
+      杭州市第三社会福利院<br>
+      AI 养老院院长 v0.1
+    </div>
+  </aside>
+
+  {# -- Chat area -- #}
+  <div class="nh-chat-main">
+    <div class="nh-chat-header">
+      {% if role == 'director' %}
+      全院工作台
+      {% elif role == 'nursing_dept' %}
+      护理工作台
+      {% elif role == 'logistics_dept' %}
+      总务工作台
+      {% elif role in ('building', 'floor') %}
+      {% if building %}{{ building }}{% endif %}{% if floor %} {{ floor }}{% endif %} 工作台
+      {% else %}
+      工作台 — {{ dept or '综合' }}
+      {% endif %}
+    </div>
+
+    <div class="nh-chat-messages" id="chat-messages">
+      <div class="nh-msg nh-msg-ai">
+        <div class="nh-msg-meta">AI 助手</div>
+        您好，{{ nursing_user.name }}！我是 AI 养老院院长助手，请问有什么可以帮您的？
+      </div>
+    </div>
+
+    <div class="nh-chat-input-area">
+      <textarea id="chat-input" rows="1" placeholder="输入您的问题…" autofocus></textarea>
+      <button id="chat-send" type="button">发送</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Auto-resize textarea + basic send (MVP — wires to real API in later tasks)
+(function() {
+  var ta = document.getElementById('chat-input');
+  var btn = document.getElementById('chat-send');
+  var msgs = document.getElementById('chat-messages');
+
+  ta.addEventListener('input', function() {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  });
+
+  function addMessage(text, isUser) {
+    var div = document.createElement('div');
+    div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
+    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI 助手</div>') + text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  btn.addEventListener('click', sendMsg);
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+
+  function sendMsg() {
+    var text = ta.value.trim();
+    if (!text) return;
+    addMessage(text, true);
+    ta.value = '';
+    ta.style.height = 'auto';
+    // MVP: echo response — real AI integration in later tasks
+    setTimeout(function() {
+      addMessage('收到您的消息：「' + text + '」。此功能将在后续版本中接入 AI 助手。', false);
+    }, 600);
+  }
+})();
+</script>
+
+{% endblock %}

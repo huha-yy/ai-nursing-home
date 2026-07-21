@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ t("settings.suppressed_title") }}{% endblock %}
+{% block body %}
+<h1>{{ t("settings.suppressed_title") }}</h1>
+
+{% if suppressed %}
+<table>
+  <thead>
+    <tr>
+      <th>{{ t("settings.col.seed_id") }}</th>
+      <th>{{ t("settings.col.display_name") }}</th>
+      <th>{{ t("settings.col.suppressed_at") }}</th>
+      <th>{{ t("settings.col.suppressed_by") }}</th>
+      <th>{{ t("settings.col.actions") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in suppressed %}
+    <tr>
+      <td>{{ s.precreated_id }}</td>
+      <td>{{ s.display_name }}{% if not s.seed_exists %} <em>{{ t("settings.seed_removed") }}</em>{% endif %}</td>
+      <td>{{ s.suppressed_at }}</td>
+      <td>{{ s.suppressed_by_username }}</td>
+      <td>
+        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/unsuppress" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">{{ t("settings.unsuppress") }}</button>
+        </form>
+        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/recreate-now" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">{{ t("settings.unsuppress_recreate") }}</button>
+        </form>
+        {% if not s.seed_exists %}
+        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/forget" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">{{ t("settings.forget") }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>{{ t("settings.none_suppressed") }}</p>
+{% endif %}
+{% endblock %}

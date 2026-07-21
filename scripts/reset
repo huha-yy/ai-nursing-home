@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/appliance-common.sh"
+
+NO_START=0
+ASSUME_YES=0
+RECREATE_AGENTS=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-start)        NO_START=1 ;;
+    -y|--yes)          ASSUME_YES=1 ;;
+    --recreate-agents) RECREATE_AGENTS=1 ;;
+    -h|--help)         print_usage_reset; exit 0 ;;
+    *) die "unknown argument: $arg" ;;
+  esac
+done
+
+acquire_lifecycle_lock
+discover_env DATO_DATA_ROOT
+
+mode="recreate"
+is_dato_stack_running || mode="install"
+preflight_phase_a "$mode"
+source_env_file "$ENV_FILE"
+preflight_phase_b "$mode"
+confirm_phrase "RESET" "This recreates the dato stack; data is preserved."
+
+verify_install_bundle
+
+if [[ "$RECREATE_AGENTS" == "1" ]]; then
+  log "tearing down agent containers; dl-control startup will recreate them"
+  remove_agent_containers
+fi
+
+compose stop
+compose rm -f
+
+if [[ "$NO_START" == "1" ]]; then
+  log "reset complete; stack not started"
+  exit 0
+fi
+
+compose up -d
+wait_for_core_stack
+log "stack ready at https://${CADDY_DOMAIN}:${CADDY_HTTPS_PORT}/"

@@ -1,0 +1,1 @@
+{"name": "vision-ocr", "version": "1.0.0", "source": "custom", "description": "图片文字识别（OCR）与 AI 视觉理解。支持提取图片中的文字，以及用 LLM 分析图片内容。"}

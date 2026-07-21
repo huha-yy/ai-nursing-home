@@ -1,0 +1,30 @@
+id: content-ops
+display_name: "内容运营"
+tier: tier0
+admin_only: false
+skill_list:
+  - hotspot-monitor
+  - relevance-judge
+  - fact-research
+  - content-strategy
+  - wechat-content
+  - xhs-content
+  - douyin-content
+  - image-generator
+  - article-composer
+  - humanizer
+  - compliance-check
+  - publish-package
+  - feishu-publisher
+  - workflow
+  - cognee
+  - web-content-fetcher
+  - self-improving
+  - vision-ocr
+  - ppt-master
+channel_config:
+  feishu:
+    account_id: "agent2"
+model_selection:
+  provider: null
+  model: null

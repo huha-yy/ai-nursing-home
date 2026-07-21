@@ -1,0 +1,40 @@
+<div id="feishu-wizard" hx-swap="outerHTML">
+  {% include "admin/feishu/_needs_restart_banner.html" %}
+
+  {% if success %}
+  <div class="banner banner-success">{{ t("feishu.creds_saved") }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="banner banner-error">{{ error }}</div>
+  {% endif %}
+
+  <form hx-post="/admin/agents/{{ agent.id }}/feishu/credentials"
+        hx-target="#feishu-wizard"
+        hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset>
+      <legend>{{ t("feishu.credentials") }}</legend>
+
+      <label>{{ t("feishu.app_id") }}
+        <input name="app_id" type="text" required
+               value="{{ agent.feishu_app_id or '' }}"
+               placeholder="cli_xxxxxxxxxxxxxxx">
+      </label>
+
+<label>{{ t("feishu.app_secret") }}
+  <input name="app_secret" type="password" required autocomplete="new-password"
+         placeholder="{{ t('feishu.app_secret_placeholder') }}">
+</label>
+
+      <label>{{ t("feishu.account_id") }}
+        <input name="account_id" type="text" required
+               value="{{ agent.feishu_account_id or '' }}"
+               placeholder="ee"
+               pattern="[a-z][a-z0-9_]{0,63}"
+               title="{{ t('feishu.account_id_title') }}">
+      </label>
+
+      <button type="submit">{{ t("feishu.save_credentials") }}</button>
+    </fieldset>
+  </form>
+</div>

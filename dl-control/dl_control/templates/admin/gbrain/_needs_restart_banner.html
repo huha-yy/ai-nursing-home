@@ -1,0 +1,16 @@
+{% if agent.needs_restart %}
+<div class="banner banner-warning needs-restart" id="needs-restart-banner">
+  <span>{{ t("gbrain.restart_required") }}</span>
+  {% if agent.status == "active" %}
+  <button hx-post="/api/v1/admin/agents/{{ agent.id }}/restart"
+          hx-trigger="click"
+          hx-target="#needs-restart-banner"
+          hx-swap="outerHTML"
+          class="btn btn-sm btn-primary">
+    {{ t("gbrain.restart_agent") }}
+  </button>
+  {% else %}
+  <a href="/admin/agents/{{ agent.id }}" class="action-link">{{ t("gbrain.open_to_apply") }}</a>
+  {% endif %}
+</div>
+{% endif %}

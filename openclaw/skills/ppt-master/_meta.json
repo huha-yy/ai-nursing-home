@@ -1,0 +1,8 @@
+{
+  "name": "ppt-master",
+  "method": "skill",
+  "description": "从任意文档生成原生可编辑 PPTX，支持 12 套主题和自定义模板",
+  "author": "hugohe3",
+  "openclaw": true,
+  "user-invocable": true
+}

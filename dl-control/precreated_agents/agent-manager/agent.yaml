@@ -1,0 +1,22 @@
+id: agent-manager
+display_name: "Agent Manager"
+tier: tier0
+admin_only: true
+skill_list:
+  - admin-mgmt
+  - feishu
+  - image-generator
+  - kg-search
+  - cognee
+  - workflow
+  - self-improving
+  - web-content-fetcher
+  - ppt-generator
+  - nano-pdf
+  - gbrain-mcp
+channel_config:
+  feishu:
+    account_id: "agent1"
+model_selection:
+  provider: null
+  model: null

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/appliance-common.sh"
+
+KEEP_CONFIG=0
+ASSUME_YES=0
+ALL_CONTAINERS=0
+for arg in "$@"; do
+  case "$arg" in
+    --keep-config) KEEP_CONFIG=1 ;;
+    -y|--yes)      ASSUME_YES=1 ;;
+    -a|--all)      ALL_CONTAINERS=1 ;;
+    -h|--help)     print_usage_wipe; exit 0 ;;
+    *) die "unknown argument: $arg" ;;
+  esac
+done
+
+acquire_lifecycle_lock
+discover_env DATO_DATA_ROOT
+require_container_compatible_user
+assert_data_dir_removable "$DATA_DIR"
+confirm_phrase "WIPE" "Destructive factory reset. ALL local data is lost."
+
+remove_agent_containers_for_wipe
+if [[ "$ALL_CONTAINERS" == "1" ]]; then
+  remove_ota_test_containers_for_wipe
+fi
+compose_down_for_wipe
+remove_agent_networks_for_wipe
+rm -rf "$DATA_DIR"
+handle_env_file_for_wipe "$KEEP_CONFIG"
+log "wipe complete"

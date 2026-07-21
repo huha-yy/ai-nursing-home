@@ -1,0 +1,7 @@
+FROM caddy:2-builder AS builder
+ENV GOPROXY=https://goproxy.cn,direct
+RUN xcaddy build --with github.com/mholt/caddy-ratelimit
+FROM caddy:2-alpine
+RUN apk add --no-cache tzdata
+ENV TZ=Asia/Shanghai
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Environment
+infra/.env
+.env
+
+# Data volumes
+/data/
+/infra/data/
+/agents/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv
+# Lockfiles ARE committed (root + every sub-package) for reproducible
+# appliance builds. Do not ignore uv.lock.
+.superpowers/
+.context/
+.review/
+.claude/
+dato_overview_report.md
+
+# Generated logs
+logs/

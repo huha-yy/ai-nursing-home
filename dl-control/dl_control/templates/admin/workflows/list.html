@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ t("workflows.title") }}{% endblock %}
+{% block body %}
+<h2>{{ t("workflows.heading") }}</h2>
+
+{% if approvals %}
+<h3>{{ t("workflows.approval_inbox") }}</h3>
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.workflow") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.prompt") }}</th><th>{{ t("workflows.col.requested") }}</th><th></th></tr></thead>
+  <tbody>
+    {% for a in approvals %}
+    <tr>
+      <td>{{ a.workflow_id }}</td>
+      <td>{{ a.step_key }}</td>
+      <td>{{ a.prompt }}</td>
+      <td>{{ a.created_at }}</td>
+      <td>
+        <form method="post" action="/admin/workflow-runs/{{ a.run_id }}/approval" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="step_key" value="{{ a.step_key }}">
+          <button type="submit" name="decision" value="approve">{{ t("common.approve") }}</button>
+          <button type="submit" name="decision" value="reject" class="ghost-btn">{{ t("common.reject") }}</button>
+        </form>
+        <a href="/admin/workflow-runs/{{ a.run_id }}">{{ t("workflows.details") }}</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if manual_runs %}
+<h3>{{ t("workflows.needs_manual") }}</h3>
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.workflow") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.unresolved_effects") }}</th><th>{{ t("workflows.col.since") }}</th><th></th></tr></thead>
+  <tbody>
+    {% for m in manual_runs %}
+    <tr>
+      <td>{{ m.workflow_id }}</td>
+      <td>{{ m.current_step or "—" }}</td>
+      <td>{{ m.unresolved | length }}</td>
+      <td>{{ m.updated_at }}</td>
+      <td><a href="/admin/workflow-runs/{{ m.run_id }}">{{ t("workflows.resolve") }}</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h3>{{ t("workflows.installed_flows") }}</h3>
+{% if flows %}
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.flow") }}</th><th>{{ t("workflows.col.version") }}</th><th>{{ t("workflows.col.trigger") }}</th><th>{{ t("workflows.col.active_runs") }}</th><th>{{ t("workflows.col.enabled") }}</th><th>{{ t("workflows.col.start") }}</th></tr></thead>
+  <tbody>
+    {% for f in flows %}
+    <tr>
+      <td><a href="/admin/workflows/{{ f.id }}">{{ f.display_name }}</a><br>
+          <small>{{ f.id }}</small></td>
+      <td>{{ f.latest_version or "—" }}</td>
+      <td>{{ f.default_trigger }}</td>
+      <td>{{ f.active_runs }}</td>
+      <td>
+        <form method="post" action="/admin/workflows/{{ f.id }}/enabled" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="enabled" value="{{ 'false' if f.enabled else 'true' }}">
+          <button type="submit">{{ t("common.disable") if f.enabled else t("common.enable") }}</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/admin/workflows/{{ f.id }}/start" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="text" name="correlation_key" placeholder="{{ t('workflows.correlation_placeholder') }}">
+          <input type="text" name="input_json" placeholder="{{ t('workflows.input_json_placeholder') }}">
+          <button type="submit">{{ t("workflows.start_run") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-note">{{ t("workflows.no_flows") }}</p>
+{% endif %}
+
+<h3>{{ t("workflows.recent_runs") }}</h3>
+{% if recent %}
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.run") }}</th><th>{{ t("workflows.col.workflow") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.trigger") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("common.created") }}</th></tr></thead>
+  <tbody>
+    {% for run in recent %}
+    <tr>
+      <td><a href="/admin/workflow-runs/{{ run.id }}">{{ run.id | string | truncate(8, true, "") }}</a></td>
+      <td>{{ run.workflow_id }}</td>
+      <td><span class="badge badge-status">{{ run.status }}</span></td>
+      <td>{{ run.trigger }}</td>
+      <td>{{ run.current_step or "—" }}</td>
+      <td>{{ run.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-note">{{ t("workflows.no_runs") }}</p>
+{% endif %}
+{% endblock %}

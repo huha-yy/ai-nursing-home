@@ -1,0 +1,8 @@
+{# dl_control/templates/_lang_toggle.html #}
+<div class="lang-toggle">
+  {% if lang == 'en' %}<span class="lang-active">EN</span>
+  {% else %}<a href="/lang/en">EN</a>{% endif %}
+  <span class="lang-sep">|</span>
+  {% if lang == 'zh' %}<span class="lang-active">中文</span>
+  {% else %}<a href="/lang/zh">中文</a>{% endif %}
+</div>

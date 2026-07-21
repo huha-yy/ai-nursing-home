@@ -1,0 +1,11 @@
+# Loaded ONLY when init detects GPU per P10 §13. The base compose file's
+# dl-llm-local definition is merged with this overlay's deployment keys.
+services:
+  dl-llm-local:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

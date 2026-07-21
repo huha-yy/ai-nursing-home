@@ -1,0 +1,26 @@
+# company_keywords.yaml
+# {品牌名称} — 关键词库
+
+# 直接相关 - 直接提到公司/品牌/产品/高管
+direct:
+  company:
+    - {公司全称}
+    - {公司简称}
+  brand:
+    - {品牌名}
+    - {品牌英文名}
+  product:
+    - {产品1}
+    - {产品2}
+  executive:
+    - {高管名}
+
+# 行业相关
+industry:
+  - {关键词1}
+  - {关键词2}
+  - {关键词3}
+
+# 竞品相关
+competitor:
+  - ""

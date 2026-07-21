@@ -1,0 +1,16 @@
+# OpenAI
+api.openai.com
+*.openai.com
+# Anthropic
+api.anthropic.com
+*.anthropic.com
+# Google AI
+generativelanguage.googleapis.com
+# LLM gateway / aggregator services
+openrouter.ai
+api.together.xyz
+api.mistral.ai
+api.cohere.ai
+api.groq.com
+api.perplexity.ai
+api.x.ai

@@ -1,0 +1,38 @@
+# daien — 戴恩医疗科技 图片素材配置
+# 用于 insert_images.py 的品牌资产和产品图匹配
+
+# 品牌资产映射: [源文件名, 输出目标名, 标签名]
+brand_assets:
+  - ["image1-戴恩logo图片.jpg", "brand_logo.jpg", "品牌logo"]
+  - ["image16-戴恩公司微信.jpg", "brand_qrcode.jpg", "官方二维码"]
+
+# 产品实物照映射: [源文件名, 输出目标名, 产品名]
+product_assets:
+  - ["image12-戴恩·智能便携助浴.jpg", "product_portable_bath.jpg", "智能便携助浴"]
+  - ["image13-戴恩·智能护理机器人.jpg", "product_care_robot.jpg", "智能护理机器人"]
+  - ["image14-智能助浴陪护一体床.jpg", "product_care_bed.jpg", "智能助浴陪护一体床"]
+  - ["image15-戴恩·养老服务系统.jpg", "product_service_system.jpg", "养老服务系统"]
+
+# 产品关键词映射: 产品名 → 触发关键词列表
+product_keywords:
+  智能便携助浴:
+    - 智能便携助浴
+    - DEN FlexBath 360
+    - FlexBath
+    - 便携洗浴
+    - 回吸式卧床助浴
+    - 便携助浴
+    - 便携式洗浴
+    - 智能便携洗浴机
+  智能护理机器人:
+    - 智能护理机器人
+    - 护理机器人
+    - 智能排泄物护理机器人
+    - 戴恩尼诺护理机器人
+    - 大小便护理机器人
+  智能助浴陪护一体床:
+    - 智能助浴陪护一体床
+    - 助浴陪护一体床
+    - 智能护理床
+  养老服务系统:
+    - 养老服务系统

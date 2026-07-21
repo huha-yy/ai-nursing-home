@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ t("agents.title") }}{% endblock %}
+{% block body %}
+<h2>{{ t("agents.heading") }}</h2>
+
+<div style="margin-bottom:1rem">
+  <button id="show-create-form" class="ghost-btn" onclick="document.getElementById('create-form').style.display='block'; this.style.display='none'">{{ t("agents.create") }}</button>
+</div>
+
+<div id="create-form" style="display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; margin-bottom:1.5rem">
+  <h3>{{ t("agents.create_form.title") }}</h3>
+  <form method="post" action="/admin/agents/create" class="stacked-form" style="max-width:520px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>{{ t("agents.create_form.name") }} <input type="text" name="display_name" required></label>
+    <label>{{ t("agents.create_form.tier") }}
+      <select name="tier" style="display:block; width:100%; margin-top:0.3rem; padding:0.55rem 0.7rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font:inherit">
+        <option value="tier0">tier0</option>
+        <option value="tier1">tier1</option>
+      </select>
+    </label>
+    <label style="display:block; margin-top:0.5rem">{{ t("agents.create_form.skills") }}</label>
+      <div style="margin-top:0.4rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:0.8rem">
+        <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">System skills</div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.2rem 0.8rem; margin-bottom:0.8rem; padding-bottom:0.8rem; border-bottom:1px solid var(--border)">
+          {% for s in vendor_skills %}
+          <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
+            <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"> {{ s }}
+          </label>
+          {% endfor %}
+        </div>
+        <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">Content pipeline skills</div>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:0.2rem 1rem">
+          {% for s in custom_skills %}
+          <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
+            <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"> {{ s }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
+      <button type="submit" class="primary-btn" style="width:auto">{{ t("agents.create_form.submit") }}</button>
+      <button type="button" class="ghost-btn" onclick="document.getElementById('create-form').style.display='none'; document.getElementById('show-create-form').style.display='inline-block'">{{ t("agents.create_form.cancel") }}</button>
+    </div>
+  </form>
+</div>
+
+{% if agents %}
+<table class="data-table">
+  <thead>
+    <tr><th>{{ t("agents.col.name") }}</th><th>{{ t("agents.col.tier") }}</th><th>{{ t("agents.col.skills") }}</th><th>{{ t("common.status") }}</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for a in agents %}
+    <tr>
+      <td><a href="/admin/agents/{{ a.id }}">{{ a.display_name }}</a></td>
+      <td><span class="badge badge-{{ a.tier }}">{{ a.tier }}</span></td>
+      <td>{{ a.skill_list | join(", ") if a.skill_list else "—" }}</td>
+      <td><span class="badge badge-status">{{ a.status }}</span></td>
+      <td>
+        {% if a.needs_restart %}
+        <span class="badge badge-warning">{{ t("agents.needs_restart") }}</span>
+        {% endif %}
+        {% if a.precreated_source_drift %}
+        <span class="badge badge-warning">{{ t("agents.seed_drift") }}</span>
+        {% elif a.precreated_source_removed %}
+        <span class="badge badge-info">{{ t("agents.source_removed") }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-note">{{ t("agents.none") }}</p>
+{% endif %}
+{% endblock %}

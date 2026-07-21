@@ -1,0 +1,32 @@
+<div id="gbrain-wizard" hx-swap="outerHTML">
+  {% include "admin/gbrain/_needs_restart_banner.html" %}
+
+  {% if success %}
+  <div class="banner banner-success">{{ t("gbrain.creds_saved") }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="banner banner-error">{{ error }}</div>
+  {% endif %}
+
+  <form hx-post="/admin/agents/{{ agent.id }}/gbrain/credentials"
+        hx-target="#gbrain-wizard"
+        hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset>
+      <legend>{{ t("gbrain.credentials") }}</legend>
+
+      <label>{{ t("gbrain.client_id") }}
+        <input name="client_id" type="text" required
+               value="{{ agent.client_id or '' }}"
+               placeholder="gbrain_cl_xxxxxxxxxxxxxxx">
+      </label>
+
+      <label>{{ t("gbrain.client_secret") }}
+        <input name="client_secret" type="password" required autocomplete="new-password"
+               placeholder="{{ t('gbrain.client_secret_placeholder') }}">
+      </label>
+
+      <button type="submit">{{ t("gbrain.save_credentials") }}</button>
+    </fieldset>
+  </form>
+</div>

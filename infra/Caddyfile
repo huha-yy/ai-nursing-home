@@ -1,0 +1,62 @@
+{
+    email {$CADDY_ACME_EMAIL:admin@localhost}
+    skip_install_trust
+    local_certs
+}
+
+{$CADDY_DOMAIN:localhost}:{$CADDY_HTTPS_PORT:8443}, localhost:{$CADDY_HTTPS_PORT:8443} {
+    # TLS cert override (customer-provided certs in prod)
+    import Caddyfile.tls
+
+    # Bump upload limit for large requests (file uploads, content pipeline artifacts)
+    request_body {
+        max_size 128MB
+    }
+
+    # P4: structured access log. Agent UUIDs in URIs are public identifiers
+    # (already exposed in the admin UI). No redaction needed — the admin UI
+    # is behind authentication.
+    log {
+        output stdout
+        format json
+    }
+
+    # GBrain MCP API（Agent 飞书查询用）
+    @gbrain path /gbrain*
+    handle @gbrain {
+        reverse_proxy dl-gbrain:8080
+    }
+
+    # GBrain admin SPA — 通过独立端口 8444 直接访问
+    # （SPA 的 /assets/ 路径与 Caddy 子路径不兼容，
+    #  完整版改用独立域名或 GBRAIN_BASE_PATH 环境变量）
+
+    # Health check endpoint (static file)
+    @health path /health /health/*
+    handle @health {
+        root * /srv/healthcheck
+        try_files {path} /index.html
+        file_server
+    }
+
+    # All other traffic → dl-control. Strip client-supplied forwarding
+    # headers and overwrite X-Forwarded-For with the real peer so
+    # uvicorn --proxy-headers cannot be fed a spoofed client IP.
+    handle {
+        reverse_proxy dato-control:8080 {
+            header_up -Forwarded
+            header_up -X-Real-IP
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+}
+
+# Dev HTTP fallback — no TLS, for localhost use when self-signed cert
+# warnings are inconvenient.
+:9080 {
+    handle {
+        reverse_proxy dato-control:8080 {
+            header_up X-Forwarded-Proto http
+        }
+    }
+}

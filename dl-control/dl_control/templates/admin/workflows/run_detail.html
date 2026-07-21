@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}{{ t("workflows.run_title") }} {{ run.id }} — dl-control{% endblock %}
+{% block body %}
+<h2>{{ t("workflows.run_title") }} <code>{{ run.id }}</code></h2>
+<p>
+  <a href="/admin/workflows/{{ run.workflow_id }}">{{ run.workflow_id }}</a>
+  @ {{ run.workflow_version }}
+  — <span class="badge badge-status">{{ run.status }}</span>
+  — {{ t("workflows.trigger_label") }} {{ run.trigger }}
+  {% if run.correlation_key %} — {{ t("workflows.correlation_label") }} <code>{{ run.correlation_key }}</code>{% endif %}
+</p>
+<p>
+  {{ t("workflows.created_label") }} {{ run.created_at }}
+  {% if run.finished_at %} · {{ t("workflows.finished_label") }} {{ run.finished_at }}{% endif %}
+  {% if run.wake_at %} · {{ t("workflows.wakes_label") }} {{ run.wake_at }}{% endif %}
+  {% if run.current_step %} · {{ t("workflows.at_step") }} <code>{{ run.current_step }}</code>{% endif %}
+</p>
+<p>{{ t("workflows.input_label") }} <code>{{ run.input | tojson }}</code></p>
+
+{% if pending_approvals %}
+<h3>{{ t("workflows.pending_approval") }}</h3>
+{% for a in pending_approvals %}
+<form method="post" action="/admin/workflow-runs/{{ run.id }}/approval">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="step_key" value="{{ a.step_key }}">
+  <p>{{ a.prompt }} <small>({{ t("workflows.step_word") }} {{ a.step_key }})</small></p>
+  <button type="submit" name="decision" value="approve">{{ t("common.approve") }}</button>
+  <button type="submit" name="decision" value="reject" class="ghost-btn">{{ t("common.reject") }}</button>
+</form>
+{% endfor %}
+{% endif %}
+
+{% if run.status == 'waiting_manual' %}
+<h3>{{ t("workflows.manual_needed") }}</h3>
+{% if unresolved %}
+{% for e in unresolved %}
+<div class="banner-warning">
+  <p>{{ t("workflows.unresolved_effect") }} <code>{{ e.idempotency_key }}</code>
+     ({{ t("workflows.effect_target") }} {{ e.target }}, {{ t("workflows.effect_step") }} {{ e.step_key }}, {{ t("workflows.effect_attempt") }} {{ e.attempt }}).
+     {{ t("workflows.did_it_land") }}</p>
+  <form method="post" action="/admin/workflow-runs/{{ run.id }}/resolve" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="idempotency_key" value="{{ e.idempotency_key }}">
+    <input type="text" name="note" placeholder="{{ t('workflows.evidence_placeholder') }}">
+    <button type="submit" name="action" value="confirm_committed">{{ t("workflows.mark_committed") }}</button>
+    <button type="submit" name="action" value="confirm_not_sent">{{ t("workflows.mark_not_sent") }}</button>
+  </form>
+</div>
+{% endfor %}
+{% else %}
+<p class="empty-note">{{ t("workflows.no_unresolved_row") }}</p>
+{% endif %}
+{% if inflight_calls %}
+{% for c in inflight_calls %}
+<div class="banner-warning">
+  <p>{{ t("workflows.unacked_dispatch") }} <code>{{ c.correlation_id }}</code>
+     ({{ t("workflows.dispatch_agent") }} {{ c.agent_id }}, {{ t("workflows.effect_step") }} {{ c.step_key }},
+     {{ c.dispatch_count }} {{ t("workflows.dispatch_posts") }}, {{ t("workflows.dispatch_status") }} {{ c.status }}).</p>
+  <form method="post" action="/admin/workflow-runs/{{ run.id }}/resolve" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" name="action" value="repost_same_correlation">
+      {{ t("workflows.repost_same") }}</button>
+    <button type="submit" name="action" value="supersede" class="ghost-btn">
+      {{ t("workflows.supersede") }}</button>
+  </form>
+</div>
+{% endfor %}
+{% endif %}
+<form method="post" action="/admin/workflow-runs/{{ run.id }}/resolve" class="inline-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" name="action" value="abandon" class="ghost-btn">{{ t("workflows.abandon") }}</button>
+</form>
+{% endif %}
+
+<h3>{{ t("workflows.controls") }}</h3>
+{# waiting_manual is deliberately absent here — its only legal exits are the
+   resolution forms above (spec §10, D-P13C-5). #}
+<form method="post" action="/admin/workflow-runs/{{ run.id }}/control" class="inline-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if run.status == 'failed' %}
+  <button type="submit" name="action" value="retry">{{ t("workflows.retry") }}</button>
+  {% endif %}
+  {% if run.status in ('pending', 'waiting_approval', 'waiting_timer', 'waiting_retry', 'waiting_agent') %}
+  <button type="submit" name="action" value="cancel" class="ghost-btn">{{ t("workflows.cancel") }}</button>
+  {% endif %}
+  {% if run.status in ('waiting_approval', 'waiting_timer', 'waiting_retry', 'waiting_agent') %}
+  <button type="submit" name="action" value="fail" class="ghost-btn">{{ t("workflows.mark_failed") }}</button>
+  <button type="submit" name="action" value="complete" class="ghost-btn">{{ t("workflows.mark_completed") }}</button>
+  {% endif %}
+</form>
+
+<h3>{{ t("workflows.steps") }}</h3>
+{% if steps %}
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.step") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.attempt") }}</th><th>{{ t("workflows.col.started") }}</th><th>{{ t("workflows.col.finished") }}</th><th>{{ t("workflows.col.next_attempt") }}</th><th>{{ t("workflows.col.output") }}</th><th>{{ t("workflows.col.error") }}</th></tr></thead>
+  <tbody>
+    {% for s in steps %}
+    <tr>
+      <td><code>{{ s.step_key }}</code></td>
+      <td><span class="badge badge-status">{{ s.status }}</span></td>
+      <td>{{ s.attempt }}</td>
+      <td>{{ s.started_at or "—" }}</td>
+      <td>{{ s.finished_at or "—" }}</td>
+      <td>{{ s.next_attempt_at or "—" }}</td>
+      <td><code>{{ s.output | tojson if s.output is not none else "—" }}</code></td>
+      <td>{{ s.error or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-note">{{ t("workflows.no_steps") }}</p>
+{% endif %}
+
+<h3>{{ t("workflows.ledger") }}</h3>
+{% if ledger %}
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.key") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.target") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.response") }}</th><th>{{ t("workflows.col.updated") }}</th></tr></thead>
+  <tbody>
+    {% for e in ledger %}
+    <tr>
+      <td><code>{{ e.idempotency_key }}</code></td>
+      <td>{{ e.step_key }}</td>
+      <td>{{ e.target }}</td>
+      <td><span class="badge badge-status">{{ e.status }}</span></td>
+      <td><code>{{ e.response | tojson if e.response is not none else "—" }}</code></td>
+      <td>{{ e.updated_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-note">{{ t("workflows.no_effects") }}</p>
+{% endif %}
+
+{% if agent_calls %}
+<h3>{{ t("workflows.agent_calls") }}</h3>
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.correlation") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.attempt") }}</th><th>{{ t("workflows.col.agent") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.posts") }}</th><th>{{ t("workflows.col.response") }}</th><th>{{ t("workflows.col.responded") }}</th></tr></thead>
+  <tbody>
+    {% for c in agent_calls %}
+    <tr>
+      <td><code>{{ c.correlation_id }}</code></td>
+      <td>{{ c.step_key }}</td>
+      <td>{{ c.attempt }}</td>
+      <td><code>{{ c.agent_id | string | truncate(8, true, "") }}</code></td>
+      <td><span class="badge badge-status">{{ c.status }}</span></td>
+      <td>{{ c.dispatch_count }}</td>
+      <td><code>{{ c.response | tojson if c.response is not none else "—" }}</code></td>
+      <td>{{ c.responded_at or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if approvals %}
+<h3>{{ t("workflows.approvals") }}</h3>
+<table class="data-table">
+  <thead><tr><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.prompt") }}</th><th>{{ t("workflows.col.state") }}</th><th>{{ t("workflows.col.decided_at") }}</th></tr></thead>
+  <tbody>
+    {% for a in approvals %}
+    <tr>
+      <td>{{ a.step_key }}</td>
+      <td>{{ a.prompt }}</td>
+      <td><span class="badge badge-status">{{ a.state }}</span></td>
+      <td>{{ a.decided_at or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<p><a href="/admin/audit">{{ t("workflows.audit_link") }}</a></p>
+{% endblock %}

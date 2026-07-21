@@ -1,0 +1,112 @@
+# hotspot_sources.yaml
+# 戴恩医疗科技 — 热点监控源配置
+# 全部 12 个源均已人工验证可用（2026-06-09）
+
+default_poll_interval_min: 15
+max_poll_interval_min: 60
+
+sources:
+  # ===== 政策类（2个）=====
+  # 人民网时政 — 国家级政策新闻，涵盖民政部/卫健委/医保局
+  - name: 人民网-时政
+    type: rss
+    url: http://www.people.com.cn/rss/politics.xml
+    poll_interval_min: 15
+    enabled: true
+    category: policy
+    notes: 国家级政策新闻，时效性高，覆盖国务院各部委政策
+
+  # 网易财经-政策信息 — 经济/产业政策汇总
+  - name: 网易财经-政策信息
+    type: rss
+    url: http://money.163.com/special/00251L9M/stock_zcxx.xml
+    poll_interval_min: 30
+    enabled: true
+    category: policy
+    notes: 50条/批次，经济/产业政策密度高
+
+  # ===== 行业聚焦（3个）=====
+  # 人民网健康频道 — 最核心的行业源
+  - name: 人民网-健康
+    type: rss
+    url: http://www.people.com.cn/rss/health.xml
+    poll_interval_min: 15
+    enabled: true
+    category: industry
+    notes: 医疗健康/养老/康养/医保，核心行业源，~55篇/3天
+
+  # 人民网社会频道 — 养老/民生/残疾人
+  - name: 人民网-社会
+    type: rss
+    url: http://www.people.com.cn/rss/society.xml
+    poll_interval_min: 15
+    enabled: true
+    category: industry
+    notes: 民生养老、残疾人保障、社区服务等话题
+
+  # 网易财经-行业透视
+  - name: 网易财经-行业透视
+    type: rss
+    url: http://money.163.com/special/00251L9M/stock_hyts.xml
+    poll_interval_min: 30
+    enabled: true
+    category: industry
+
+  # ===== 科技/商业（2个）=====
+  # 36氪 — 银发经济/康养赛道/融资动态
+  - name: 36氪
+    type: rss
+    url: https://36kr.com/feed
+    poll_interval_min: 20
+    enabled: true
+    category: tech_business
+    notes: 银发经济创业、养老科技、AI+硬件、融资动态
+
+  # 人民网科技 — AI/机器人/智能硬件
+  - name: 人民网-科技
+    type: rss
+    url: http://www.people.com.cn/rss/scitech.xml
+    poll_interval_min: 30
+    enabled: true
+    category: tech_business
+    notes: AI/机器人/智能硬件相关科技新闻
+
+  # ===== 财经/商业（3个）=====
+  - name: 每日经济新闻
+    type: rss
+    url: http://money.163.com/special/00251HO9/read_mrjjxw.xml
+    poll_interval_min: 30
+    enabled: true
+    category: finance
+
+  - name: 第一财经日报
+    type: rss
+    url: http://money.163.com/special/00251HO9/read_dycj.xml
+    poll_interval_min: 30
+    enabled: true
+    category: finance
+    notes: 产业经济/消费/政策深度报道
+
+  - name: 21世纪经济报道
+    type: rss
+    url: http://money.163.com/special/00251HO9/21sj.xml
+    poll_interval_min: 30
+    enabled: true
+    category: finance
+    notes: 政策解读/产业分析/市场监管报道
+
+  # ===== 综合（2个）=====
+  - name: 人民网-财经
+    type: rss
+    url: http://www.people.com.cn/rss/finance.xml
+    poll_interval_min: 30
+    enabled: true
+    category: general
+
+  - name: 人民网-观点
+    type: rss
+    url: http://www.people.com.cn/rss/opinion.xml
+    poll_interval_min: 60
+    enabled: true
+    category: general
+    notes: 社评/时事观点，适合借势内容素材

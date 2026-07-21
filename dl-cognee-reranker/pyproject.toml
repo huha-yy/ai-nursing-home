@@ -1,0 +1,25 @@
+[project]
+name = "dl-cognee-reranker"
+version = "0.0.1"
+description = "dato reranker service — bge-reranker-v2-m3 via FlagEmbedding"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "FlagEmbedding>=1.3",
+    "transformers<5",
+    "sentencepiece>=0.2",
+    "structlog>=24.4",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM"]

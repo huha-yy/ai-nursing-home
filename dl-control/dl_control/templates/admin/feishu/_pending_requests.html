@@ -1,0 +1,26 @@
+<div id="pending-requests" hx-swap="outerHTML">
+  <h3>{{ t("feishu.pending_requests") }}</h3>
+  {% if pending %}
+  <table class="data-table">
+    <thead><tr><th>{{ t("feishu.col.sender") }}</th><th>{{ t("feishu.col.code") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for req in pending %}
+    <tr>
+      <td>{{ req.sender_name or req.sender_id }}</td>
+      <td><code>{{ req.code }}</code></td>
+      <td>
+        <form hx-post="/admin/agents/{{ agent.id }}/feishu/pairings/approve"
+              hx-target="#pairings-section" hx-swap="outerHTML">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="pending_id" value="{{ req.id }}">
+          <button type="submit">{{ t("common.approve") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-note">{{ t("feishu.no_pending") }}</p>
+  {% endif %}
+</div>

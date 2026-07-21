@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ t("dashboard.title") }}{% endblock %}
+{% block body %}
+<h2>{{ t("dashboard.heading") }}</h2>
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-value">{{ total_agents }}</div>
+    <div class="stat-label">{{ t("dashboard.stat.agents") }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ tier0 }}</div>
+    <div class="stat-label">{{ t("dashboard.stat.tier0") }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ tier1 }}</div>
+    <div class="stat-label">{{ t("dashboard.stat.tier1") }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ events_today }}</div>
+    <div class="stat-label">{{ t("dashboard.stat.audit_today") }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ events_week }}</div>
+    <div class="stat-label">{{ t("dashboard.stat.audit_week") }}</div>
+  </div>
+</div>
+{% if llm_status %}
+{% include "_llm_status.html" %}
+{% endif %}
+{% include "admin/_ota_widget.html" %}
+{% if suppressed_count is defined and suppressed_count > 0 %}
+<div class="stat-card">
+  <div class="stat-value">{{ suppressed_count }}</div>
+  <div class="stat-label"><a href="/admin/settings/precreated">{{ t("dashboard.suppressed_seeds") }}</a></div>
+</div>
+{% endif %}
+<p class="empty-note">{{ t("dashboard.signed_in_as") }} <code>{{ current_user }}</code>.</p>
+{% endblock %}

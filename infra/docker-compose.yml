@@ -1,0 +1,417 @@
+networks:
+  dato_net:
+    name: dato_net
+    external: true
+  dato_proxy_net:
+    internal: true
+    name: dato_proxy_net
+  dato_internal_only:
+    name: dato_internal_only
+    external: true
+  dato_llm_backend:
+    name: dato_llm_backend
+    external: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  cognee_hf_models:
+
+services:
+  dato-caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    image: dato-caddy:latest
+    container_name: dato-caddy
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: false
+    environment:
+      CADDY_HTTPS_PORT: ${CADDY_HTTPS_PORT:-9443}
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@localhost}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    ports:
+      - "${CADDY_HTTPS_PORT:-9443}:${CADDY_HTTPS_PORT:-9443}"
+      - "9080:9080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.tls:/etc/caddy/Caddyfile.tls:ro
+      - ./healthcheck:/srv/healthcheck:ro
+      - caddy_data:/data:rw
+    tmpfs:
+      - /tmp:exec
+    networks:
+      - dato_net
+
+  dato-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dato-postgres
+    restart: unless-stopped
+    read_only: false
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dato}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-dato}
+      DL_GBRAIN_PG_PASSWORD: ${DL_GBRAIN_PG_PASSWORD:-dev_password_change_me}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /tmp:exec
+      - /var/run/postgresql:exec
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dato} -d ${POSTGRES_DB:-dato}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dato_net
+
+  dato-redis:
+    image: redis:7-alpine
+    container_name: dato-redis
+    restart: unless-stopped
+    read_only: false
+    expose:
+      - "6379"
+    command: redis-server --appendonly yes --appendfsync everysec
+    environment:
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - redis_data:/data
+    tmpfs:
+      - /tmp:exec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dato_net
+
+  dato-docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: dato-docker-proxy
+    restart: unless-stopped
+    read_only: false
+    expose:
+      - "${DOCKER_PROXY_PORT:-2375}"
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      POST: 1
+      PING: 1
+      VERSION: 1
+      IMAGES: 1
+      EXEC: 0
+      BUILD: 0
+      VOLUMES: 0
+      AUTH: 0
+      SECRETS: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      PLUGINS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dato_proxy_net
+
+  dato-control-migrate:
+    build:
+      context: ..
+      dockerfile: dl-control/Dockerfile
+    image: dato-control:latest
+    container_name: dato-control-migrate
+    command: ["python", "-m", "dl_control.migrations",
+              "--cognee-password", "${DL_COGNEE_PG_PASSWORD}"]
+    environment:
+      DL_CONTROL_MIGRATION_DB_URL: postgresql://${POSTGRES_USER:-dato}:${POSTGRES_PASSWORD:-dev_password_change_me}@dato-postgres:5432/${POSTGRES_DB:-dato}
+      DL_CONTROL_APP_PASSWORD: ${DL_CONTROL_APP_PASSWORD:?DL_CONTROL_APP_PASSWORD is required}
+      DL_COGNEE_PG_PASSWORD: ${DL_COGNEE_PG_PASSWORD:?DL_COGNEE_PG_PASSWORD is required}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    depends_on:
+      dato-postgres:
+        condition: service_healthy
+    networks:
+      - dato_net
+    restart: "no"
+
+  dato-control:
+    build:
+      context: ..
+      dockerfile: dl-control/Dockerfile
+    image: dato-control:latest
+    container_name: dato-control
+    command: ["uvicorn", "dl_control.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+    restart: unless-stopped
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    read_only: true
+    environment:
+      DL_CONTROL_DB_URL: postgresql://dl_control_app:${DL_CONTROL_APP_PASSWORD:?DL_CONTROL_APP_PASSWORD is required}@dato-postgres:5432/${POSTGRES_DB:-dato}
+      DL_CONTROL_REDIS_URL: redis://dato-redis:6379/0
+      DL_CONTROL_SECRET_KEY: ${DL_CONTROL_SECRET_KEY:?DL_CONTROL_SECRET_KEY is required}
+      DL_CONTROL_SITE_HOST: ${CADDY_DOMAIN:-localhost}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-86400}
+      LOGIN_RATE_LIMIT_FAILS: ${LOGIN_RATE_LIMIT_FAILS:-5}
+      LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:-900}
+      DL_CONTROL_AGENTS_ROOT: /data/agents
+      DL_CONTROL_HOST_AGENTS_ROOT: ${DATO_DATA_ROOT:?DATO_DATA_ROOT is required (absolute path)}/agents
+      DL_CONTROL_TEMPLATES_ROOT: /app/templates
+      DATO_OPENCLAW_IMAGE: ${DATO_OPENCLAW_IMAGE:-dato-openclaw:2026.4.8}
+      # Runtime-only key. Left optional at compose-parse time so `make build`
+      # (which interpolates the whole file) does not hard-fail before a key is
+      # set. `scripts/init` is the single enforcement point: it prompts the
+      # operator for the real key (read </dev/tty) when empty/placeholder, or
+      # fails fast in a non-interactive install. No dummy seed.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DL_CONTROL_LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://dl-llm-proxy:8080/v1}
+      DL_CONTROL_LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      # P13c pilot SMTP (optional — workflows that send email need these).
+      DL_CONTROL_SMTP_HOST: ${DL_CONTROL_SMTP_HOST:-}
+      DL_CONTROL_SMTP_PORT: ${DL_CONTROL_SMTP_PORT:-587}
+      DL_CONTROL_SMTP_FROM: ${DL_CONTROL_SMTP_FROM:-}
+      DL_CONTROL_SMTP_USERNAME: ${DL_CONTROL_SMTP_USERNAME:-}
+      DL_CONTROL_SMTP_PASSWORD: ${DL_CONTROL_SMTP_PASSWORD:-}
+      DL_CONTROL_SMTP_STARTTLS: ${DL_CONTROL_SMTP_STARTTLS:-true}
+      DL_LLM_LOCAL_MODEL: ${DL_LLM_LOCAL_MODEL:-qwen3.5:9b}
+      DL_LLM_LOCAL_KEEP_ALIVE: ${DL_LLM_LOCAL_KEEP_ALIVE:-1800}
+      DL_CONTROL_OWNER_DSN: postgresql://${POSTGRES_USER:-dato}:${POSTGRES_PASSWORD:-dev_password_change_me}@dato-postgres:5432/${POSTGRES_DB:-dato}
+      DL_INTERNAL_API_KEY: ${DL_INTERNAL_API_KEY}
+      DL_COGNEE_ADMIN_TOKEN: ${DL_COGNEE_ADMIN_TOKEN}
+      DL_COGNEE_URL: http://dl-cognee:8080
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+      XIAOMI_MIMO_API_KEY: ${XIAOMI_MIMO_API_KEY:-}
+      COMFYUI_URL: ${COMFYUI_URL:-}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    volumes:
+      - ${DATO_DATA_ROOT:?DATO_DATA_ROOT is required (absolute path)}/agents:/data/agents:rw
+      - ${DATO_DATA_ROOT:?DATO_DATA_ROOT is required (absolute path)}/secrets/.install-bundle.json:/data/secrets/.install-bundle.json:ro
+      - ../templates/:/app/templates:ro
+      - ../dl-control/dl_control/:/app/dl_control/:ro
+      - ../dl-control/precreated_agents/:/app/precreated_agents/:ro
+    tmpfs:
+      - /tmp
+    expose:
+      - "8080"
+    depends_on:
+      dato-postgres:
+        condition: service_healthy
+      dato-redis:
+        condition: service_healthy
+      dato-control-migrate:
+        condition: service_completed_successfully
+    networks:
+      - dato_net
+      - dato_llm_backend
+      - dato_proxy_net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dl-cognee:
+    image: dl-cognee:latest
+    build:
+      context: ../dl-cognee
+    container_name: dl-cognee
+    restart: unless-stopped
+    read_only: true
+    ports:
+      - "8080:8080"
+    environment:
+      DL_COGNEE_OWNER_DB_DSN: postgresql://cognee:${DL_COGNEE_PG_PASSWORD:-dev_password_change_me}@dato-postgres:5432/${POSTGRES_DB:-dato}
+      DL_INTERNAL_API_KEY: ${DL_INTERNAL_API_KEY}
+      DL_COGNEE_ADMIN_TOKEN: ${DL_COGNEE_ADMIN_TOKEN}
+      DL_COGNEE_CONTROL_URL: http://dato-control:8080
+      DL_COGNEE_EMBEDDING_MODEL: BAAI/bge-m3
+      DL_COGNEE_RERANKER_URL: http://dl-cognee-reranker:8080
+      DL_COGNEE_RERANKER_ENABLED: "1"
+      UV_FROZEN: 1
+      UV_CACHE_DIR: /tmp/uv-cache
+      # Models are loaded from Docker named volume (cognee_hf_models).
+      HF_HOME: /models/hf
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_ENABLE_XET: "0"
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    tmpfs:
+      - /tmp:exec
+    volumes:
+      - cognee_hf_models:/models/hf:ro
+    networks:
+      - dato_net
+      - dato_proxy_net
+    depends_on:
+      dato-postgres:
+        condition: service_healthy
+      dato-control-migrate:
+        condition: service_completed_successfully
+      dl-cognee-model-download:
+        condition: service_completed_successfully
+
+  dl-cognee-reranker:
+    image: dl-cognee-reranker:latest
+    build:
+      context: ../dl-cognee-reranker
+    container_name: dl-cognee-reranker
+    restart: unless-stopped
+    read_only: true
+    expose:
+      - "8080"
+    environment:
+      RERANKER_MODEL: BAAI/bge-reranker-v2-m3
+      HF_HOME: /models/hf
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_ENABLE_XET: "0"
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    tmpfs:
+      - /tmp:exec
+    volumes:
+      - cognee_hf_models:/models/hf:ro
+    networks:
+      - dato_net
+    depends_on:
+      dl-cognee-model-download:
+        condition: service_completed_successfully
+
+  dl-gbrain:
+    build:
+      context: ../dato-knowledge-gbrain
+      dockerfile: Dockerfile
+    image: dl-gbrain:latest
+    container_name: dl-gbrain
+    restart: unless-stopped
+    expose:
+      - "8080"
+    ports:
+      - "8444:8080"
+    environment:
+      DATABASE_URL: postgresql://gbrain_app:${DL_GBRAIN_PG_PASSWORD}@dato-postgres:5432/gbrain
+      DL_GBRAIN_PG_PASSWORD: ${DL_GBRAIN_PG_PASSWORD}
+      OPENAI_BASE_URL: http://dl-cognee:8080/v1
+      OPENAI_API_KEY: ${DL_INTERNAL_API_KEY}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    networks:
+      - dato_net
+    depends_on:
+      dato-postgres:
+        condition: service_healthy
+      dl-cognee:
+        condition: service_started
+
+  dl-cognee-model-download:
+    image: python:3.12-slim
+    container_name: dl-cognee-model-download
+    restart: "no"
+    entrypoint:
+      - python3
+      - -c
+      - |
+        import os
+        models = ["/models/hf/hub/models--BAAI--bge-m3", "/models/hf/hub/models--BAAI--bge-reranker-v2-m3"]
+        all_ok = True
+        for m in models:
+            if os.path.isdir(m):
+                size = sum(f.stat().st_size for f in __import__("pathlib").Path(m).rglob("*") if f.is_file())
+                print(f"  {os.path.basename(m)}: {size/(1024**3):.1f}GB OK", flush=True)
+            else:
+                print(f"  {os.path.basename(m)}: MISSING", flush=True)
+                all_ok = False
+        if all_ok:
+            print("All models present, download not needed. Exiting 0.", flush=True)
+        else:
+            print("Models missing, attempting download...", flush=True)
+            import subprocess, sys
+            subprocess.run([sys.executable, "-m", "pip", "install", "FlagEmbedding", "--quiet",
+                "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"], check=True)
+            for m in ["BAAI/bge-m3", "BAAI/bge-reranker-v2-m3"]:
+                print(f"Downloading {m}...", flush=True)
+                if "bge-m3" in m:
+                    from FlagEmbedding import BGEM3FlagModel
+                    BGEM3FlagModel(m, use_fp16=False, device="cpu")
+                else:
+                    from FlagEmbedding import FlagReranker
+                    FlagReranker(m, use_fp16=False, device="cpu")
+                print(f"{m} done", flush=True)
+            print("All models downloaded.", flush=True)
+        exit(0)
+    environment:
+      HF_HOME: /models/hf
+      HF_ENDPOINT: https://hf-mirror.com
+    volumes:
+      - cognee_hf_models:/models/hf
+
+  dl-llm-local:
+    build:
+      context: ../dl-llm-local
+      args:
+        MODEL: ${DL_LLM_LOCAL_MODEL:-qwen3.5:9b}
+    image: dl-llm-local:latest
+    container_name: dl-llm-local
+    profiles: ["local-llm"]
+    restart: unless-stopped
+    networks:
+      - dato_llm_backend
+    expose: ["11434"]
+    mem_limit: ${DL_LLM_LOCAL_MEM:-12g}
+    cpus: ${DL_LLM_LOCAL_CPUS:-4}
+    environment:
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_KEEP_ALIVE: ${DL_LLM_LOCAL_KEEP_ALIVE:-1800}s
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-4096}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:11434/api/tags || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 8
+
+  dl-llm-proxy:
+    build:
+      context: ..
+      dockerfile: dl-llm-proxy/Dockerfile
+    image: dl-llm-proxy:latest
+    container_name: dl-llm-proxy
+    restart: unless-stopped
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    environment:
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://dl-llm-local:11434/v1}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      DL_INTERNAL_API_KEY: ${DL_INTERNAL_API_KEY:?DL_INTERNAL_API_KEY required}
+      DL_CONTROL_URL: ${DL_CONTROL_URL:-http://dato-control:8080}
+      DL_LLM_PROXY_RPM: ${DL_LLM_PROXY_RPM:-30}
+      REDIS_URL: ${REDIS_URL:-redis://dato-redis:6379/0}
+      TZ: ${TIMEZONE:-Asia/Shanghai}
+    expose:
+      - "8080"
+    tmpfs:
+      - /tmp:exec
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dato_net
+      - dato_llm_backend
+

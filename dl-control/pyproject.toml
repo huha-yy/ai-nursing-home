@@ -1,0 +1,77 @@
+[project]
+name = "dl-control"
+version = "0.0.0"
+description = "dato control plane: admin UI, auth, agent registry, audit."
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+  "aiodocker>=0.24",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "jinja2>=3.1",
+  "psycopg[binary,pool]>=3.2",
+  "redis>=5.1",
+  "argon2-cffi>=23.1",
+  "itsdangerous>=2.2",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "python-multipart>=0.0.20",
+  "PyYAML>=6.0",
+  "structlog>=24.4",
+  "httpx>=0.27",
+  "cronsim>=2.6",
+  "aiosmtplib>=3.0",
+  "dl_shared",
+]
+
+[tool.uv.sources]
+dl_shared = { path = "../dl_shared" }
+
+[project.scripts]
+dl-control-mgmt = "dl_control.libraries.cli:mgmt"
+
+[tool.uv]
+dev-dependencies = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "testcontainers[postgres,redis]>=4.8",
+  "httpx>=0.27",
+  "respx>=0.21",
+  "coverage>=7.6",
+  "ruff>=0.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "dl_control.auth.middleware.require_login",
+    "dl_control.auth.middleware.require_admin",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dl_control"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["docker: contract test requiring the OpenClaw image"]
+addopts = "-m 'not docker'"
+
+[tool.coverage.run]
+source = ["dl_control"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ agent.display_name }} — dl-control{% endblock %}
+{% block body %}
+<h2>{{ agent.display_name }}</h2>
+<dl class="detail-grid">
+  <dt>{{ t("agents.id") }}</dt><dd><code>{{ agent.id }}</code></dd>
+  <dt>{{ t("agents.col.tier") }}</dt>
+  <dd><span class="badge badge-{{ agent.tier }}">{{ agent.tier }}</span></dd>
+  <dt>{{ t("common.status") }}</dt>
+  <dd><span class="badge badge-status">{{ agent.status }}</span></dd>
+  <dt>{{ t("agents.col.skills") }}</dt>
+  <dd>
+    {{ agent.skill_list | join(", ") if agent.skill_list else "—" }}
+    <button class="ghost-btn" style="margin-left:0.5rem;font-size:0.85rem" onclick="document.getElementById('skills-editor').style.display='block'">{{ t("agents.edit_skills") }}</button>
+  </dd>
+  <dt>{{ t("agents.model") }}</dt><dd><code>{{ agent.model_selection }}</code></dd>
+  <dt>{{ t("agents.channels") }}</dt><dd><code>{{ agent.channel_config }}</code></dd>
+  <dt>{{ t("common.created") }}</dt><dd>{{ agent.created_at }}</dd>
+  <dt>{{ t("common.updated") }}</dt><dd>{{ agent.updated_at }}</dd>
+</dl>
+
+{% include "admin/feishu/_needs_restart_banner.html" %}
+
+{% if agent.tier == "tier0" %}
+<p><a href="/admin/agents/{{ agent.id }}/feishu" class="action-link">{{ t("agents.configure_feishu") }}</a>
+<a href="/admin/agents/{{ agent.id }}/gbrain" class="action-link">{{ t("agents.configure_gbrain") }}</a></p>
+{% endif %}
+
+{% if agent.precreated_id %}
+<section>
+  <h3>{{ t("agents.precreated_source") }}: {{ agent.precreated_id }}</h3>
+  {% if agent.precreated_source_removed %}
+    <span class="badge badge-info">{{ t("agents.source_removed") }}</span>
+  {% elif agent.precreated_source_drift %}
+    <span class="badge badge-warning">{{ t("agents.seed_drift") }}</span>
+    <form method="post" action="/admin/agents/{{ agent.id }}/precreated/apply" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="expected_current_sha" value="{{ agent.precreated_current_sha }}">
+      <button type="submit">{{ t("agents.apply_seed_update") }}</button>
+    </form>
+  {% else %}
+    <span class="badge badge-success">{{ t("agents.in_sync") }}</span>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ── Skills editor (inline toggle) ── #}
+<div id="skills-editor" style="display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; margin:1rem 0">
+  <h3>{{ t("agents.edit_skills") }}</h3>
+  <form method="post" action="/admin/agents/{{ agent.id }}/skills" class="stacked-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div style="margin-top:0.4rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:0.8rem">
+      <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">System skills</div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.2rem 0.8rem; margin-bottom:0.8rem; padding-bottom:0.8rem; border-bottom:1px solid var(--border)">
+        {% for s in vendor_skills %}
+        <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
+          <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}
+        </label>
+        {% endfor %}
+      </div>
+      <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">Content pipeline skills</div>
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:0.2rem 1rem">
+        {% for s in custom_skills %}
+        <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
+          <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
+      <button type="submit" class="primary-btn" style="width:auto">{{ t("agents.save") }}</button>
+      <button type="button" class="ghost-btn" onclick="document.getElementById('skills-editor').style.display='none'">{{ t("agents.cancel") }}</button>
+    </div>
+  </form>
+</div>
+
+<section class="actions">
+  {% if agent.status == 'registered' or agent.status == 'error' or agent.status == 'stopped' %}
+  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/provision">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">{{ t("agents.provision") }}</button>
+  </form>
+  {% elif agent.status == 'active' %}
+  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">{{ t("agents.apply_restart") }}</button>
+  </form>
+  {% else %}
+  <p>{{ t("agents.no_action_prefix") }} <strong>{{ agent.status }}</strong> {{ t("agents.no_action_suffix") }}</p>
+  {% endif %}
+</section>
+
+<p class="empty-note"><a href="/admin/agents">{{ t("agents.all_agents") }}</a></p>
+{% endblock %}

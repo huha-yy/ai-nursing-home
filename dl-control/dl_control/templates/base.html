@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="{{ html_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}dl-control{% endblock %}</title>
+  {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  {% if current_user %}
+  <header class="topbar">
+    <span class="brand">dato<span class="brand-sub">dl-control</span></span>
+    <nav>
+      <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>{{ t("nav.dashboard") }}</a>
+      <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>{{ t("nav.agents") }}</a>
+      <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>{{ t("nav.workflows") }}</a>
+      <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>{{ t("nav.audit") }}</a>
+    </nav>
+    {% include "_lang_toggle.html" %}
+    <form method="post" action="/logout" class="logout-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="ghost-btn">{{ t("nav.signout") }}</button>
+    </form>
+  </header>
+  {% else %}
+  <div class="lang-toggle-floating">{% include "_lang_toggle.html" %}</div>
+  {% endif %}
+  <main class="page">{% block body %}{% endblock %}</main>
+</body>
+</html>

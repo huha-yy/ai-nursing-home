@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/appliance-common.sh"
+
+NO_START=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-start) NO_START=1 ;;
+    -h|--help)  print_usage_init; exit 0 ;;
+    *) die "unknown argument: $arg" ;;
+  esac
+done
+
+# ── §7.2 step 2: lifecycle lock ──────────────────────────────────────
+acquire_lifecycle_lock
+
+# ── §7.2 step 3a: env discovery preamble (read-only) ──────────────────
+discover_env DATO_DATA_ROOT DATO_LLM_DEVICE
+
+# Expand a leading ~ and sync DATA_DIR to the discovered DATO_DATA_ROOT *before*
+# preflight, so Phase A validates (absolute path, writable parent, disk space,
+# local filesystem) the exact path that will later be created and chowned.
+# Docker bind mounts also require an absolute path.
+DATO_DATA_ROOT="${DATO_DATA_ROOT/#~\//$HOME/}"
+DATA_DIR="${DATO_DATA_ROOT:-$DEFAULT_DATA_DIR}"
+export DATO_DATA_ROOT
+
+# ── §7.2 step 4: Phase A preflight (read-only, no .env dependency) ──
+mode="install"
+is_dato_stack_running && mode="recreate"
+preflight_phase_a "$mode"
+
+# ── §7.2 step 5: verify install bundle (read-only) ───────────────────
+# ALL checks run BEFORE any mutation — this is the spec's mutation boundary.
+# A bad bundle produces ZERO side effects.
+verify_install_bundle
+
+# ── §7.2 step 6: mutation boundary — ensure infra/.env exists ─────────
+ensure_env_file
+
+# NOTE: DEEPSEEK_API_KEY is intentionally NOT auto-seeded here. This dev repo
+# leaves it empty; the generated prod repo prompts for it at `make build` and
+# fails closed if absent. Auto-seeding a dummy would let production silently
+# run on an unusable vendor credential.
+
+# ── §7.2 step 7: env merge ───────────────────────────────────────────
+read_ota_defaults
+source_env_file "$ENV_FILE"
+
+# ── §7.2 step 8: Phase B preflight (env-dependent, post-.env) ─────────
+preflight_phase_b "$mode"
+
+# ── §7.2 step 9: per-PC secret generation ────────────────────────────
+ensure_secret_env POSTGRES_PASSWORD 24
+ensure_secret_env DL_CONTROL_APP_PASSWORD 24
+ensure_secret_env DL_INTERNAL_API_KEY 32
+ensure_secret_env DL_COGNEE_ADMIN_TOKEN 32
+ensure_secret_env DL_COGNEE_PG_PASSWORD 24
+ensure_secret_env DL_OTA_WATCHER_APP_PASSWORD 24
+# DL_CONTROL_SECRET_KEY must use base64 (not hex), because the pydantic
+# validator requires ≥16 distinct characters and hex only has 16 possible.
+current_secret_key="$(env_value "DL_CONTROL_SECRET_KEY")"
+if [[ -z "$current_secret_key" ]] || looks_placeholder "$current_secret_key"; then
+  set_env "DL_CONTROL_SECRET_KEY" "$(random_fernet_key)"
+  log "generated DL_CONTROL_SECRET_KEY"
+fi
+
+# ── §7.2 step 10: DATA_ROOT scaffolding ──────────────────────────────
+# DATA_DIR was expanded and Phase-A-validated above. Re-assert it (source_env_file
+# may have re-read a raw ~ value from .env) and persist the final absolute path
+# before creating/chowning the layout.
+DATO_DATA_ROOT="$DATA_DIR"
+export DATO_DATA_ROOT
+set_env "DATO_DATA_ROOT" "$DATA_DIR"
+ensure_data_root_layout
+
+# ── §7.2 step 11: validate compose config ─────────────────────────────
+validate_compose
+
+# ── §7.2 steps 12–15: docker load + cross-check + retag + snapshot ───
+load_install_bundle
+
+# ── §7.2 step 16: persist COMPOSE_PROFILES + COMPOSE_FILE ─────────────
+detect_gpu
+
+compose_file_line="infra/docker-compose.yml"
+compose_profiles_line="${COMPOSE_PROFILES:-}"
+if [[ "$DATO_LLM_DEVICE_EFFECTIVE" == "gpu" ]]; then
+  compose_file_line="infra/docker-compose.yml:infra/docker-compose.gpu.yml"
+  # Ensure local-llm is in the profiles if GPU is active
+  if [[ "$compose_profiles_line" != *"local-llm"* ]]; then
+    if [[ -n "$compose_profiles_line" ]]; then
+      compose_profiles_line="$compose_profiles_line,local-llm"
+    else
+      compose_profiles_line="local-llm"
+    fi
+  fi
+fi
+set_env COMPOSE_FILE "$compose_file_line"
+set_env COMPOSE_PROFILES "$compose_profiles_line"
+
+# ── §7.2 step 17: ensure external networks exist ─────────────────────
+ensure_external_networks
+
+# ── §7.2 step 18: --no-start exit ────────────────────────────────────
+if [[ "$NO_START" == "1" ]]; then
+  log "init complete; stack not started"
+  exit 0
+fi
+
+# ── §7.2 step 19: docker compose up ──────────────────────────────────
+compose up -d
+
+# ── §7.2 step 20: wait for core stack ────────────────────────────────
+wait_for_core_stack
+
+# ── §7.2 step 21: GPU diagnostic wait ────────────────────────────────
+if [[ "$DATO_LLM_DEVICE_EFFECTIVE" == "gpu" ]]; then
+  wait_for_llm_local_with_gpu_diagnostic
+fi
+
+# ── §7.2 step 22: bootstrap first admin ──────────────────────────────
+compose run --rm dato-control python -m dl_control.bootstrap
+
+# ── §7.2 step 23: done ──────────────────────────────────────────────
+log "stack is ready at https://${CADDY_DOMAIN}:${CADDY_HTTPS_PORT}/"

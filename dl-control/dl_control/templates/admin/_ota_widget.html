@@ -1,0 +1,30 @@
+<section class="dashboard-widget ota-widget" id="ota-widget">
+  <header class="widget-header">
+    <h3>{{ t("dashboard.ota.heading") }}</h3>
+    <form method="post" action="/api/admin/ota/trigger" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="force" value="false">
+      <button type="submit" class="button-secondary">{{ t("dashboard.ota.check_now") }}</button>
+    </form>
+  </header>
+  <dl>
+    <dt>{{ t("dashboard.ota.current_version") }}</dt>
+    <dd>{{ ota.get('current_version', '—') }}</dd>
+    <dt>{{ t("dashboard.ota.available_version") }}</dt>
+    <dd>{{ ota.get('available_version', '—') }}</dd>
+    <dt>{{ t("common.status") }}</dt>
+    <dd class="status-{{ ota.get('current_state', '') }}">{{ ota.get('current_state', '—') }}</dd>
+    <dt>{{ t("dashboard.ota.last_check") }}</dt>
+    <dd>{{ ota.get('last_check_at', '—') }}</dd>
+    <dt>{{ t("dashboard.ota.last_update") }}</dt>
+    <dd>{{ ota.get('last_update_status') or '—' }}</dd>
+    <dt>{{ t("dashboard.ota.licence_expires") }}</dt>
+    <dd>{{ ota.get('licence_expires_at', '—') }}</dd>
+  </dl>
+  {% if ota.get('current_state') == 'rollback_failed' %}
+    <div class="alarm">{{ t("dashboard.ota.rollback_failed") }}</div>
+  {% endif %}
+  {% if ota.get('current_state') == 'self_swap_failed' %}
+    <div class="alarm">{{ t("dashboard.ota.self_swap_failed") }}</div>
+  {% endif %}
+</section>

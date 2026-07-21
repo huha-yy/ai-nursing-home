@@ -1,0 +1,95 @@
+# GBrain 知识库 Schema 规则
+#
+# 定义每种知识类型的必填/可选 frontmatter 字段。
+# 用于入库前自动校验（lint），不合格的拒绝写入。
+#
+# 用法:
+#   python3 lint_frontmatter.py --path <file_or_dir>
+#   python3 lint_frontmatter.py --path <dir> --fix
+#
+# 规则说明:
+#   required_frontmatter — 缺任何一项视为「不合格」，拒绝写入 GBrain
+#   optional_frontmatter — 缺了不拒绝，但 --fix 时会补充默认值
+
+types:
+  company:
+    description: "公司基础信息（品牌介绍、公司背景、团队）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+    example:
+      - daien/company/company_intro
+      - daien/company/brand_guidelines
+
+  product:
+    description: "产品技术资料（规格、功能介绍、参数）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+      - version
+      - products    # 用于 insert_images.py 关键词匹配
+    example:
+      - daien/product/care_robot
+      - yonghe/product/product_keywords
+
+  faq:
+    description: "常见问题（客服/售后高频问题）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+    example:
+      - daien/faq/product_faq
+      - yonghe/faq/product_faq
+
+  training:
+    description: "培训资料（新人培训、安装指南）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+      - duration     # 培训时长（分钟）
+    example: []
+
+  sales:
+    description: "销售资料（招投标、渠道政策、报价）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+      - pricing
+    example: []
+
+  operations:
+    description: "运营资料（内容管线用、品牌素材）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+    example: []
+
+  health:
+    description: "中医养生知识（永和专属）"
+    required_frontmatter:
+      - title
+      - type
+    optional_frontmatter:
+      - created
+      - tags
+      - constitution  # 对应体质类型
+    example:
+      - yonghe/health/constitution_types

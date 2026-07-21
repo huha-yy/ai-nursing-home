@@ -1,0 +1,108 @@
+{
+  "browser": {
+    "enabled": true,
+    "executablePath": "/usr/bin/google-chrome",
+    "headless": true,
+    "noSandbox": true
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+{% if agent.tier == "tier0" or agent.tier == "tier1" %}
+      "deepseek": {
+        "baseUrl": "https://api.deepseek.com/v1",
+        "apiKey": "${DEEPSEEK_API_KEY}",
+        "api": "openai-completions",
+        "models": [
+          { "id": "deepseek-v4-pro", "name": "deepseek-v4-pro", "contextWindow": 131072, "maxTokens": 32768 }
+        ]
+      }
+{% endif %}
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": { "primary": {{ (agent.model_provider + "/" + agent.model_id) | tojson }} },
+      "compaction": { "mode": "safeguard" },
+      "memorySearch": { "provider": "gemini" },
+      "timeoutSeconds": 600
+    }
+  },
+  "tools": {
+    "agentToAgent": {
+      "enabled": true,
+      "allow": [{% for peer in agent.peer_ids %}{{ peer | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]
+    }
+  },
+  "bindings": [
+{% if agent.feishu_configured %}
+    { "agentId": {{ agent.id | tojson }}, "match": { "channel": "feishu", "accountId": {{ agent.feishu_account_id | tojson }} } }
+{% endif %}
+  ],
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true
+  },
+  "skills": {
+    "load": {
+      "extraDirs": ["/opt/openclaw/skills/custom"]
+    }
+  },
+  "channels": {
+{% if agent.feishu_configured %}
+    "feishu": {
+      "enabled": true,
+{% if agent.admin_only %}
+      "dmPolicy": "open",
+{% else %}
+      "dmPolicy": "pairing",
+{% endif %}
+      "groupPolicy": "open",
+      "requireMention": true,
+      "allowFrom": [{% if agent.admin_only %}"*"{% endif %}],
+      "accounts": {
+        {{ agent.feishu_account_id | tojson }}: {
+          "appId": "${FEISHU_APP_ID_{{ agent.feishu_account_id | upper }}}",
+          "appSecret": "${FEISHU_APP_SECRET_{{ agent.feishu_account_id | upper }}}"
+        },
+        "default": {}
+      },
+      "streaming": true,
+      "tools": { "wiki": true, "doc": true }
+    }
+{% endif %}
+  },
+  "gateway": {
+    "bind": "lan",
+    "controlUi": { "allowedOrigins": [{{ ("https://" + caddy_domain) | tojson }}] },
+    "auth": { "mode": "token", "token": "${OPENCLAW_TOKEN}" },
+    "mode": "local"
+  },
+  "mcp": {
+{% if agent.comfyui_configured %}
+    "servers": {
+      "comfyui-image": {
+        "command": "python3",
+        "args": ["/opt/openclaw/comfy-mcp/comfy_mcp_server.py"]
+      }
+    }
+{% endif %}
+  },
+  "plugins": {
+    "entries": {
+{% if agent.feishu_configured %}"feishu": { "enabled": true },{% endif %}
+      "memory-core": {
+        "config": {
+          "dreaming": {
+            "enabled": true,
+            "timezone": {{ agent.timezone | default('UTC') | tojson }},
+            "frequency": "0 3 * * *"
+          }
+        }
+      },
+      "browser": { "enabled": true }
+    }
+  },
+  "meta": { }
+}

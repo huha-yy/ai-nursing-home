@@ -1,0 +1,126 @@
+FROM ghcr.io/openclaw/openclaw:2026.4.8
+
+USER root
+
+# === 中国镜像加速 ===
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV NODE_PATH=/usr/local/lib/node_modules
+
+# apt: 阿里云 mirror
+RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
+
+# npm: npmmirror.com (阿里云，国内速度最快)
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+
+# pip: 阿里云 PyPI mirror
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+
+# HuggingFace: hf-mirror.com（whisper 模型下载加速）
+ENV HF_ENDPOINT=https://hf-mirror.com
+
+# Install Playwright MCP (skip browser download — content pipeline doesn't need Chrome)
+RUN npm install -g playwright @playwright/mcp
+
+# Document conversion tools (markitdown for PDF/Word/PPT -> Markdown) +
+# httpx for the cognee/workflow custom-skill handlers (P5/P13d) +
+# python-dotenv for content-pipeline scripts +
+# ffmpeg + openai-whisper for speech-to-text (Phase 2 integration) +
+# nano-pdf for PDF editing (Phase 2 integration) +
+# easyocr for image OCR (Phase 2, installed at runtime via pip) +
+# python-pptx for PPT generation (Phase 2)
+RUN apt-get update && apt-get install -y --no-install-recommends python3-pip ffmpeg \
+ && pip3 install --break-system-packages --no-cache-dir markitdown[all] httpx python-dotenv openai-whisper nano-pdf python-pptx \
+ && apt-get clean && rm -rf /var/lib/apt/lists/* ~/.cache/pip
+
+# Pre-download whisper base model (~75MB) so first transcription is instant
+RUN su - node -c 'python3 -c "import whisper; whisper.load_model(\"base\")" 2>&1 || true'
+
+# Patch Feishu extension: inject chatId + error messages
+COPY openclaw/patches/feishu-reply-dispatcher.ts /app/extensions/feishu/src/reply-dispatcher.ts
+COPY openclaw/patches/feishu-bot.ts /app/extensions/feishu/src/bot.ts
+RUN chown node:node /app/extensions/feishu/src/reply-dispatcher.ts \
+    /app/extensions/feishu/src/bot.ts
+
+# Entrypoint wrapper
+COPY openclaw/entrypoint/docker-entrypoint-wrapper.sh /usr/local/bin/docker-entrypoint-wrapper.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh
+
+# P13d+: admin-mgmt custom skill (Agent Manager system management)
+COPY openclaw/skills/admin-mgmt/ /opt/openclaw/skills/custom/admin-mgmt/
+RUN chown -R node:node /opt/openclaw/skills/custom/admin-mgmt/
+
+# P5: cognee custom skill
+COPY openclaw/skills/cognee/ /opt/openclaw/skills/custom/cognee/
+RUN chown -R node:node /opt/openclaw/skills/custom/cognee/
+
+# P13d: workflow custom skill (agent→workflow, spec §7.2)
+COPY openclaw/skills/workflow/ /opt/openclaw/skills/custom/workflow/
+RUN chown -R node:node /opt/openclaw/skills/custom/workflow/
+
+# Content pipeline: content-ops skills
+COPY openclaw/skills/hotspot-monitor/   /opt/openclaw/skills/custom/hotspot-monitor/
+COPY openclaw/skills/relevance-judge/   /opt/openclaw/skills/custom/relevance-judge/
+COPY openclaw/skills/fact-research/     /opt/openclaw/skills/custom/fact-research/
+COPY openclaw/skills/content-strategy/  /opt/openclaw/skills/custom/content-strategy/
+COPY openclaw/skills/wechat-content/    /opt/openclaw/skills/custom/wechat-content/
+COPY openclaw/skills/xhs-content/       /opt/openclaw/skills/custom/xhs-content/
+COPY openclaw/skills/douyin-content/    /opt/openclaw/skills/custom/douyin-content/
+COPY openclaw/skills/image-generator/   /opt/openclaw/skills/custom/image-generator/
+COPY openclaw/skills/article-composer/  /opt/openclaw/skills/custom/article-composer/
+COPY openclaw/skills/compliance-check/  /opt/openclaw/skills/custom/compliance-check/
+COPY openclaw/skills/publish-package/   /opt/openclaw/skills/custom/publish-package/
+COPY openclaw/skills/feishu-publisher/  /opt/openclaw/skills/custom/feishu-publisher/
+# Phase 1+2 integration skills (from openclaw-mvp)
+COPY openclaw/skills/humanizer/         /opt/openclaw/skills/custom/humanizer/
+COPY openclaw/skills/self-improving/    /opt/openclaw/skills/custom/self-improving/
+COPY openclaw/skills/web-content-fetcher/ /opt/openclaw/skills/custom/web-content-fetcher/
+COPY openclaw/skills/openai-whisper/    /opt/openclaw/skills/custom/openai-whisper/
+COPY openclaw/skills/nano-pdf/          /opt/openclaw/skills/custom/nano-pdf/
+# Phase 2 features
+COPY openclaw/skills/vision-ocr/        /opt/openclaw/skills/custom/vision-ocr/
+COPY openclaw/skills/ppt-generator/     /opt/openclaw/skills/custom/ppt-generator/
+# GBrain knowledge base MCP shim
+COPY openclaw/skills/gbrain-mcp/       /opt/openclaw/skills/custom/gbrain-mcp/
+RUN chown -R node:node /opt/openclaw/skills/custom/hotspot-monitor/ \
+                       /opt/openclaw/skills/custom/relevance-judge/ \
+                       /opt/openclaw/skills/custom/fact-research/ \
+                       /opt/openclaw/skills/custom/content-strategy/ \
+                       /opt/openclaw/skills/custom/wechat-content/ \
+                       /opt/openclaw/skills/custom/xhs-content/ \
+                       /opt/openclaw/skills/custom/douyin-content/ \
+                       /opt/openclaw/skills/custom/image-generator/ \
+                       /opt/openclaw/skills/custom/article-composer/ \
+                       /opt/openclaw/skills/custom/compliance-check/ \
+                       /opt/openclaw/skills/custom/publish-package/ \
+                       /opt/openclaw/skills/custom/feishu-publisher/ \
+                       /opt/openclaw/skills/custom/humanizer/ \
+                       /opt/openclaw/skills/custom/self-improving/ \
+                       /opt/openclaw/skills/custom/web-content-fetcher/ \
+                       /opt/openclaw/skills/custom/openai-whisper/ \
+                       /opt/openclaw/skills/custom/nano-pdf/ \
+                       /opt/openclaw/skills/custom/vision-ocr/ \
+                       /opt/openclaw/skills/custom/ppt-generator/ \
+                       /opt/openclaw/skills/custom/gbrain-mcp/
+
+# ComfyUI MCP server
+COPY openclaw/comfy-mcp/ /opt/openclaw/comfy-mcp/
+RUN chown -R node:node /opt/openclaw/comfy-mcp/
+
+# Content pipeline: shared scripts and configs
+COPY openclaw/scripts/ /opt/openclaw/scripts/
+COPY openclaw/configs/ /opt/openclaw/configs/
+COPY openclaw/.env.example /opt/openclaw/.env.example
+# Pre-create .env symlink targets so entrypoint-wrapper.sh (running as node)
+# can ln -sf without root — /opt/openclaw/ is root-owned at this point.
+RUN touch /opt/openclaw/.env /opt/openclaw/skills/.env && \
+    chown node:node /opt/openclaw/.env /opt/openclaw/skills/.env
+RUN chown -R node:node /opt/openclaw/scripts/ /opt/openclaw/configs/ /opt/openclaw/.env.example
+
+# P13d: workflow→agent task receiver sidecar (stdlib-only; python3 is already
+# installed above for markitdown)
+COPY openclaw/receiver/dato_task_receiver.py /usr/local/bin/dato_task_receiver.py
+
+USER node
+ENTRYPOINT ["docker-entrypoint-wrapper.sh"]
+CMD ["openclaw", "gateway", "--allow-unconfigured"]

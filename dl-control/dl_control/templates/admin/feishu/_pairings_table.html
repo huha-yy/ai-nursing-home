@@ -1,0 +1,53 @@
+<div id="pairings-section" hx-swap="outerHTML">
+  {% if error %}
+  <div class="banner banner-error">{{ error }}</div>
+  {% endif %}
+  {% include "admin/feishu/_pending_requests.html" %}
+
+  <h3>{{ t("feishu.approved_pairings") }}</h3>
+  {% if approved %}
+  <table class="data-table">
+    <thead><tr><th>{{ t("feishu.col.sender") }}</th><th>{{ t("feishu.col.normalized") }}</th><th>{{ t("feishu.col.approved") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for p in approved %}
+    <tr>
+      <td>{{ p.sender_name or p.sender_id_raw }}</td>
+      <td><code>{{ p.sender_id_normalized }}</code></td>
+      <td>{{ p.approved_at }}</td>
+      <td>
+        <form hx-post="/admin/agents/{{ agent.id }}/feishu/pairings/{{ p.id }}/revoke"
+              hx-target="#pairings-section" hx-swap="outerHTML">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="danger">{{ t("common.revoke") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-note">{{ t("feishu.no_approved") }}</p>
+  {% endif %}
+
+  {% if tombs %}
+  <h3>{{ t("feishu.tombstones") }}</h3>
+  <table class="data-table">
+    <thead><tr><th>{{ t("feishu.col.sender") }}</th><th>{{ t("feishu.col.revoked") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for tomb in tombs %}
+    <tr>
+      <td>{{ tomb.sender_name or tomb.sender_id_raw }}</td>
+      <td>{{ tomb.revoked_at }}</td>
+      <td>
+        <form hx-post="/admin/agents/{{ agent.id }}/feishu/pairings/{{ tomb.id }}/tombstone"
+              hx-target="#pairings-section" hx-swap="outerHTML">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">{{ t("feishu.delete_tombstone") }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>

@@ -1,0 +1,11 @@
+# _template — 品牌图片素材配置模板
+# 复制此文件到 configs/<brand>/brand_images.yaml 并填写。
+
+# 品牌资产映射: [源文件名, 输出目标名, 标签名]
+brand_assets: []
+
+# 产品实物照映射: [源文件名, 输出目标名, 产品名]
+product_assets: []
+
+# 产品关键词映射: 产品名 → 触发关键词列表
+product_keywords: {}

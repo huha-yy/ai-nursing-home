@@ -1,0 +1,14 @@
+{# wizard.html — GBrain OAuth configuration page #}
+{% extends "base.html" %}
+{% block title %}{{ t("gbrain.title") }} — {{ agent.display_name }} — dl-control{% endblock %}
+{% block body %}
+<h1>{{ t("gbrain.config_heading") }} — {{ agent.display_name }}</h1>
+
+{% include "admin/gbrain/_needs_restart_banner.html" %}
+
+<section id="gbrain-wizard-section">
+  {% include "admin/gbrain/_wizard_form.html" %}
+</section>
+
+<p class="empty-note"><a href="/admin/agents/{{ agent.id }}">{{ t("agents.all_agents") }}</a></p>
+{% endblock %}

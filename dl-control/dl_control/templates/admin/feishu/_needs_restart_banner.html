@@ -1,0 +1,18 @@
+{% if agent.needs_restart %}
+<div class="banner banner-warning">
+  <strong>{{ t("feishu.restart_required") }}</strong> {{ t("feishu.restart_explainer") }}
+  {% if agent.status == 'active' %}
+  {# One-click restart only when the agent is active. The restart takes a few
+     seconds (stop → regenerate → start → liveness); block double-submit so a
+     second click can't hit the in-flight CAS guard and dump a 409. #}
+  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart"
+        class="restart-form"
+        onsubmit="if(this.dataset.sent)return false;this.dataset.sent='1';var b=this.querySelector('button');setTimeout(function(){b.disabled=true;b.textContent={{ t("feishu.restarting") | tojson | forceescape }};},0);">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">{{ t("feishu.restart_agent") }}</button>
+  </form>
+  {% else %}
+  <a href="/admin/agents/{{ agent.id }}" class="action-link">{{ t("feishu.open_to_apply") }}</a>
+  {% endif %}
+</div>
+{% endif %}

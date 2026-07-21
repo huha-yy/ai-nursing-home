@@ -1,0 +1,52 @@
+<div class="llm-status-widget" style="margin-top: 2rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px;">
+  <h3>{{ t("dashboard.llm.heading") }}</h3>
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td><strong>{{ t("dashboard.llm.model") }}</strong></td>
+      <td>{{ llm_status.model_name }}</td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.keep_alive") }}</strong></td>
+      <td>{{ (llm_status.keep_alive_seconds / 60) | int }} {{ t("dashboard.llm.min") }}</td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.proxy") }}</strong></td>
+      <td>
+        {% if llm_status.proxy_healthy %}
+          <span style="color: green;">&#x2714; {{ t("dashboard.llm.healthy") }}</span>
+        {% else %}
+          <span style="color: red;">&#x2718; {{ t("dashboard.llm.unreachable") }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.ollama") }}</strong></td>
+      <td>
+        {% if llm_status.ollama_reachable %}
+          <span style="color: green;">&#x2714; {{ t("dashboard.llm.reachable") }}</span>
+        {% else %}
+          <span style="color: red;">&#x2718; {{ t("dashboard.llm.unreachable") }}</span>
+          <br/><small>{{ t("dashboard.llm.profile_hint") }}</small>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.model_loaded") }}</strong></td>
+      <td>
+        {% if llm_status.model_loaded %}
+          <span style="color: green;">&#x2714; {{ t("dashboard.llm.loaded") }}</span>
+        {% else %}
+          <span style="color: red;">&#x2718; {{ t("dashboard.llm.not_loaded") }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.last_request") }}</strong></td>
+      <td>{{ llm_status.last_request_at or t("dashboard.llm.none") }}</td>
+    </tr>
+    <tr>
+      <td><strong>{{ t("dashboard.llm.requests_served") }}</strong></td>
+      <td>{{ llm_status.request_count }}</td>
+    </tr>
+  </table>
+</div>

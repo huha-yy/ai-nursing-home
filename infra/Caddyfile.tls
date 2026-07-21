@@ -1,0 +1,4 @@
+# Manual TLS certificate override.
+# When this file contains a tls directive, it overrides Let's Encrypt ACME.
+# Uncomment and set paths when using customer-provided certificates:
+#   tls /path/to/cert.pem /path/to/key.pem

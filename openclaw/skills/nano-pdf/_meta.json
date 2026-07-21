@@ -1,0 +1,6 @@
+{
+  "name": "nano-pdf",
+  "version": "1.0.0",
+  "source": "custom",
+  "description": "Edit PDFs with natural-language instructions using the nano-pdf CLI."
+}

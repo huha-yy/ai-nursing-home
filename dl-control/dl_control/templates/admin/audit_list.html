@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ t("audit.title") }}{% endblock %}
+{% block body %}
+<h2>{{ t("audit.heading") }}</h2>
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-value">{{ events_today }}</div>
+    <div class="stat-label">{{ t("audit.today") }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ events_week }}</div>
+    <div class="stat-label">{{ t("audit.last_7_days") }}</div>
+  </div>
+</div>
+{% if events %}
+<table class="data-table">
+  <thead>
+    <tr><th>{{ t("audit.col.when") }}</th><th>{{ t("audit.col.actor") }}</th><th>{{ t("audit.col.action") }}</th><th>{{ t("audit.col.target") }}</th><th>{{ t("audit.col.meta") }}</th></tr>
+  </thead>
+  <tbody>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.occurred_at }}</td>
+      <td>{{ e.actor or "—" }}</td>
+      <td>{{ e.action }}</td>
+      <td>{{ e.target or "—" }}</td>
+      <td><code>{{ e.meta }}</code></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="pager">
+  {% if page > 1 %}<a href="?page={{ page - 1 }}">{{ t("audit.newer") }}</a>{% endif %}
+  {% if has_next %}<a href="?page={{ page + 1 }}">{{ t("audit.older") }}</a>{% endif %}
+</div>
+{% else %}
+<p class="empty-note">{{ t("audit.none") }}</p>
+{% endif %}
+{% endblock %}

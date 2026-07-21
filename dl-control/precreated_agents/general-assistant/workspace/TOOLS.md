@@ -1,64 +1,38 @@
-# TOOLS.md — {{ agent.display_name }}
+# TOOLS.md — 通用助手
 
 Skills define *how* tools work. This file describes the tools available to the 通用助手.
 
-**IMPORTANT**: Cognee tools are NOT registered as callable skills. Use the `process` tool
-to run Python one-liners via `python3 -c`. You have `$DL_INTERNAL_TOKEN` available in your environment.
+## 可用技能一览
 
-## Search Knowledge
+| 技能 | 用途 | 使用场景 |
+|------|------|----------|
+| `nursing-work-order` | 护理工单查询 | 查看护理任务的完成状态和详情 |
+| `logistics-query` | 后勤库存查询 | 查看物资库存、领用记录 |
+| `meal-query` | 餐饮查询 | 查看每日菜单、特殊饮食安排 |
+| `staff-query` | 员工查询 | 查找员工信息、联系方式、角色 |
+| `resident-query` | 老人档案查询 | 查看老人基本信息、护理等级、病史 |
+| `activity-query` | 活动查询 | 查看活动安排、时间地点 |
+| `finance-query` | 财务查询 | 查看费用明细、缴费状态 |
+| `alert-query` | 健康预警查询 | 查看健康预警和严重程度 |
 
-```python
-python3 -c "
-import sys; sys.path.insert(0, '/opt/openclaw/skills/custom/cognee')
-from handler import search
-results = search(query='你的搜索词', limit=5)
-for r in results.get('results', []):
-    print(f'  [{r[\"library_slug\"]}] {r[\"path\"]} (dist={r[\"cosine_distance\"]:.3f})')
-    print('  ' + r['text'][:300])
-    print()
-"
-```
+## 典型使用场景
 
-## Save a Simple Note
+1. **员工问老人信息**: 用 `resident-query` 查老人房间号、护理等级、诊断 → 直接回复
+2. **员工问今日菜单**: 用 `meal-query` 查当日三餐菜单 → 直接回复
+3. **员工问库存情况**: 用 `logistics-query` 查指定物品库存 → 如不足提醒联系总务科
+4. **员工问排班**: 用 `staff-query` 查排班信息 → 直接回复
+5. **员工问预警**: 用 `alert-query` 查未处理预警 → 如严重提醒联系护理科
 
-```python
-python3 -c "
-import sys; sys.path.insert(0, '/opt/openclaw/skills/custom/cognee')
-from handler import add
-result = add(content='''# 备忘
+## 路由指南
 
-用户说: ...
-日期: 2026-06-26
-''', path='notes/2026-06-26.md')
-print(result)
-"
-```
+当员工需要**执行操作**（而非仅查询）时，引导他们联系对应科室：
 
-## Fetch Web Content
-
-```bash
-python3 -c "
-import httpx
-r = httpx.get('https://r.jina.ai/https://example.com', timeout=30)
-print(r.text[:3000])
-"
-```
-
-## Send Image to Feishu Chat
-
-```bash
-python3 /opt/openclaw/skills/custom/feishu-publisher/scripts/send_image.py \
-  --file /opt/openclaw/configs/brand_assets/<filename>.jpg \
-  --to [FeishuChatId] --type chat_id --caption "描述"
-```
-
-The `[FeishuChatId]` is available in your message context.
-
-## Routing Reference
-
-| User wants | Action |
-|-----------|--------|
-| Write article / run content pipeline | Tell user to contact **内容运营** |
-| Create/manage agents or workflows | Tell user to contact **Agent Manager** |
-| Store company knowledge | Tell user to contact **知识库** |
-| Anything else I can handle | Do it yourself with tools above |
+| 需求 | 引导至 |
+|------|--------|
+| 创建/修改护理工单 | 护理科 |
+| 排班调整 | 护理科 |
+| 库存入库/出库/采购 | 总务科 |
+| 财务对账/催缴 | 财务科（孙财务） |
+| 设施维修 | 总务科 |
+| 老人入住/退住 | 院长或护理科 |
+| 投诉处理 | 院长或综合办 |

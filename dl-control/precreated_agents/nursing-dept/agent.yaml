@@ -1,13 +1,13 @@
-id: general-assistant
-display_name: "通用助手"
+id: nursing-dept
+display_name: "护理科"
 tier: tier0
 admin_only: false
 skill_list:
+  - nursing-schedule
   - nursing-work-order
   - logistics-query
   - meal-query
   - staff-query
   - resident-query
   - activity-query
-  - finance-query
   - alert-query

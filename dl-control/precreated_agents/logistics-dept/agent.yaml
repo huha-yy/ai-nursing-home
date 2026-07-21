@@ -1,0 +1,11 @@
+id: logistics-dept
+display_name: "总务科"
+tier: tier0
+admin_only: false
+skill_list:
+  - logistics-inventory
+  - logistics-query
+  - nursing-work-order
+  - meal-query
+  - staff-query
+  - activity-query

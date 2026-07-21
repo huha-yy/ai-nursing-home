@@ -249,6 +249,28 @@ async def build_app() -> FastAPI:
             {"active": "test"},
         )
 
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def nursing_dashboard_page(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return RedirectResponse(url="/login", status_code=302)
+        nursing_user = {
+            "user_id": sess.user_id,
+            "username": sess.username,
+            "name": sess.name,
+            "role": sess.role,
+            "dept": sess.dept,
+            "building": sess.building,
+            "floor": sess.floor,
+        }
+        return TEMPLATES.TemplateResponse(
+            request,
+            "nursing/dashboard.html",
+            {"active": "dashboard", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
+        )
+
     @app.get("/api/nursing/alerts")
     async def nursing_alerts():
         """Return pending (unhandled) health alerts for the dashboard."""
@@ -275,6 +297,109 @@ async def build_app() -> FastAPI:
                     }
                 )
         return {"alerts": alerts}
+
+    @app.get("/api/nursing/dashboard")
+    async def nursing_dashboard_api():
+        """Aggregated operational dashboard data for the nursing home."""
+        async with db.conn(user_id=None, role="system") as conn:
+            # -- Summary KPIs --
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_residents"
+            )).fetchone()
+            total_residents = row[0] if row else 0
+
+            row = await (await conn.execute(
+                "SELECT count(DISTINCT staff_name) FROM nursing_schedules "
+                "WHERE date = CURRENT_DATE"
+            )).fetchone()
+            on_duty_today = row[0] if row else 0
+
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_inventory WHERE quantity < safety_stock"
+            )).fetchone()
+            inventory_alerts = row[0] if row else 0
+
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
+            )).fetchone()
+            pending_health_alerts = row[0] if row else 0
+
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_complaints WHERE status = 'pending'"
+            )).fetchone()
+            monthly_complaints = row[0] if row else 0
+
+            # -- Focus residents (from unhandled health alerts) --
+            frows = await (await conn.execute(
+                "SELECT r.name, r.room, a.content, a.severity "
+                "FROM nursing_health_alerts a "
+                "JOIN nursing_residents r ON a.resident_id = r.id "
+                "WHERE a.handled = FALSE "
+                "ORDER BY CASE a.severity WHEN 'danger' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END "
+                "LIMIT 5"
+            )).fetchall()
+            focus_residents = [
+                {"name": r[0], "room": r[1], "reason": r[2], "severity": r[3]}
+                for r in frows
+            ]
+
+            # -- Low stock items --
+            lrows = await (await conn.execute(
+                "SELECT item_name, quantity, safety_stock, unit "
+                "FROM nursing_inventory WHERE quantity < safety_stock "
+                "ORDER BY (quantity::float / NULLIF(safety_stock, 0)) ASC"
+            )).fetchall()
+            low_stock_items = [
+                {"item": r[0], "quantity": r[1], "safety": r[2], "unit": r[3]}
+                for r in lrows
+            ]
+
+            # -- Schedule today --
+            srows = await (await conn.execute(
+                "SELECT shift, count(DISTINCT staff_name) "
+                "FROM nursing_schedules WHERE date = CURRENT_DATE "
+                "GROUP BY shift"
+            )).fetchall()
+            schedule_today = {"day_shift": 0, "night_shift": 0}
+            for r in srows:
+                if r[0] == "白班":
+                    schedule_today["day_shift"] = r[1]
+                elif r[0] == "夜班":
+                    schedule_today["night_shift"] = r[1]
+
+            # -- Completion rate --
+            row = await (await conn.execute(
+                "SELECT "
+                "count(*) FILTER (WHERE completed = TRUE) AS done, "
+                "count(*) AS total "
+                "FROM nursing_work_orders WHERE date = CURRENT_DATE"
+            )).fetchone()
+            done, total = row[0] or 0, row[1] or 0
+            completion_rate = f"{int(done / total * 100)}%" if total > 0 else "N/A"
+
+            # -- Building distribution --
+            brows = await (await conn.execute(
+                "SELECT building, count(*) FROM nursing_residents "
+                "GROUP BY building ORDER BY building"
+            )).fetchall()
+            building_distribution = [
+                {"building": r[0], "count": r[1]} for r in brows
+            ]
+
+        return {
+            "summary": {
+                "total_residents": total_residents,
+                "on_duty_today": on_duty_today,
+                "inventory_alerts": inventory_alerts,
+                "pending_health_alerts": pending_health_alerts,
+                "monthly_complaints": monthly_complaints,
+            },
+            "focus_residents": focus_residents,
+            "low_stock_items": low_stock_items,
+            "schedule_today": schedule_today,
+            "completion_rate": completion_rate,
+            "building_distribution": building_distribution,
+        }
 
     @app.exception_handler(MustRotatePasswordError)
     async def _rotate_handler(_request, exc: MustRotatePasswordError):

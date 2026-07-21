@@ -96,12 +96,9 @@ clean-images:
 	$(COMPOSE) down -v --rmi local
 
 build: _ensure-control-secrets
-# NOTE: BuildKit + classic builder both hang on "uv pip install" for
-# dl-ota-watcher on this host. Build it manually with docker exec+commit
-# if you change its code (see scripts/build-ota-watcher for commands).
 	DOCKER_BUILDKIT=0 $(COMPOSE) build \
 		dato-caddy dato-control-migrate dato-control \
-		dl-cognee dl-cognee-reranker dl-llm-local dl-llm-proxy dl-egress-dns dl-gbrain
+		dl-cognee dl-cognee-reranker dl-llm-local dl-llm-proxy dl-gbrain
 
 githooks-install:
 	git config core.hooksPath .githooks

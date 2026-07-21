@@ -27,7 +27,6 @@ from typing import Any
 from uuid import UUID
 
 from dl_control.workflows import config_cache
-from dl_control.workflows.brand_config import get_brand
 from dl_control.workflows.model import CallAgent, Flow, Retry, Step, StepContext, StepResult
 
 # ---------------------------------------------------------------------------
@@ -40,8 +39,22 @@ from dl_control.workflows.model import CallAgent, Flow, Retry, Step, StepContext
 
 
 def _brand_config(input: dict[str, Any]) -> dict[str, Any]:
-    """Resolve brand config from workflow input, falling back to yonghe."""
-    return get_brand(input.get("brand"))
+    """Resolve brand config from workflow input, falling back to default.
+
+    Brand YAML configs were removed for the nursing MVP. Returns a minimal stub.
+    """
+    brand = input.get("brand", "")
+    return {
+        "name": brand or "default",
+        "brand_short": brand or "default",
+        "sector": "",
+        "mission": "",
+        "wechat_rule": "",
+        "xhs_tags": [],
+        "brand_bridge": "",
+        "compliance_extra": "",
+        "product_names": [],
+    }
 
 
 def _no_webhook_flag(input: dict[str, Any]) -> str:

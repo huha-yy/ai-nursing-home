@@ -1,28 +1,22 @@
-# CLAUDE.md
+# CLAUDE.md — AI 养老院院长 MVP
 
-This file provides guidance to Claude Code when working with the dato repository.
-New sessions must read this first to understand the project's architecture, goals, and design philosophy.
+This file provides guidance to Claude Code when working with the nursing home MVP repository.
 
 **Cross-session memory:** `JOURNAL.md` records key decisions, fixes, and pending tasks.
 When starting a new session, read `JOURNAL.md` first to restore context.
 Close a session by appending the session's outcome to `JOURNAL.md`.
 
-## What dato is
+## What this is
 
-**dato** is an on-premise multi-agent appliance powered by [OpenClaw](https://github.com/openclaw) (v2026.4.8).
-It ships pre-installed on dedicated hardware — all data stays local. The system self-updates over the air;
-do not `git pull` or manually modify this repo on the appliance.
+**AI 养老院院长** is an AI-powered operations assistant for nursing homes, built on the dato multi-agent appliance platform. MVP targets 杭州市第三社会福利院 (1,752 beds, 350 staff, 26 buildings).
 
-The dev repo (`dato_prod-main`) is the source. Export produces a single squashed commit per appliance release;
-the source commit SHA is recorded in `VERSION` and the `Source-Commit:` trailer.
+The platform is powered by [OpenClaw](https://github.com/openclaw) (v2026.4.8) and ships pre-installed on dedicated hardware — all data stays local.
 
 ### Project goals
 
-1. **Multi-agent content operations** — Automate content creation (hotspot monitoring → research → strategy → writing → compliance → publishing) through a pipeline of specialized AI agents.
-2. **Knowledge management** — A dedicated knowledge base agent stores/retrieves company knowledge (product info, brand positioning, image assets) via vector search (cognee RAG). Content pipeline agents reference this knowledge when composing articles.
-3. **Multi-brand support** — The content pipeline is brand-agnostic; brand identity (mission, sector, tags, product names, image assets) is configured via pure YAML data files. New brands require no Python code changes.
-4. **Progressively scale** — Start with content pipeline (Phase 1), expand to full operations (Phase 2+), each Agent gets its own Feishu bot for direct human interaction.
-5. **Fully on-premise** — All data stays local, no external API calls to public LLM providers (uses DeepSeek via proxy).
+1. **Multi-agent operations** — 10 specialized agents (director, nursing, logistics, 6 buildings, general assistant) each with role-specific skills and nursing UI access.
+2. **Core features** — auto schedule generation, inventory tracking with alerts, health signal monitoring, ops dashboard, multi-agent weekly report workflow.
+3. **All on-premise** — local LLM, data stays local, no cloud dependencies (uses DeepSeek via proxy).
 
 ## Agent Architecture
 
@@ -34,29 +28,29 @@ the source commit SHA is recorded in `VERSION` and the `Source-Commit:` trailer.
 4. **All agents run via the same OpenClaw image** — Skills are baked into the Docker image. Agents differentiate via `skill_list`, `SOUL.md`, and workspace config.
 5. **Python handler skills are NOT callable tools** — OpenClaw v2026.4.8 doesn't register `handler.py`-based skills as agent-visible tools. Instead, agents use the `process` tool (shell) to `python3 -c` one-liners that import handlers or call HTTP APIs.
 
-### Current 4 Agents
+### Current 10 Nursing Agents
 
-| Agent | UUID | Feishu Bot | Role |
-|---|---|---|---|
-| **Agent Manager** | `748ffcbc` | ✅ dn1 | Management hub — create/manage agents, workflows, schedules, Feishu pairings. Only agent authorized to call `internal_routes.py` admin APIs. |
-| **知识库 (Knowledge Base)** | `cc1acc65` | ✅ dn3 | Knowledge curator — ingest/search company knowledge via cognee. Product info, brand positioning, image asset paths. |
-| **内容运营 (Content Ops)** | `7c90fc88` | ✅ dn2 | Content pipeline executor — runs the full content creation workflow. Also the future hub for all operations work. |
-| **通用助手 (General)** | `eacdbc0e` | ✅ dn4 | User's first contact — handles simple tasks (translate, summarize, search, take notes). Routes complex requests to the right agent. |
+| Agent | Role | Skills |
+|---|---|---|
+| **director** | 院长 | nursing-work-order, logistics-query, meal-query, staff-query, resident-query, activity-query, finance-query, alert-query, report-generate |
+| **nursing-dept** | 护理科 | nursing-schedule, nursing-work-order, logistics-query, meal-query, staff-query, resident-query, activity-query, alert-query |
+| **logistics-dept** | 总务科 | logistics-inventory, logistics-query, meal-query, staff-query, resident-query |
+| **building-1..6** | 楼栋负责人 | logistics-query, meal-query, staff-query, resident-query, activity-query, alert-query |
+| **general-assistant** | 通用助手 | meal-query, activity-query, staff-query, resident-query (general public-facing queries) |
 
 ### Agent interaction pattern
 
 ```
-Feishu users
-  ├──→ 通用助手: "帮我翻译这段" / "养老政策有哪些新动态" / "帮我记一下xxx"
-  ├──→ Agent Manager: "帮我写一篇永和的公众号文章" → 调管线 API
-  │                     "帮我跑一次内容管线，品牌永和，自动选题"
-  ├──→ 知识库: "记一下戴恩助浴产品重量12kg" / "查一下我们的品牌定位"
-  └──→ 内容运营: (管线内部执行，不与用户直接对话)
+Nursing users (via /chat web UI)
+  ├──→ 院长: "生成本周运营报表" / "全院概况"
+  ├──→ 护理科: "生成3号楼本周排班" / "查询工单完成情况"
+  ├──→ 总务科: "盘点库存" / "尿不湿还有多少"
+  ├──→ 楼栋负责人: "3号楼今天谁当班" / "本楼老人情况"
+  └──→ 通用助手: "今天的菜单" / "活动安排"
 
-  Agent Manager ←→ dato-control (internal admin API, httpx) → content.pipeline
-  知识库 ←→ dl-cognee (cognee skill handler, httpx)
-  内容运营 ← dato-control (workflow dispatch) → 内容运营 runs pipeline steps
-  内容运营 ←→ dl-cognee (reads company_knowledge library during pipeline)
+  All agents ←→ dato-control (REST API)
+  All agents ←→ Postgres (via handler.py skills with DATABASE_URL)
+  Nursing ops workflow: director triggers → nursing → logistics → finance → director report
 ```
 
 ### The `process` tool pattern (critical)
@@ -89,121 +83,27 @@ The boot-time reconciler (`dl_control.precreated.reconciler.reconcile_precreated
 1. Copy files to the bind-mount path (`/home/li/.local/share/dato/agents/<uuid>/`)
 2. Restart the agent container
 
-## Multi-Brand Architecture
-
-The content pipeline supports multiple brands via a pure-data YAML configuration layer. No Python code changes needed for new brands.
-
-### Configuration layers
-
-```
-dl-control container (pipeline orchestration):
-  brand_configs/<brand>.yaml     ← brand text (mission, sector, tags, compliance rules)
-
-Agent container (skill execution):
-  configs/<brand>/brand_images.yaml     ← image asset mappings (brand_logo, product photos)
-  configs/<brand>/brand_guidelines.md   ← brand voice, tone, forbidden words (read by SKILL.md)
-  configs/<brand>/company_keywords.yaml ← keyword lists for relevance matching
-  configs/<brand>/brand_assets/         ← logo, QR code, product photos
-```
-
-Brand configs are auto-discovered — `brand_config.py` scans `brand_configs/*.yaml` at import time.
-Calling `get_brand("unknown")` silently falls back to `daien`.
-
-### Brands currently defined
-
-| Brand | Slug | Status |
-|---|---|---|
-| 戴恩医疗科技 | `daien` | Full config (guidelines, keywords, assets, images) |
-| 永和大健康 / 生命优雅 | `yonghe` | Text config complete, logo uploaded, product photos pending |
-
-### How brand isolation works at runtime
-
-1. **Pipeline prompt**: `_brand_config(input)` reads `input["brand"]` and injects only that brand's mission/sector/tags into the agent's prompt. Other brands' data is never exposed.
-2. **SKILL.md templates**: All content skills use generic language (e.g., "品牌连接段" not "戴恩连接段"). Brand-specific info comes solely from `brand_guidelines.md` + pipeline prompt.
-3. **Entrypoint overlay**: The docker-entrypoint-wrapper.sh reads the `BRAND` env var and symlinks brand-specific files (`brand_guidelines.md`, `company_keywords.yaml`, `brand_assets/`) over the shared `configs/` root.
-4. **Image assets**: `insert_images.py` reads `configs/<brand>/brand_images.yaml` for brand-specific image mappings. Unknown brands gracefully skip missing assets.
-
-### Adding a new brand (no Python code)
-
-```bash
-# dl-control side
-cp brand_configs/_template.yaml brand_configs/<slug>.yaml
-
-# agent side
-cp configs/_template/brand_images.yaml configs/<slug>/brand_images.yaml
-# create configs/<slug>/brand_guidelines.md
-# create configs/<slug>/company_keywords.yaml
-# place assets in configs/<slug>/brand_assets/
-```
-
-Then the workflow accepts `{"brand": "<slug>", "topic": "..."}`.
-
-### Delivery considerations
-
-- **dato is single-tenant**: All brand configs coexist in the same Docker image.
-- **Runtime isolation** is by `brand` parameter — only the active brand's config enters the prompt.
-- **To permanently remove a brand** for a delivery: delete its brand_config YAML + configs directory + rebuild images (configs are baked into the Docker image at build time, not runtime-mounted).
-
-## Content Pipeline (workflow)
+## Nursing Operations Workflow
 
 ### Flow definition
 
-`dl-control/dl_control/workflows/flows/content_pipeline.py` — 13-step sequential workflow:
+`dl-control/dl_control/workflows/flows/nursing_ops.py` — 4-step multi-agent workflow:
 
 ```
-topic-gate → hotspot-monitor → relevance-judge → relevance-gate →
-fact-research → content-strategy → wechat-content → xhs-content →
-image-generator → article-composer → humanizer → compliance-check → feishu-publisher
+nursing-schedule-step → logistics-step → finance-step → director-report-step
 ```
 
 ### Workflow input
 
 ```json
 {
-  "agent_id": "7c90fc88-...",
-  "brand": "yonghe",
-  "topic": "文章主题"
+  "nursing_agent_id": "<director agent UUID>"
 }
 ```
 
-- `brand` (optional, default `"daien"`): Brand slug — drives brand-specific mission, sector, tags, rules.
-- `topic` (optional): Article topic. If omitted, `hotspot-monitor` auto-selects the top RSS story.
-- `agent_id` (optional): Content-ops agent UUID (pre-filled by config_cache).
-
-### Brand config loading
-
-`content_pipeline.py` imports from `dl_control.workflows.brand_config`:
-
-```python
-from dl_control.workflows.brand_config import get_brand, list_brands
-
-cfg = get_brand(input.get("brand"))  # returns dict with sector, mission, xhs_tags, etc.
-```
-
-The `_BRAND_CONFIG` inline dict was removed in favor of YAML-backed loading. Config keys:
-
-| Key | Used by | Purpose |
-|---|---|---|
-| `name` | WeChat/XHS | Full brand name |
-| `brand_short` | WeChat/XHS | Short brand name for social tags |
-| `sector` | relevance-judge | Domain keywords for relevance scoring |
-| `mission` | content-strategy, wechat-content | Core narrative mission injected into prompts |
-| `wechat_rule` | wechat-content | Brand-specific WeChat content rules |
-| `xhs_tags` | xhs-content | Required XHS hashtags |
-| `brand_bridge` | content-strategy | Brand bridge description |
-| `compliance_extra` | compliance-check | Additional compliance checks |
-| `product_names` | insert_images.py | Product names for keyword matching |
-
-### Image insertion
-
-`openclaw/skills/article-composer/scripts/insert_images.py` is brand-agnostic. It loads brand assets from `configs/<brand>/brand_images.yaml` at runtime:
-
-```python
-cfg = _load_brand_images_yaml(brand, workspace)
-brand_assets = cfg.get("brand_assets", [])    # [(src, dst, label), ...]
-product_assets = cfg.get("product_assets", []) # [(src, dst, name), ...]
-product_keywords = cfg.get("product_keywords", {})  # {name: [keywords]}
-```
+- Triggered via `POST /api/nursing/workflow/start` by the director.
+- Each step dispatches to a different nursing Agent via CallAgent.
+- Results are synthesized by the `report-generate` skill into a weekly ops report.
 
 ## Knowledge Base RAG (dl-cognee)
 
@@ -255,30 +155,30 @@ results = search(query="brand positioning", library_slugs=["company_knowledge"])
 
 ## Key files reference
 
-### Multi-brand core
+### Nursing core
 | File | Role |
 |---|---|
-| `dl-control/dl_control/workflows/brand_config.py` | YAML loader — scans `brand_configs/*.yaml`, `get_brand()` with fallback |
-| `dl-control/dl_control/workflows/brand_configs/<slug>.yaml` | Brand text config (dl-control side) |
-| `dl-control/dl_control/workflows/flows/content_pipeline.py` | Pipeline flow — `_brand_config(inp)` for prompt injection |
-| `openclaw/configs/<slug>/brand_images.yaml` | Brand image asset mappings (agent side) |
-| `openclaw/configs/<slug>/brand_guidelines.md` | Brand guidelines read by SKILL.md |
-| `openclaw/configs/<slug>/company_keywords.yaml` | Keyword lists for relevance matching |
-| `openclaw/entrypoint/docker-entrypoint-wrapper.sh` | BRAND env var overlay for configs/ |
+| `dl-control/dl_control/workflows/flows/nursing_ops.py` | 4-step nursing ops workflow |
+| `dl-control/dl_control/workflows/flows/catalog.py` | Flow registry (hr.onboarding_email, content.pipeline, nursing.ops) |
+| `dl-control/dl_control/middleware/health_signal.py` | Health keyword detection + alert creation |
+| `dl-control/dl_control/main.py` | FastAPI app factory — nursing routes, dashboard API, workflow trigger |
+| `infra/postgres/init/03-nursing-seed.sql` | All nursing tables + seed data (users, residents, schedules, inventory, etc.) |
+| `dl-control/precreated_agents/*/agent.yaml` | 10 agent seed definitions (director, nursing-dept, logistics-dept, building-1..6, general-assistant) |
 
-### Agent Manager behavior
-| File | Role |
+### Skills with nursing focus
+| Skill | Purpose |
 |---|---|
-| `dl-control/precreated_agents/agent-manager/workspace/IDENTITY.md` | **"写文章→调管线API，禁止自写"** — forces API call |
-| `dl-control/precreated_agents/agent-manager/workspace/TOOLS.md` | Workflow input format docs (brand/topic optional) |
-| `openclaw/skills/admin-mgmt/SKILL.md` | start_workflow parameter docs + brand examples |
-
-### Skills with brand de-hardcoding
-| File | Status |
-|---|---|
-| `openclaw/skills/content-strategy/SKILL.md` | ✅ Generic — no "戴恩" references |
-| `openclaw/skills/wechat-content/SKILL.md` | ✅ Generic — brand info from prompt/guidelines |
-| `openclaw/skills/xhs-content/SKILL.md` | ✅ Generic — tags from pipeline prompt |
+| `nursing-schedule` | Generate weekly 12h-shift schedules per building |
+| `nursing-work-order` | Query work order completion rates |
+| `logistics-inventory` | Inventory tracking with safety-stock alerts |
+| `logistics-query` | Read-only logistics/inventory lookups |
+| `resident-query` | Lookup residents by name/building/room |
+| `staff-query` | Lookup staff by name/building |
+| `meal-query` | Query daily menus |
+| `activity-query` | Query scheduled activities |
+| `finance-query` | Query resident finance records |
+| `alert-query` | Query health alerts with filters |
+| `report-generate` | Synthesize weekly ops report from multi-agent outputs |
 
 ## Commands
 
@@ -292,7 +192,7 @@ results = search(query="brand positioning", library_slugs=["company_knowledge"])
 | `make control-test` | `cd dl-control && uv run pytest -q` |
 | `make smoke` | `make up && make admin-init && pytest tests/test_smoke*.py` |
 | `uv run pytest tests/test_smoke_p6_llm.py -v` | Smoke-test the local LLM path |
-| `make build` | Build all service images (see note about dl-ota-watcher in Makefile) |
+| `make build` | Build all service images |
 
 ### Operator (appliance-side — requires `make up` / full stack)
 
@@ -335,37 +235,31 @@ docker restart dato-agent-<uuid>
 ## Architecture overview
 
 ```
-dato/
+nursing-home-mvp/
 ├── dl-control/              ← Admin web UI + agent registry + workflow engine (FastAPI)
 │   ├── dl_control/
 │   │   ├── agents/          ← Registry CRUD, provisioning, internal admin API
-│   │   ├── precreated/      ← Seed agent reconciler
-│   │   ├── workflows/       ← Workflow runner, flows (content_pipeline, hr_onboarding)
-│   │   │   ├── flows/       ← content_pipeline.py (brand-agnostic pipeline)
-│   │   │   ├── brand_config.py  ← YAML-backed brand loader
-│   │   │   └── brand_configs/   ← <slug>.yaml per brand (daien, yonghe)
-│   │   ├── channels/        ← Feishu integration (pairings, credentials)
+│   │   ├── precreated/      ← Seed agent reconciler (10 nursing agents)
+│   │   ├── workflows/       ← Workflow runner, flows (nursing_ops, content_pipeline, hr_onboarding)
+│   │   │   └── flows/       ← nursing_ops.py (4-step nursing workflow)
+│   │   ├── middleware/      ← HealthSignalMiddleware (fire-and-forget health scanning)
+│   │   ├── channels/        ← Channel integration (normalize.py only, feishu removed)
 │   │   ├── audit/           ← Central audit log
-│   │   └── auth/            ← Session-based auth
-│   └── precreated_agents/   ← Seed YAML files (agent-manager, knowledge-base)
+│   │   └── auth/            ← Session-based auth + nursing login
+│   └── precreated_agents/   ← 10 agent YAML seeds (director, nursing-dept, logistics-dept, building-1..6, general-assistant)
 ├── dl-cognee/               ← RAG knowledge graph service (FlagEmbedding bge-m3 + pgvector)
 │   └── dl-cognee-reranker/  ← Reranker microservice (bge-reranker-v2-m3)
 ├── dl-llm-proxy/            ← LLM passthrough + rate-limit guardrail
 ├── dl-llm-local/            ← Bundled local model via Ollama (optional)
-├── dl-ota-watcher/          ← OTA self-update poller
-├── dl-egress-dns/           ← DNS-level LLM-deny guardrail
 ├── dl_shared/               ← Shared Python library (rate-limit, secrets, manifest)
 ├── openclaw/                ← Patched OpenClaw image + custom skills
-│   ├── patches/             ← Feishu extension patches
-│   ├── skills/              ← 20 custom skills (all brand-agnostic SKILL.md)
-│   ├── scripts/             ← Content pipeline scripts
-│   └── configs/             ← Brand assets, platform style guides, keywords
-│       ├── daien/           ← 戴恩 brand config
-│       ├── yonghe/          ← 永和 brand config
-│       └── _template/       ← New brand template
-├── infra/                   ← Docker Compose, Caddy, Postgres init
+│   ├── patches/             ← Extension patches
+│   ├── skills/              ← 22 skills (11 nursing + 11 supporting)
+│   ├── scripts/             ← Auxiliary scripts
+│   └── configs/             ← _template/ (for future use)
+├── infra/                   ← Docker Compose, Caddy, Postgres init (03-nursing-seed.sql)
 ├── templates/               ← Workspace templates + openclaw.json.j2
-└── tests/                   ← Integration smoke tests (require full stack)
+└── tests/                   ← Integration tests + MVP smoke test
 ```
 
 ### dl-control internals
@@ -382,17 +276,15 @@ The app lives in `dl-control/dl_control/`:
 | `precreated/` | Declarative seed-agent system: `loader.py` parses `agent.yaml` files, `reconciler.py` bootstraps seeds, `apply.py` applies drift. |
 | `workflows/` | Workflow runner with Postgres-based lease, scheduler, wake-listener (Redis pub/sub), and agent dispatch (P13d peer interface). |
 | `audit/` | Central audit log with per-agent DB mirroring. |
-| `channels/` | Feishu integration (pairings, credential wizard, reconciler). |
+| `channels/` | Channel normalization (feishu integration removed for nursing MVP). |
 | `libraries/` | Knowledge library management. |
-| `ota/` | OTA coordination — roll/openclaw jobs, install digest seed. |
+| `middleware/` | Health signal middleware — fire-and-forget resident health keyword detection. |
 | `migrations.py` | Alembic-style schema migrations run as a one-shot container. |
 
 Background loops:
-- **Feishu reconciler** (P3) — single-writer flock, projects pairings → allowFrom files
 - **Audit mirror** (P4) — drains `audit_log_outbox` into per-agent databases
 - **Workflow runner** (P13b) — Postgres lease + flock, leases workflow runs, dispatches to agents
 - **Active-agent reconciler** (P11) — recovers agents with missing containers at startup
-- **OTA reattach** (P7) — reattaches in-progress roll-openclaw jobs after restart
 
 ### Agent model
 
@@ -406,35 +298,51 @@ Provisioning creates: Docker container, per-agent DB + role (Tier 1 only), works
 
 Boot-time seeded agents under `dl-control/precreated_agents/`. Each subdirectory has an `agent.yaml` seed file and an optional `workspace/` directory with override files. The reconciler runs on first bootstrap and creates these agents automatically:
 
-- `agent-manager/` — Admin agent, manages agents/workflows via internal API
-- `knowledge-base/` — Knowledge curator, writes/reads cognee
+- `director/` — 院长 (director), owner of weekly report workflow, full read access
+- `nursing-dept/` — 护理科 (nursing dept), schedule + work order management
+- `logistics-dept/` — 总务科 (logistics dept), inventory tracking + alerts
+- `building-1/` through `building-6/` — 楼栋负责人 (building heads), per-building queries
+- `general-assistant/` — 通用助手 (general assistant), public-facing info queries
+- `agent-manager/` — Admin agent, manages agents/workflows via internal API (legacy)
+- `knowledge-base/` — Knowledge curator, writes/reads cognee (legacy)
+- `content-ops/` — Content operations (legacy, pipeline dep removed)
+- `operations-a/`, `operations-b/` — Operations agents (legacy)
 
 ### OpenClaw custom skills
 
-20 custom skills live under `openclaw/skills/`, each with `_meta.json` + `SKILL.md`:
+Skills live under `openclaw/skills/`, each with `_meta.json` + `SKILL.md`:
+
+### Nursing MVP skills (11)
+
+| Skill | Purpose |
+|---|---|
+| **nursing-schedule** | Generate weekly 12h-shift schedules per building (asyncpg) |
+| **nursing-work-order** | Query work order completion rates by type (asyncpg) |
+| **logistics-inventory** | Inventory CRUD with safety-stock alerts (asyncpg) |
+| **logistics-query** | Read-only inventory lookups (asyncpg) |
+| **resident-query** | Lookup residents by name/building/room (asyncpg) |
+| **staff-query** | Lookup staff by name/building (asyncpg) |
+| **meal-query** | Query daily menus by date/meal_type (asyncpg) |
+| **activity-query** | Query scheduled activities by date (asyncpg) |
+| **finance-query** | Query resident finance records by month (asyncpg) |
+| **alert-query** | Query health alerts with severity/handled filters (asyncpg) |
+| **report-generate** | Synthesize weekly ops report from multi-agent outputs |
+
+### Supporting skills (from original dato platform)
 
 | Skill | Purpose |
 |---|---|
 | **admin-mgmt** | Agent Manager system mgmt — HTTP shim to internal admin API |
 | **cognee** | RAG query handler — `add()` / `search()` via httpx to dl-cognee |
-| **workflow** | Agent→workflow dispatch (P13d) |
-| **hotspot-monitor** | Fetch + cluster hotspot news |
-| **relevance-judge** | Score topic relevance to brand |
-| **fact-research** | Cross-verify facts from multiple sources |
-| **content-strategy** | Create platform-specific content strategies (brand-agnostic) |
-| **wechat-content** | Generate WeChat public account articles (brand-agnostic) |
-| **xhs-content** | Generate Xiaohongshu notes (brand-agnostic) |
-| **douyin-content** | Generate Douyin video scripts (brand-agnostic) |
-| **image-generator** | Search Pexels or run ComfyUI |
-| **article-composer** | Embed images into articles (brand-agnostic, reads brand_images.yaml) |
-| **humanizer** | Detect + remove AI writing patterns |
-| **compliance-check** | 4-dimension compliance review |
-| **publish-package** | Package outputs for publishing |
-| **feishu-publisher** | Push markdown → Feishu Doc |
-| **web-content-fetcher** | Fallback web scraper |
-| **self-improving** | Heartbeat + self-reflection loop |
-| **openai-whisper** | Local ASR (speech→text) |
+| **workflow** | Agent-to-workflow dispatch (P13d) |
+| **gbrain-mcp** | GBrain MCP integration |
+| **openai-whisper** | Local ASR (speech-to-text) |
 | **nano-pdf** | Natural language PDF editing |
+| **self-improving** | Heartbeat + self-reflection loop |
+| **web-content-fetcher** | Fallback web scraper |
+| **ppt-generator** | PPT generation |
+| **ppt-master** | PPT master template |
+| **vision-ocr** | Vision-based OCR |
 
 **IMPORTANT:** Python `handler.py`-based skills (`admin-mgmt`, `cognee`, `workflow`) do NOT register as callable tools in OpenClaw v2026.4.8. Agents use the `process` tool to `python3 -c` one-liners that import handlers directly.
 

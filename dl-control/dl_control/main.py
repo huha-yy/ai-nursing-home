@@ -136,6 +136,11 @@ async def build_app() -> FastAPI:
         key_fn=_login_rate_key,
         prefix="rl_login:",
     )
+
+    from dl_control.middleware.health_signal import HealthSignalMiddleware
+
+    app.add_middleware(HealthSignalMiddleware, db=db)
+
     app.mount(
         "/static",
         StaticFiles(directory=str(PACKAGE_DIR / "static")),
@@ -243,6 +248,33 @@ async def build_app() -> FastAPI:
             "nursing/test-roles.html",
             {"active": "test"},
         )
+
+    @app.get("/api/nursing/alerts")
+    async def nursing_alerts():
+        """Return pending (unhandled) health alerts for the dashboard."""
+        async with db.conn(user_id=None, role="system") as conn:
+            rows = await conn.execute(
+                "SELECT id, resident_id, content, category, severity, "
+                "created_at, handled "
+                "FROM nursing_health_alerts "
+                "WHERE handled = FALSE "
+                "ORDER BY created_at DESC "
+                "LIMIT 50"
+            )
+            alerts = []
+            for row in await rows.fetchall():
+                alerts.append(
+                    {
+                        "id": row[0],
+                        "resident_id": row[1],
+                        "content": row[2],
+                        "category": row[3],
+                        "severity": row[4],
+                        "created_at": str(row[5]),
+                        "handled": row[6],
+                    }
+                )
+        return {"alerts": alerts}
 
     @app.exception_handler(MustRotatePasswordError)
     async def _rotate_handler(_request, exc: MustRotatePasswordError):

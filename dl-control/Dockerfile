@@ -17,6 +17,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /usr/local/bin/uv
 # resolved at ../dl_shared relative to /app — copied to /dl_shared.
 COPY dl-control/pyproject.toml dl-control/uv.lock ./
 COPY dl_shared /dl_shared
+ENV UV_HTTP_TIMEOUT=120
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Then the application source.

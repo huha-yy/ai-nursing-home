@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-COMPOSE := docker compose --project-name dato --project-directory infra --env-file install/dato-ota-defaults.env --env-file infra/.env
+COMPOSE := docker compose --project-name nursing --project-directory infra --env-file infra/.env
 
 unexport PROD_URL
 

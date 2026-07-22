@@ -225,69 +225,8 @@ services:
       timeout: 5s
       retries: 5
 
-  dl-cognee:
-    image: dl-cognee:latest
-    build:
-      context: ../dl-cognee
-    container_name: dl-cognee
-    restart: unless-stopped
-    read_only: true
-    ports:
-      - "8080:8080"
-    environment:
-      DL_COGNEE_OWNER_DB_DSN: postgresql://cognee:${DL_COGNEE_PG_PASSWORD:-dev_password_change_me}@dato-postgres:5432/${POSTGRES_DB:-dato}
-      DL_INTERNAL_API_KEY: ${DL_INTERNAL_API_KEY}
-      DL_COGNEE_ADMIN_TOKEN: ${DL_COGNEE_ADMIN_TOKEN}
-      DL_COGNEE_CONTROL_URL: http://dato-control:8080
-      DL_COGNEE_EMBEDDING_MODEL: BAAI/bge-m3
-      DL_COGNEE_RERANKER_URL: http://dl-cognee-reranker:8080
-      DL_COGNEE_RERANKER_ENABLED: "1"
-      UV_FROZEN: 1
-      UV_CACHE_DIR: /tmp/uv-cache
-      # Models are loaded from Docker named volume (cognee_hf_models).
-      HF_HOME: /models/hf
-      HF_HUB_OFFLINE: "1"
-      HF_HUB_ENABLE_XET: "0"
-      TZ: ${TIMEZONE:-Asia/Shanghai}
-    tmpfs:
-      - /tmp:exec
-    volumes:
-      - cognee_hf_models:/models/hf:ro
-    networks:
-      - dato_net
-      - dato_proxy_net
-    depends_on:
-      dato-postgres:
-        condition: service_healthy
-      dato-control-migrate:
-        condition: service_completed_successfully
-      dl-cognee-model-download:
-        condition: service_completed_successfully
-
-  dl-cognee-reranker:
-    image: dl-cognee-reranker:latest
-    build:
-      context: ../dl-cognee-reranker
-    container_name: dl-cognee-reranker
-    restart: unless-stopped
-    read_only: true
-    expose:
-      - "8080"
-    environment:
-      RERANKER_MODEL: BAAI/bge-reranker-v2-m3
-      HF_HOME: /models/hf
-      HF_HUB_OFFLINE: "1"
-      HF_HUB_ENABLE_XET: "0"
-      TZ: ${TIMEZONE:-Asia/Shanghai}
-    tmpfs:
-      - /tmp:exec
-    volumes:
-      - cognee_hf_models:/models/hf:ro
-    networks:
-      - dato_net
-    depends_on:
-      dl-cognee-model-download:
-        condition: service_completed_successfully
+  # dl-cognee + dl-cognee-reranker: skipped for MVP (no GPU needed, nursing skills
+  # query Postgres directly). Will be re-enabled with CPU-only deps in Phase 2.
 
   dl-gbrain:
     build:
@@ -303,58 +242,14 @@ services:
     environment:
       DATABASE_URL: postgresql://gbrain_app:${DL_GBRAIN_PG_PASSWORD}@dato-postgres:5432/gbrain
       DL_GBRAIN_PG_PASSWORD: ${DL_GBRAIN_PG_PASSWORD}
-      OPENAI_BASE_URL: http://dl-cognee:8080/v1
-      OPENAI_API_KEY: ${DL_INTERNAL_API_KEY}
       TZ: ${TIMEZONE:-Asia/Shanghai}
     networks:
       - dato_net
     depends_on:
       dato-postgres:
         condition: service_healthy
-      dl-cognee:
-        condition: service_started
 
-  dl-cognee-model-download:
-    image: python:3.12-slim
-    container_name: dl-cognee-model-download
-    restart: "no"
-    entrypoint:
-      - python3
-      - -c
-      - |
-        import os
-        models = ["/models/hf/hub/models--BAAI--bge-m3", "/models/hf/hub/models--BAAI--bge-reranker-v2-m3"]
-        all_ok = True
-        for m in models:
-            if os.path.isdir(m):
-                size = sum(f.stat().st_size for f in __import__("pathlib").Path(m).rglob("*") if f.is_file())
-                print(f"  {os.path.basename(m)}: {size/(1024**3):.1f}GB OK", flush=True)
-            else:
-                print(f"  {os.path.basename(m)}: MISSING", flush=True)
-                all_ok = False
-        if all_ok:
-            print("All models present, download not needed. Exiting 0.", flush=True)
-        else:
-            print("Models missing, attempting download...", flush=True)
-            import subprocess, sys
-            subprocess.run([sys.executable, "-m", "pip", "install", "FlagEmbedding", "--quiet",
-                "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"], check=True)
-            for m in ["BAAI/bge-m3", "BAAI/bge-reranker-v2-m3"]:
-                print(f"Downloading {m}...", flush=True)
-                if "bge-m3" in m:
-                    from FlagEmbedding import BGEM3FlagModel
-                    BGEM3FlagModel(m, use_fp16=False, device="cpu")
-                else:
-                    from FlagEmbedding import FlagReranker
-                    FlagReranker(m, use_fp16=False, device="cpu")
-                print(f"{m} done", flush=True)
-            print("All models downloaded.", flush=True)
-        exit(0)
-    environment:
-      HF_HOME: /models/hf
-      HF_ENDPOINT: https://hf-mirror.com
-    volumes:
-      - cognee_hf_models:/models/hf
+  # dl-cognee-model-download: skipped for MVP (models not needed without cognee)
 
   dl-llm-local:
     build:

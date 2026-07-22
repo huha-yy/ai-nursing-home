@@ -6,7 +6,8 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
-ENV UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+ENV UV_INDEX_URL="https://mirrors.aliyun.com/pypi/simple"
+ENV UV_EXTRA_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
 # Sync WITHOUT torch/pytorch to avoid pulling CUDA nvidia-* packages (~2GB).
 RUN uv sync --no-dev --frozen
 

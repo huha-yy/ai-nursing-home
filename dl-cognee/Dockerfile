@@ -7,13 +7,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
 ENV UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
-# Sync WITHOUT torch/pytorch to avoid pulling CUDA nvidia-* packages (~2GB).
-# torch is installed separately from the CPU-only wheel below.
-RUN uv sync --no-dev --frozen
-
-# Install CPU-only PyTorch into the uv-managed .venv.
-RUN uv pip install --no-cache-dir --python .venv/bin/python \
-    torch --index-url https://download.pytorch.org/whl/cpu
+# Create venv and pre-install CPU-only torch FIRST so uv sync skips CUDA torch (~2GB).
+RUN uv venv .venv && \
+    uv pip install --no-cache-dir --python .venv/bin/python \
+    torch --index-url https://download.pytorch.org/whl/cpu && \
+    uv sync --no-dev --frozen
 
 # Model is NOT baked into the image anymore (bge-m3 ~2.2GB would blow up image size).
 # Models are loaded from a Docker named volume at /models/hf (set via HF_HOME).

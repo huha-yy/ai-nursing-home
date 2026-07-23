@@ -309,7 +309,7 @@ async def build_app() -> FastAPI:
     # ── Chat send ────────────────────────────────────────────────────
     @app.post("/api/nursing/chat")
     async def nursing_chat_post(request: _Request):
-        import httpx, json, time
+        import httpx, json, time, logging, shlex
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
@@ -334,6 +334,55 @@ async def build_app() -> FastAPI:
             chats = await _get_user_chats(sess.user_id)
             chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
             await _save_user_chats(sess.user_id, chats)
+
+        # ── Agent routing ──────────────────────────────────────────
+        agent_reply = None
+        # Map role → precreated_id for agent lookup
+        ROLE_TO_AGENT = {
+            "director": "director",
+            "nursing_dept": "nursing-dept",
+            "logistics_dept": "logistics-dept",
+            "building": f"building-{sess.building[0]}" if sess.building and sess.building[0].isdigit() else None,
+            "floor": f"building-{sess.building[0]}" if sess.building and sess.building[0].isdigit() else None,
+            "general": "general-assistant",
+        }
+        precreated_id = ROLE_TO_AGENT.get(sess.role)
+        if precreated_id:
+            try:
+                print(f"AGENT_ROUTING: role={sess.role} -> precreated_id={precreated_id}", flush=True)
+                async with db.conn(user_id=None, role="system") as conn:
+                    cur = await conn.execute(
+                        "SELECT id FROM agents WHERE precreated_id = %s LIMIT 1", (precreated_id,))
+                    row = await cur.fetchone()
+                    if row:
+                        agent_id = str(row[0])
+                        # Read token from agent's .env on disk (inside container mount)
+                        env_path = f"/data/agents/{agent_id}/config/.env"
+                        token = ""
+                        try:
+                            with open(env_path) as f:
+                                for line in f:
+                                    if line.startswith("DL_INTERNAL_TOKEN="):
+                                        token = line.strip().split("=", 1)[1].strip("'\"")
+                                        break
+                        except Exception:
+                            pass
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            agent_url = f"http://dato-agent-{agent_id}:18790/dato/chat"
+                            resp = await client.post(agent_url,
+                                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                                json={"message": message, "session_id": f"nursing-{sess.sid[:16]}"})
+                            print(f"AGENT_HTTP: status={resp.status_code} body={resp.text[:200]}", flush=True)
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                agent_reply = data.get("reply", "") or data.get("error", "")[:500]
+            except Exception as e:
+                import traceback
+                print(f"AGENT_ROUTING_FAILED: {type(e).__name__}: {e}", flush=True)
+                traceback.print_exc()
+                agent_reply = None
+        if agent_reply:
+            return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
 
         # Build system prompt with user context
         from datetime import datetime

@@ -198,22 +198,32 @@ def redeliver(correlation_id: str, state: dict) -> None:
 
 def _run_agent(message: str, session_id: str) -> dict:
     """Run openclaw agent synchronously and return parsed JSON result."""
-    cmd = AGENT_CMD.replace("{message}", shlex.quote(message))
+    cmd = AGENT_CMD.replace("{message}", shlex.quote(message)).replace("--session-id dato", f"--session-id {session_id}")
     try:
         proc = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=TASK_TIMEOUT,
             env={**os.environ, "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
+                 "OPENAI_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
                  "OPENAI_BASE_URL": "https://api.deepseek.com"}
         )
-        if proc.returncode == 0 and proc.stdout.strip():
-            data = json.loads(proc.stdout)
-            reply_text = ""
-            if "result" in data:
-                reply_text = data["result"]
-            elif "choices" in data:
-                reply_text = data["choices"][0]["message"]["content"]
-            return {"reply": reply_text, "stop_reason": data.get("stopReason", "unknown")}
-        return {"reply": "", "error": proc.stderr[:500] if proc.stderr else "no output"}
+        # Try stdout first for embedded agent JSON output
+        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        # Look for JSON objects with text/reply fields
+        import re as _re
+        for match in _re.finditer(r'\{[^{}]*"text"\s*:\s*"((?:[^"\\]|\\.)*)"', combined):
+            return {"reply": match.group(0), "stop_reason": "stop"}
+        # Try parsing as JSON
+        for source in [proc.stdout, proc.stderr]:
+            if source and source.strip():
+                try:
+                    data = json.loads(source)
+                    if "result" in data:
+                        return {"reply": data["result"], "stop_reason": data.get("stopReason", "unknown")}
+                    if "choices" in data:
+                        return {"reply": data["choices"][0]["message"]["content"], "stop_reason": data.get("stopReason", "unknown")}
+                except json.JSONDecodeError:
+                    continue
+        return {"reply": combined[:500], "error": "no structured output"}
     except Exception as e:
         return {"reply": "", "error": str(e)[:500]}
 

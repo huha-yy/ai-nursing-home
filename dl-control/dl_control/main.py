@@ -347,15 +347,55 @@ async def build_app() -> FastAPI:
             context_parts.append(f"楼层：{sess.floor}")
         context_parts.append("请用中文简洁回答用户的问题。")
 
+        # ── Skill intent detection ────────────────────────────────────
+        skill_result = None
+        matched_skill = None
+        SKILL_QUERIES = [
+            (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
+             "SELECT staff_name, shift, date, building FROM nursing_schedules WHERE date = CURRENT_DATE ORDER BY shift, staff_name LIMIT 20"),
+            (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
+             "SELECT type, COUNT(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done FROM nursing_work_orders WHERE date = CURRENT_DATE GROUP BY type"),
+            (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"], "logistics-inventory",
+             "SELECT item_name, quantity, unit, safety_stock, CASE WHEN quantity < safety_stock THEN '预警' ELSE '正常' END as status FROM nursing_inventory ORDER BY item_name"),
+            (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"], "resident-query",
+             "SELECT name, building, floor, room, age, diagnosis, care_level FROM nursing_residents ORDER BY building, room LIMIT 15"),
+            (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
+             "SELECT meal_type, menu FROM nursing_meals WHERE date = CURRENT_DATE ORDER BY CASE meal_type WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'dinner' THEN 3 END"),
+            (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
+             "SELECT title, date, time, location FROM nursing_activities WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
+            (["费用", "结算", "缴费", "账单"], "finance-query",
+             "SELECT r.name, f.month, f.amount, CASE WHEN f.paid THEN '已结清' ELSE '未结清' END as status FROM nursing_finances f JOIN nursing_residents r ON f.resident_id = r.id ORDER BY f.month DESC LIMIT 10"),
+            (["预警", "告警", "重点关注", "异常"], "alert-query",
+             "SELECT r.name, a.content, a.category, a.severity, a.created_at FROM nursing_health_alerts a JOIN nursing_residents r ON a.resident_id = r.id WHERE a.handled = false ORDER BY a.created_at DESC LIMIT 10"),
+            (["员工", "谁负责", "人员", "值班人员"], "staff-query",
+             "SELECT name, role, dept, building, floor FROM nursing_users WHERE role != 'resident' ORDER BY building, floor LIMIT 20"),
+        ]
+        for keywords, skill_name, sql in SKILL_QUERIES:
+            if any(kw in message for kw in keywords):
+                matched_skill = skill_name
+                try:
+                    async with db.conn(user_id=None, role="system") as conn:
+                        cur = await conn.execute(sql)
+                        rows = await cur.fetchall()
+                        cols = [d[0] for d in cur.description]
+                        skill_result = [dict(zip(cols, r)) for r in rows][:15]
+                except Exception as _e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
+                    skill_result = None
+                break
+
+        # Build system prompt with skill data
         system_prompt = "。".join(context_parts)
+        if skill_result is not None:
+            data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:3000]
+            system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
         api_key = s.deepseek_api_key.get_secret_value()
         if not api_key:
             return JSONResponse({"reply": "DeepSeek API Key 未配置，请在 infra/.env 中设置 DEEPSEEK_API_KEY"}, 200)
 
         # Load conversation history
         history = await _get_chat_msgs(chat_id)
-
-        # Build messages: system + history + current message
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history[-20:])
         # File upload: distinguish images from other files

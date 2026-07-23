@@ -267,17 +267,10 @@
     addMessage(text, true);
     ta.value = '';
     ta.style.height = 'auto';
-            btn.disabled = true;
-            btn.textContent = '思考中…';
-
-            fetch('/api/nursing/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: text })
-            }).then(function(r) { return r.json(); })
-              .then(function(data) { addMessage(data.reply || '（无响应）', false); })
-              .catch(function(err) { addMessage('网络错误：' + err.message, false); })
-              .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
+    // MVP: echo response — real AI integration in later tasks
+    setTimeout(function() {
+      addMessage('收到您的消息：「' + text + '」。此功能将在后续版本中接入 AI 助手。', false);
+    }, 600);
   }
 })();
 </script>

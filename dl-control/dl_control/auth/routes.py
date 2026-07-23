@@ -108,7 +108,7 @@ def make_router(
             floor=result.floor,
             username=result.username,
         )
-        resp = RedirectResponse(url="/admin", status_code=302)
+        resp = RedirectResponse(url="/chat", status_code=302)
         set_session_cookie(resp, token=sessions.sign(sess.sid))
         return resp
 

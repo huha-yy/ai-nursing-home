@@ -241,6 +241,65 @@ async def build_app() -> FastAPI:
             {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
         )
 
+    @app.post("/api/nursing/chat")
+    async def nursing_chat_post(request: _Request):
+        import httpx, json
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+
+        try:
+            body = await request.json()
+        except Exception:
+            raw_body = await request.body()
+            body = json.loads(raw_body.decode("utf-8", errors="replace"))
+        message = body.get("message", "").strip()
+        if not message:
+            return JSONResponse({"error": "empty message"}, 400)
+
+        # Build system prompt with user context
+        context_parts = [f"你是AI养老院院长助手。当前用户：{sess.name}，角色：{sess.role}"]
+        if sess.dept:
+            context_parts.append(f"科室：{sess.dept}")
+        if sess.building:
+            context_parts.append(f"楼栋：{sess.building}")
+        if sess.floor:
+            context_parts.append(f"楼层：{sess.floor}")
+        context_parts.append("请用中文简洁回答用户的问题。")
+
+        system_prompt = "。".join(context_parts)
+        api_key = s.deepseek_api_key.get_secret_value()
+        if not api_key:
+            return JSONResponse({"reply": "DeepSeek API Key 未配置，请在 infra/.env 中设置 DEEPSEEK_API_KEY"}, 200)
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "deepseek-v4-flash",
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": message},
+                        ],
+                        "max_tokens": 800,
+                        "temperature": 0.7,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                reply = data["choices"][0]["message"]["content"]
+        except Exception as exc:
+            reply = f"抱歉，AI 服务暂时不可用：{str(exc)[:200]}"
+
+        return JSONResponse({"reply": reply}, 200)
+
     @app.get("/nursing/test-roles", response_class=HTMLResponse)
     async def nursing_test_roles(request: _Request):
         return TEMPLATES.TemplateResponse(

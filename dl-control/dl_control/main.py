@@ -388,7 +388,7 @@ async def build_app() -> FastAPI:
         # Build system prompt with user context
         from datetime import datetime
         today = datetime.now().strftime("%Y年%m月%d日 %A")
-        context_parts = [f"你是AI养老院院长助手。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
+        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
         if sess.dept:
             context_parts.append(f"科室：{sess.dept}")
         if sess.building:

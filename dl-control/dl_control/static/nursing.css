@@ -500,3 +500,15 @@
     max-width: 90%;
   }
 }
+
+/* Session list */
+.nh-session-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; margin: 2px 0; border-radius: 4px;
+  cursor: pointer; transition: background 0.15s; font-size: 13px;
+}
+.nh-session-item:hover { background: rgba(230,126,34,0.1); }
+.nh-session-item.active { background: rgba(230,126,34,0.2); font-weight: 600; }
+.nh-session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-session-del { color: #999; margin-left: 8px; cursor: pointer; font-size: 16px; }
+.nh-session-del:hover { color: #e74c3c; }

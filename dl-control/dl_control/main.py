@@ -241,9 +241,65 @@ async def build_app() -> FastAPI:
             {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
         )
 
+    # ── Chat history helpers ──────────────────────────────────────────
+    import json as _json
+
+    async def _get_user_chats(user_id: str) -> list[dict]:
+        raw = await redis.get(f"user_chats:{user_id}")
+        return _json.loads(raw) if raw else []
+
+    async def _save_user_chats(user_id: str, chats: list[dict]):
+        await redis.set(f"user_chats:{user_id}", _json.dumps(chats), ex=86400 * 30)
+
+    async def _get_chat_msgs(chat_id: str) -> list[dict]:
+        raw = await redis.get(f"chat_msgs:{chat_id}")
+        return _json.loads(raw) if raw else []
+
+    async def _save_chat_msgs(chat_id: str, msgs: list[dict]):
+        await redis.set(f"chat_msgs:{chat_id}", _json.dumps(msgs), ex=86400 * 30)
+
+    # ── Chat session list ────────────────────────────────────────────
+    @app.get("/api/nursing/chats")
+    async def nursing_chats_list(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        chats = await _get_user_chats(sess.user_id)
+        return JSONResponse({"chats": chats}, 200)
+
+    @app.post("/api/nursing/chats")
+    async def nursing_chats_create(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        import uuid
+        chat_id = str(uuid.uuid4())[:8]
+        chats = await _get_user_chats(sess.user_id)
+        chats.insert(0, {"id": chat_id, "title": "新对话", "created_at": __import__("time").time()})
+        await _save_user_chats(sess.user_id, chats)
+        return JSONResponse({"chat_id": chat_id}, 200)
+
+    @app.delete("/api/nursing/chats/{chat_id}")
+    async def nursing_chats_delete(chat_id: str, request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        chats = await _get_user_chats(sess.user_id)
+        chats = [c for c in chats if c["id"] != chat_id]
+        await _save_user_chats(sess.user_id, chats)
+        await redis.delete(f"chat_msgs:{chat_id}")
+        return JSONResponse({"ok": True}, 200)
+
+    # ── Chat send ────────────────────────────────────────────────────
     @app.post("/api/nursing/chat")
     async def nursing_chat_post(request: _Request):
-        import httpx, json
+        import httpx, json, time
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
@@ -256,8 +312,17 @@ async def build_app() -> FastAPI:
             raw_body = await request.body()
             body = json.loads(raw_body.decode("utf-8", errors="replace"))
         message = body.get("message", "").strip()
+        chat_id = body.get("chat_id", "").strip()
         if not message:
             return JSONResponse({"error": "empty message"}, 400)
+
+        # Auto-create chat if no chat_id provided
+        if not chat_id:
+            import uuid
+            chat_id = str(uuid.uuid4())[:8]
+            chats = await _get_user_chats(sess.user_id)
+            chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
+            await _save_user_chats(sess.user_id, chats)
 
         # Build system prompt with user context
         from datetime import datetime
@@ -276,17 +341,12 @@ async def build_app() -> FastAPI:
         if not api_key:
             return JSONResponse({"reply": "DeepSeek API Key 未配置，请在 infra/.env 中设置 DEEPSEEK_API_KEY"}, 200)
 
-        # Load conversation history from Redis (last 20 messages)
-        history_key = f"chat_history:{sess.sid}"
-        try:
-            raw_history = await redis.get(history_key)
-            history = json.loads(raw_history) if raw_history else []
-        except Exception:
-            history = []
+        # Load conversation history
+        history = await _get_chat_msgs(chat_id)
 
         # Build messages: system + history + current message
         messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(history[-20:])  # keep last 20 for context
+        messages.extend(history[-20:])
         messages.append({"role": "user", "content": message})
 
         try:
@@ -310,15 +370,22 @@ async def build_app() -> FastAPI:
         except Exception as exc:
             reply = f"抱歉，AI 服务暂时不可用：{str(exc)[:200]}"
 
-        # Save conversation to Redis (trim to last 20 entries)
+        # Save to Redis
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": reply})
         try:
-            await redis.set(history_key, json.dumps(history[-40:]), ex=86400)
+            await _save_chat_msgs(chat_id, history[-40:])
+            # Update chat title if first exchange
+            chats = await _get_user_chats(sess.user_id)
+            for c in chats:
+                if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
+                    c["title"] = message[:20]
+                    await _save_user_chats(sess.user_id, chats)
+                    break
         except Exception:
             pass
 
-        return JSONResponse({"reply": reply}, 200)
+        return JSONResponse({"reply": reply, "chat_id": chat_id}, 200)
 
     @app.get("/nursing/test-roles", response_class=HTMLResponse)
     async def nursing_test_roles(request: _Request):

@@ -198,6 +198,15 @@
     </div>
     {% endif %}
 
+    {# Session list #}
+    <div class="nh-sidebar-section">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>对话记录</h3>
+        <button id="btn-new-chat" style="background:#E67E22;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:14px">+ 新对话</button>
+      </div>
+      <div id="session-list" style="max-height:200px;overflow-y:auto;margin-top:8px"></div>
+    </div>
+
     {# Sidebar footer #}
     <div class="nh-sidebar-footer">
       杭州市第三社会福利院<br>
@@ -261,25 +270,102 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
   });
 
+
+<script>
+// Session manager + chat send
+(function() {
+  var ta = document.getElementById('chat-input');
+  var btn = document.getElementById('chat-send');
+  var msgs = document.getElementById('chat-messages');
+  var currentChatId = '';
+
+  ta.addEventListener('input', function() {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  });
+
+  function addMessage(text, isUser) {
+    var div = document.createElement('div');
+    div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
+    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI 助手</div>') + text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function loadChatList() {
+    fetch('/api/nursing/chats').then(function(r) { return r.json(); }).then(function(data) {
+      var list = document.getElementById('session-list');
+      list.innerHTML = '';
+      (data.chats || []).forEach(function(c) {
+        var item = document.createElement('div');
+        item.className = 'nh-session-item' + (c.id === currentChatId ? ' active' : '');
+        item.innerHTML = '<span class="nh-session-title">' + (c.title || '新对话') + '</span>' +
+          '<span class="nh-session-del" data-id="' + c.id + '">×</span>';
+        item.querySelector('.nh-session-title').addEventListener('click', function() { switchChat(c.id); });
+        item.querySelector('.nh-session-del').addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (confirm('删除这个对话？')) deleteChat(c.id);
+        });
+        list.appendChild(item);
+      });
+    });
+  }
+
+  function loadMessages(chatId) {
+    msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>';
+    if (!chatId) return;
+    // Load from Redis via chats API (messages embedded in future enhancement)
+    currentChatId = chatId;
+    loadChatList();
+  }
+
+  function switchChat(chatId) {
+    currentChatId = chatId;
+    msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>已切换到对话 ' + chatId + '，请问有什么可以帮您的？</div>';
+    loadChatList();
+  }
+
+  function deleteChat(chatId) {
+    fetch('/api/nursing/chats/' + chatId, { method: 'DELETE' }).then(function() {
+      if (currentChatId === chatId) { currentChatId = ''; msgs.innerHTML = ''; }
+      loadChatList();
+    });
+  }
+
+  document.getElementById('btn-new-chat').addEventListener('click', function() {
+    fetch('/api/nursing/chats', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(data) {
+      switchChat(data.chat_id);
+    });
+  });
+
+  btn.addEventListener('click', sendMsg);
+  ta.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+
   function sendMsg() {
     var text = ta.value.trim();
     if (!text) return;
     addMessage(text, true);
     ta.value = '';
     ta.style.height = 'auto';
-            btn.disabled = true;
-            btn.textContent = '思考中…';
-
-            fetch('/api/nursing/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: text })
-            }).then(function(r) { return r.json(); })
-              .then(function(data) { addMessage(data.reply || '（无响应）', false); })
-              .catch(function(err) { addMessage('网络错误：' + err.message, false); })
-              .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
+    btn.disabled = true;
+    btn.textContent = '思考中…';
+    var payload = { message: text };
+    if (currentChatId) payload.chat_id = currentChatId;
+    fetch('/api/nursing/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+        addMessage(data.reply || '（无响应）', false);
+        if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
+      })
+      .catch(function(err) { addMessage('网络错误：' + err.message, false); })
+      .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
   }
+
+  loadChatList();
 })();
 </script>
-
-{% endblock %}

@@ -61,7 +61,7 @@
     </div>
     <div id="img-preview" style="display:none;padding:6px 12px;background:#f8f8f8;border-radius:8px;margin-bottom:4px"></div>
     <div class="nh-chat-input-area">
-      <input type="file" id="file-upload" accept="image/*" style="display:none" multiple>
+      <input type="file" id="file-upload" accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.xls,.csv" style="display:none" multiple>
       <button id="btn-upload" type="button" title="上传图片" style="background:none;border:1px solid #ddd;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;margin-right:4px">📎</button>
       <textarea id="chat-input" rows="1" placeholder="输入您的问题… 支持拖拽/粘贴图片" autofocus></textarea>
       <button id="chat-send" type="button">发送</button>
@@ -75,7 +75,7 @@
   var btn = document.getElementById('chat-send');
   var msgs = document.getElementById('chat-messages');
   var currentChatId = '';
-  var pendingImage = null; // {base64, previewHtml}
+  var pendingAttachment = null; // {base64, filename, type, previewHtml}
 
   // Clipboard paste: detect images
   document.addEventListener('paste', function(e) {
@@ -87,19 +87,23 @@
         var reader = new FileReader();
         reader.onload = function(ev) {
           var b64 = ev.target.result.split(',')[1];
-          pendingImage = {
-            base64: b64,
-            previewHtml: '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
-          };
-          document.getElementById('img-preview').innerHTML = pendingImage.previewHtml +
-            '<span onclick="document.getElementById(\'img-preview\').innerHTML=\'\';pendingImage=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除图片</span>';
-          document.getElementById('img-preview').style.display = 'block';
+          setAttachment(b64, 'image.png', 'image/png',
+            '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">');
         };
         reader.readAsDataURL(blob);
         return;
       }
     }
   });
+
+  function setAttachment(b64, name, type, previewHtml) {
+    pendingAttachment = { base64: b64, filename: name, type: type, previewHtml: previewHtml };
+    var preview = document.getElementById('img-preview');
+    preview.innerHTML = previewHtml +
+      '<span style="color:#888;font-size:12px"> ' + name + '</span>' +
+      '<span onclick="document.getElementById(\'img-preview\').style.display=\'none\';pendingAttachment=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除</span>';
+    preview.style.display = 'block';
+  }
 
   ta.addEventListener('input', function() {
     ta.style.height = 'auto';
@@ -163,23 +167,24 @@
 
   function sendMsg() {
     var text = ta.value.trim();
-    var img = pendingImage;
-    if (!text && !img) return;
-    addMessage(text + (img ? ' [图片]' : ''), true);
-    if (img) {
+    var att = pendingAttachment;
+    if (!text && !att) return;
+    var label = att ? (att.type.match(/^image\//) ? ' [图片]' : ' [文件:' + att.filename + ']') : '';
+    addMessage(text + label, true);
+    if (att) {
       var previewDiv = document.createElement('div');
-      previewDiv.innerHTML = img.previewHtml;
+      previewDiv.innerHTML = att.previewHtml;
       msgs.appendChild(previewDiv);
       document.getElementById('img-preview').innerHTML = '';
       document.getElementById('img-preview').style.display = 'none';
-      pendingImage = null;
+      pendingAttachment = null;
     }
     ta.value = '';
     ta.style.height = 'auto';
     btn.disabled = true;
     btn.textContent = '思考中…';
     var payload = { message: text };
-    if (img) payload.image = img.base64;
+    if (att) payload.image = att.base64;
     if (currentChatId) payload.chat_id = currentChatId;
     fetch('/api/nursing/chat', {
       method: 'POST',
@@ -218,24 +223,19 @@
   });
 
   function handleFiles(files) {
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      if (!f.type.match(/^image\//)) continue;
-      var reader = new FileReader();
-      reader.onload = function(ev) {
-        var b64 = ev.target.result.split(',')[1];
-        pendingImage = {
-          base64: b64,
-          previewHtml: '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
-        };
-        var preview = document.getElementById('img-preview');
-        preview.innerHTML = pendingImage.previewHtml +
-          '<span onclick="document.getElementById(\'img-preview\').style.display=\'none\';pendingImage=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除</span>';
-        preview.style.display = 'block';
-      };
-      reader.readAsDataURL(f);
-      break; // only handle first image
-    }
+    var f = files[0];
+    if (!f) return;
+    var isImage = f.type.match(/^image\//);
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var b64 = isImage ? ev.target.result.split(',')[1] : btoa(ev.target.result);
+      var previewHtml = isImage
+        ? '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
+        : '<div style="display:inline-block;background:#fff3e0;padding:8px 12px;border-radius:8px;margin:4px">📄 </div>';
+      setAttachment(b64, f.name, f.type, previewHtml);
+    };
+    if (isImage) reader.readAsDataURL(f);
+    else reader.readAsBinaryString(f);
   }
 
   loadChatList();

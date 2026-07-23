@@ -335,69 +335,7 @@ async def build_app() -> FastAPI:
             chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
             await _save_user_chats(sess.user_id, chats)
 
-        # ── Agent routing ──────────────────────────────────────────
-        import sys
-        agent_reply = None
-        # Map role → precreated_id for agent lookup
-        ROLE_TO_AGENT = {
-            "director": "director",
-            "nursing_dept": "nursing-dept",
-            "logistics_dept": "logistics-dept",
-            "building": f"building-{sess.building[0]}" if sess.building and sess.building[0].isdigit() else None,
-            "floor": f"building-{sess.building[0]}" if sess.building and sess.building[0].isdigit() else None,
-            "general": "general-assistant",
-        }
-        precreated_id = ROLE_TO_AGENT.get(sess.role)
-        if precreated_id:
-            try:
-                print(f"AGENT_ROUTING: role={sess.role} -> precreated_id={precreated_id}", flush=True)
-                async with db.conn(user_id=None, role="system") as conn:
-                    cur = await conn.execute(
-                        "SELECT id FROM agents WHERE precreated_id = %s LIMIT 1", (precreated_id,))
-                    row = await cur.fetchone()
-                    if row:
-                        agent_id = str(row[0])
-                        # Read token from agent's .env on disk (inside container mount)
-                        env_path = f"/data/agents/{agent_id}/config/.env"
-                        token = ""
-                        try:
-                            with open(env_path) as f:
-                                for line in f:
-                                    if line.startswith("DL_INTERNAL_TOKEN="):
-                                        token = line.strip().split("=", 1)[1].strip("'\"")
-                                        break
-                        except Exception:
-                            pass
-                        async with httpx.AsyncClient(timeout=8.0) as client:
-                            agent_url = f"http://dato-agent-{agent_id}:18790/dato/chat"
-                            resp = await client.post(agent_url,
-                                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                                json={"message": message, "session_id": f"nursing-{sess.sid[:16]}"})
-                            print(f"AGENT_HTTP: status={resp.status_code} body={resp.text[:200]}", flush=True)
-                            if resp.status_code == 200:
-                                data = resp.json()
-                                agent_reply = data.get("reply", "") or data.get("error", "")[:500]
-            except Exception as e:
-                import traceback
-                print(f"AGENT_ROUTING_FAILED: {type(e).__name__}: {e}", flush=True)
-                traceback.print_exc()
-                agent_reply = None
-        if agent_reply:
-            return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
-
-        # Build system prompt with user context
-        from datetime import datetime
-        today = datetime.now().strftime("%Y年%m月%d日 %A")
-        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
-        if sess.dept:
-            context_parts.append(f"科室：{sess.dept}")
-        if sess.building:
-            context_parts.append(f"楼栋：{sess.building}")
-        if sess.floor:
-            context_parts.append(f"楼层：{sess.floor}")
-        context_parts.append("请用中文简洁回答用户的问题。")
-
-        # ── Skill intent detection ────────────────────────────────────
+        # ── Skill intent detection (run first) ────────────────────
         skill_result = None
         matched_skill = None
         SKILL_QUERIES = [
@@ -435,7 +373,56 @@ async def build_app() -> FastAPI:
                     skill_result = None
                 break
 
-        # Build system prompt with skill data
+        # ── Agent routing (with skill data injected) ──────────────
+        agent_reply = None
+        ROLE_TO_AGENT = {
+            "director": "director", "nursing_dept": "nursing-dept",
+            "logistics_dept": "logistics-dept", "general": "general-assistant",
+        }
+        if sess.building and sess.building[0].isdigit():
+            ROLE_TO_AGENT["building"] = f"building-{sess.building[0]}"
+            ROLE_TO_AGENT["floor"] = f"building-{sess.building[0]}"
+        precreated_id = ROLE_TO_AGENT.get(sess.role)
+        if precreated_id:
+            try:
+                async with db.conn(user_id=None, role="system") as conn:
+                    cur = await conn.execute("SELECT id FROM agents WHERE precreated_id = %s LIMIT 1", (precreated_id,))
+                    row = await cur.fetchone()
+                    if row:
+                        agent_id = str(row[0])
+                        env_path = f"/data/agents/{agent_id}/config/.env"
+                        token = ""
+                        try:
+                            with open(env_path) as f:
+                                for line in f:
+                                    if line.startswith("DL_INTERNAL_TOKEN="):
+                                        token = line.strip().split("=",1)[1].strip("'\"")
+                                        break
+                        except Exception: pass
+                        # Inject skill data into message for Agent
+                        agent_msg = message
+                        if skill_result is not None:
+                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:2000]}\n\n用户问题：{message}\n请根据以上真实数据回答，不要编造。"
+                        async with httpx.AsyncClient(timeout=60.0) as client:
+                            resp = await client.post(
+                                f"http://dato-agent-{agent_id}:18790/dato/chat",
+                                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                                json={"message": agent_msg, "session_id": f"nursing-{sess.sid[:16]}"})
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                agent_reply = data.get("reply", "") or data.get("error", "")[:500]
+            except Exception: agent_reply = None
+        if agent_reply:
+            return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
+
+        # Build system prompt with skill data (direct path fallback for non-agent roles)
+        from datetime import datetime
+        today = datetime.now().strftime("%Y年%m月%d日 %A")
+        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
+        if sess.dept: context_parts.append(f"科室：{sess.dept}")
+        if sess.building: context_parts.append(f"楼栋：{sess.building}")
+        if sess.floor: context_parts.append(f"楼层：{sess.floor}")
+        context_parts.append("请用中文简洁回答用户的问题。")
         system_prompt = "。".join(context_parts)
         if skill_result is not None:
             data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:3000]

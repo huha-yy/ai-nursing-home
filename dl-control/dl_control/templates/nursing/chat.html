@@ -70,6 +70,7 @@
 </div>
 
 <script>
+var LABEL = '{{ role_label }}';
 (function() {
   var ta = document.getElementById('chat-input');
   var btn = document.getElementById('chat-send');
@@ -174,8 +175,8 @@
     var text = ta.value.trim();
     var att = pendingAttachment;
     if (!text && !att) return;
-    var label = att ? (att.type.match(/^image\//) ? ' [图片]' : ' [文件:' + att.filename + ']') : '';
-    addMessage(text + label, true);
+    var fileLabel = att ? (att.type.match(/^image\//) ? ' [图片]' : ' [文件:' + att.filename + ']') : '';
+    addMessage(text + fileLabel, true);
     if (att) {
       var previewDiv = document.createElement('div');
       previewDiv.innerHTML = att.previewHtml;
@@ -188,20 +189,19 @@
     ta.style.height = 'auto';
     btn.disabled = true;
     btn.textContent = '思考中…';
-    // Show typing indicator
-    var typingDiv = document.createElement('div');
-    typingDiv.className = 'nh-msg nh-msg-ai';
-    typingDiv.id = 'typing-indicator';
-    typingDiv.innerHTML = '<div class="nh-msg-meta">AI {{ role_label }}助手</div><div class="typing-dots"><span></span><span></span><span></span></div>';
-    msgs.appendChild(typingDiv);
+
+    // Thinking indicator
+    var think = document.createElement('div');
+    think.className = 'nh-msg nh-msg-ai';
+    think.id = 'typing-indicator';
+    think.innerHTML = '<div class="nh-msg-meta">AI ' + LABEL + '助手</div><div class="typing-dots"><span></span><span></span><span></span></div>';
+    msgs.appendChild(think);
     msgs.scrollTop = msgs.scrollHeight;
+
     var payload = { message: text };
-    if (att) {
-      payload.file = att.base64;
-      payload.filename = att.filename;
-      payload.filetype = att.type;
-    }
+    if (att) { payload.file = att.base64; payload.filename = att.filename; payload.filetype = att.type; }
     if (currentChatId) payload.chat_id = currentChatId;
+
     fetch('/api/nursing/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -209,11 +209,13 @@
     }).then(function(r) { return r.json(); })
       .then(function(data) {
         var t = document.getElementById('typing-indicator'); if (t) t.remove();
-	        addMessage(data.reply || '（无响应）', false);
+        addMessage(data.reply || '（无响应）', false);
         if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
       })
-      .catch(function(err) { var t = document.getElementById('typing-indicator'); if (t) t.remove();
-	        addMessage('网络错误：' + err.message, false); })
+      .catch(function(err) {
+        var t = document.getElementById('typing-indicator'); if (t) t.remove();
+        addMessage('网络错误：' + err.message, false);
+      })
       .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
   }
 

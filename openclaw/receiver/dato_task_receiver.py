@@ -206,34 +206,36 @@ def _run_agent(message: str, session_id: str) -> dict:
                  "OPENAI_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
                  "OPENAI_BASE_URL": "https://api.deepseek.com"}
         )
-        # Try to extract JSON from stdout/stderr (embedded agent output)
+        # Try to extract JSON from combined stdout+stderr (embedded agent output)
         combined = (proc.stdout or "") + (proc.stderr or "")
-        # Find the last '{' and try to parse balanced JSON from there
-        import re as _re
-        last_brace = combined.rfind('{')
-        if last_brace >= 0:
+        # Walk the JSON tree to find the "text" field
+        def find_text(obj, depth=0):
+            if depth > 10: return None
+            if isinstance(obj, dict):
+                if "text" in obj and isinstance(obj["text"], str) and len(obj["text"]) > 3:
+                    return obj["text"]
+                for v in obj.values():
+                    r = find_text(v, depth+1)
+                    if r: return r
+            elif isinstance(obj, list):
+                for v in obj:
+                    r = find_text(v, depth+1)
+                    if r: return r
+            return None
+        # Try each '{' from right to left until we parse valid JSON with text
+        pos = len(combined)
+        while True:
+            pos = combined.rfind('{', 0, pos)
+            if pos < 0: break
             try:
-                data = json.loads(combined[last_brace:])
-                # Walk the JSON tree to find the "text" field
-                def find_text(obj, depth=0):
-                    if depth > 10: return None
-                    if isinstance(obj, dict):
-                        if "text" in obj and isinstance(obj["text"], str) and len(obj["text"]) > 3:
-                            return obj["text"]
-                        for v in obj.values():
-                            r = find_text(v, depth+1)
-                            if r: return r
-                    elif isinstance(obj, list):
-                        for v in obj:
-                            r = find_text(v, depth+1)
-                            if r: return r
-                    return None
+                data = json.loads(combined[pos:])
                 reply = find_text(data)
                 if reply:
                     return {"reply": reply, "stop_reason": data.get("stopReason", "unknown")}
             except (json.JSONDecodeError, KeyError):
                 pass
-        # Fallback: return raw text
+            pos -= 1
+        # Fallback: return cleaned text
         return {"reply": combined[:1000], "error": "no structured output"}
     except Exception as e:
         return {"reply": "", "error": str(e)[:500]}

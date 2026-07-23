@@ -143,7 +143,11 @@
     fetch('/api/nursing/chats/' + chatId + '/messages').then(function(r) { return r.json(); }).then(function(data) {
       msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>';
       (data.messages || []).forEach(function(m) {
-        addMessage(m.content, m.role === 'user');
+        var label = '';
+        if (m.attachment) {
+          label = m.attachment.filetype.startsWith('image/') ? ' [图片]' : ' [文件:' + m.attachment.filename + ']';
+        }
+        addMessage(m.content + label, m.role === 'user');
       });
       msgs.scrollTop = msgs.scrollHeight;
     }).catch(function() {

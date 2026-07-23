@@ -418,8 +418,12 @@ async def build_app() -> FastAPI:
         except Exception as exc:
             reply = f"抱歉，AI 服务暂时不可用：{str(exc)[:200]}"
 
-        # Save to Redis
-        history.append({"role": "user", "content": message})
+        # Save to Redis — preserve original message + attachment for history display
+        original_msg = body.get("message", "").strip()
+        user_entry = {"role": "user", "content": original_msg}
+        if file_b64:
+            user_entry["attachment"] = {"filename": file_name, "filetype": file_type}
+        history.append(user_entry)
         history.append({"role": "assistant", "content": reply})
         try:
             await _save_chat_msgs(chat_id, history[-40:])

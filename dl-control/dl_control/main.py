@@ -274,6 +274,19 @@ async def build_app() -> FastAPI:
         if not api_key:
             return JSONResponse({"reply": "DeepSeek API Key 未配置，请在 infra/.env 中设置 DEEPSEEK_API_KEY"}, 200)
 
+        # Load conversation history from Redis (last 20 messages)
+        history_key = f"chat_history:{sess.sid}"
+        try:
+            raw_history = await redis.get(history_key)
+            history = json.loads(raw_history) if raw_history else []
+        except Exception:
+            history = []
+
+        # Build messages: system + history + current message
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history[-20:])  # keep last 20 for context
+        messages.append({"role": "user", "content": message})
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
@@ -284,10 +297,7 @@ async def build_app() -> FastAPI:
                     },
                     json={
                         "model": "deepseek-v4-flash",
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": message},
-                        ],
+                        "messages": messages,
                         "max_tokens": 800,
                         "temperature": 0.7,
                     },
@@ -297,6 +307,14 @@ async def build_app() -> FastAPI:
                 reply = data["choices"][0]["message"]["content"]
         except Exception as exc:
             reply = f"抱歉，AI 服务暂时不可用：{str(exc)[:200]}"
+
+        # Save conversation to Redis (trim to last 20 entries)
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": reply})
+        try:
+            await redis.set(history_key, json.dumps(history[-40:]), ex=86400)
+        except Exception:
+            pass
 
         return JSONResponse({"reply": reply}, 200)
 

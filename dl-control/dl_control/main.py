@@ -336,6 +336,7 @@ async def build_app() -> FastAPI:
             await _save_user_chats(sess.user_id, chats)
 
         # ── Agent routing ──────────────────────────────────────────
+        import sys
         agent_reply = None
         # Map role → precreated_id for agent lookup
         ROLE_TO_AGENT = {

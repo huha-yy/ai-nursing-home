@@ -192,7 +192,7 @@
     var typingDiv = document.createElement('div');
     typingDiv.className = 'nh-msg nh-msg-ai';
     typingDiv.id = 'typing-indicator';
-    typingDiv.innerHTML = '<div class=\"nh-msg-meta\">AI {{ role_label }}助手</div><div class=\"typing-dots\"><span></span><span></span><span></span></div>';
+    typingDiv.innerHTML = '<div class="nh-msg-meta">AI {{ role_label }}助手</div><div class="typing-dots"><span></span><span></span><span></span></div>';
     msgs.appendChild(typingDiv);
     msgs.scrollTop = msgs.scrollHeight;
     var payload = { message: text };

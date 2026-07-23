@@ -12,6 +12,7 @@ if [ -f "$ENV_FILE" ]; then
   ln -sf "$ENV_FILE" /app/.env 2>/dev/null || true
 fi
 
+/usr/local/bin/setup-deepseek.sh 2>/dev/null || true
 # Map suffixed Feishu credentials (e.g. FEISHU_APP_ID_AGENT1) to the
 # unsuffixed names that send_image.py and push_to_feishu.py expect.
 # Priority: _AGENT* first, then _DN*, then _XIAODAI, then bare value.

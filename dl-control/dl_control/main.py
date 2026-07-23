@@ -413,6 +413,19 @@ async def build_app() -> FastAPI:
                                 agent_reply = data.get("reply", "") or data.get("error", "")[:500]
             except Exception: agent_reply = None
         if agent_reply:
+            # Save to Redis before returning
+            try:
+                history = await _get_chat_msgs(chat_id)
+                history.append({"role": "user", "content": message})
+                history.append({"role": "assistant", "content": agent_reply})
+                await _save_chat_msgs(chat_id, history[-40:])
+                chats = await _get_user_chats(sess.user_id)
+                for c in chats:
+                    if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
+                        c["title"] = message[:20]
+                        await _save_user_chats(sess.user_id, chats)
+                        break
+            except Exception: pass
             return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)

@@ -322,8 +322,9 @@ async def build_app() -> FastAPI:
             raw_body = await request.body()
             body = json.loads(raw_body.decode("utf-8", errors="replace"))
         message = body.get("message", "").strip()
+        image_b64 = body.get("image", "")  # optional base64 image for vision
         chat_id = body.get("chat_id", "").strip()
-        if not message:
+        if not message and not image_b64:
             return JSONResponse({"error": "empty message"}, 400)
 
         # Auto-create chat if no chat_id provided
@@ -357,7 +358,16 @@ async def build_app() -> FastAPI:
         # Build messages: system + history + current message
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history[-20:])
-        messages.append({"role": "user", "content": message})
+        # Build user message (with optional image for vision)
+        if image_b64:
+            user_msg = {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+            ]}
+            if message:
+                user_msg["content"].append({"type": "text", "text": message})
+        else:
+            user_msg = {"role": "user", "content": message}
+        messages.append(user_msg)
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:

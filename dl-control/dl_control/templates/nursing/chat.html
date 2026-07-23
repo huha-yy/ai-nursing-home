@@ -59,8 +59,9 @@
     <div class="nh-chat-messages" id="chat-messages">
       <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好，{{ nursing_user.name }}！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>
     </div>
+    <div id="img-preview" style="display:none;padding:6px 12px;background:#f8f8f8;border-radius:8px;margin-bottom:4px"></div>
     <div class="nh-chat-input-area">
-      <textarea id="chat-input" rows="1" placeholder="输入您的问题…" autofocus></textarea>
+      <textarea id="chat-input" rows="1" placeholder="输入您的问题… 支持 Ctrl+V 粘贴图片" autofocus></textarea>
       <button id="chat-send" type="button">发送</button>
     </div>
   </div>
@@ -72,6 +73,31 @@
   var btn = document.getElementById('chat-send');
   var msgs = document.getElementById('chat-messages');
   var currentChatId = '';
+  var pendingImage = null; // {base64, previewHtml}
+
+  // Clipboard paste: detect images
+  document.addEventListener('paste', function(e) {
+    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') === 0) {
+        e.preventDefault();
+        var blob = items[i].getAsFile();
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var b64 = ev.target.result.split(',')[1];
+          pendingImage = {
+            base64: b64,
+            previewHtml: '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
+          };
+          document.getElementById('img-preview').innerHTML = pendingImage.previewHtml +
+            '<span onclick="document.getElementById(\'img-preview\').innerHTML=\'\';pendingImage=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除图片</span>';
+          document.getElementById('img-preview').style.display = 'block';
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+    }
+  });
 
   ta.addEventListener('input', function() {
     ta.style.height = 'auto';
@@ -135,13 +161,23 @@
 
   function sendMsg() {
     var text = ta.value.trim();
-    if (!text) return;
-    addMessage(text, true);
+    var img = pendingImage;
+    if (!text && !img) return;
+    addMessage(text + (img ? ' [图片]' : ''), true);
+    if (img) {
+      var previewDiv = document.createElement('div');
+      previewDiv.innerHTML = img.previewHtml;
+      msgs.appendChild(previewDiv);
+      document.getElementById('img-preview').innerHTML = '';
+      document.getElementById('img-preview').style.display = 'none';
+      pendingImage = null;
+    }
     ta.value = '';
     ta.style.height = 'auto';
     btn.disabled = true;
     btn.textContent = '思考中…';
     var payload = { message: text };
+    if (img) payload.image = img.base64;
     if (currentChatId) payload.chat_id = currentChatId;
     fetch('/api/nursing/chat', {
       method: 'POST',

@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block title %}AI 养老院院长 — 对话{% endblock %}
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% block body %}
 
 {% set role = nursing_user.role %}
@@ -112,11 +111,36 @@ var LABEL = '{{ role_label }}';
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   });
 
+  // Simple markdown-to-HTML for AI responses
+  function simpleMarkdown(text) {
+    var html = text;
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); // bold
+    html = html.replace(/^### (.+)/gm, '<h4>$1</h4>'); // h4
+    html = html.replace(/^## (.+)/gm, '<h3>$1</h3>'); // h3
+    html = html.replace(/^- (.+)/gm, '<li>$1</li>'); // list items
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>'); // wrap lists
+    html = html.replace(/\|(.+)\|/g, function(m) { // tables
+      if (m.indexOf('---') >= 0) return '';
+      var cells = m.split('|').filter(function(c) { return c.trim(); });
+      var isHeader = !cells.some(function(c) { return /^[\s:=-]+$/.test(c); });
+      var tag = isHeader ? 'th' : 'td';
+      return '<tr>' + cells.map(function(c) { return '<' + tag + '>' + c.trim() + '</' + tag + '>'; }).join('') + '</tr>';
+    });
+    html = html.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
+    html = html.replace(/---+/g, '<hr>');
+    html = html.replace(/\n{2,}/g, '</p><p>'); // paragraph breaks
+    html = '<p>' + html + '</p>';
+    html = html.replace(/\n/g, '<br>'); // single line breaks
+    html = html.replace(/<p>\s*<table>/g, '<table>'); // don't wrap tables in p
+    html = html.replace(/<\/table>\s*<\/p>/g, '</table>');
+    return html;
+  }
+
   function addMessage(text, isUser) {
     var div = document.createElement('div');
     div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
     var label = '{{ role_label }}';
-    var html = isUser ? text.replace(/\n/g, '<br>') : (typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>'));
+    var html = isUser ? text.replace(/\n/g, '<br>') : simpleMarkdown(text);
     div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + html;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;

@@ -57,7 +57,7 @@
       {% else %}工作台 — {{ dept or '综合' }}{% endif %}
     </div>
     <div class="nh-chat-messages" id="chat-messages">
-      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好，{{ nursing_user.name }}！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>
+      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI {{ role_label }}助手</div>您好，{{ nursing_user.name }}！我是 AI 养老院{{ role_label }}助手，请问有什么可以帮您的？</div>
     </div>
     <div id="img-preview" style="display:none;padding:6px 12px;background:#f8f8f8;border-radius:8px;margin-bottom:4px"></div>
     <div class="nh-chat-input-area">
@@ -113,7 +113,8 @@
   function addMessage(text, isUser) {
     var div = document.createElement('div');
     div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
-    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI 助手</div>') + text.replace(/\n/g, '<br>');
+    var label = '{{ role_label }}';
+    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + text.replace(/\n/g, '<br>');
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
   }
@@ -141,7 +142,7 @@
     currentChatId = chatId;
     msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>正在加载对话记录…</div>';
     fetch('/api/nursing/chats/' + chatId + '/messages').then(function(r) { return r.json(); }).then(function(data) {
-      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>';
+      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI {{ role_label }}助手</div>您好！我是 AI 养老院{{ role_label }}助手，请问有什么可以帮您的？</div>';
       (data.messages || []).forEach(function(m) {
         var label = '';
         if (m.attachment) {

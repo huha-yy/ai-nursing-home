@@ -260,7 +260,9 @@ async def build_app() -> FastAPI:
             return JSONResponse({"error": "empty message"}, 400)
 
         # Build system prompt with user context
-        context_parts = [f"你是AI养老院院长助手。当前用户：{sess.name}，角色：{sess.role}"]
+        from datetime import datetime
+        today = datetime.now().strftime("%Y年%m月%d日 %A")
+        context_parts = [f"你是AI养老院院长助手。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
         if sess.dept:
             context_parts.append(f"科室：{sess.dept}")
         if sess.building:

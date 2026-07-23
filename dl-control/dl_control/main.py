@@ -368,7 +368,7 @@ async def build_app() -> FastAPI:
                                         break
                         except Exception:
                             pass
-                        async with httpx.AsyncClient(timeout=30.0) as client:
+                        async with httpx.AsyncClient(timeout=8.0) as client:
                             agent_url = f"http://dato-agent-{agent_id}:18790/dato/chat"
                             resp = await client.post(agent_url,
                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},

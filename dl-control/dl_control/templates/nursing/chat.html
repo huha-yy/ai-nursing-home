@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}AI 养老院院长 — 对话{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% block body %}
 
 {% set role = nursing_user.role %}
@@ -115,7 +116,8 @@ var LABEL = '{{ role_label }}';
     var div = document.createElement('div');
     div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
     var label = '{{ role_label }}';
-    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + text.replace(/\n/g, '<br>');
+    var html = isUser ? text.replace(/\n/g, '<br>') : (typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>'));
+    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + html;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
   }

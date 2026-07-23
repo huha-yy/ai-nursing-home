@@ -196,6 +196,28 @@ def redeliver(correlation_id: str, state: dict) -> None:
         _write_state(correlation_id, {**state, "delivered": True})
 
 
+def _run_agent(message: str, session_id: str) -> dict:
+    """Run openclaw agent synchronously and return parsed JSON result."""
+    cmd = AGENT_CMD.replace("{message}", shlex.quote(message))
+    try:
+        proc = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, timeout=TASK_TIMEOUT,
+            env={**os.environ, "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
+                 "OPENAI_BASE_URL": "https://api.deepseek.com"}
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            data = json.loads(proc.stdout)
+            reply_text = ""
+            if "result" in data:
+                reply_text = data["result"]
+            elif "choices" in data:
+                reply_text = data["choices"][0]["message"]["content"]
+            return {"reply": reply_text, "stop_reason": data.get("stopReason", "unknown")}
+        return {"reply": "", "error": proc.stderr[:500] if proc.stderr else "no output"}
+    except Exception as e:
+        return {"reply": "", "error": str(e)[:500]}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "dato-task-receiver"
 
@@ -211,6 +233,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):  # noqa: N802 — BaseHTTPRequestHandler API
+        # Synchronous chat endpoint — runs agent and returns result directly
+        if self.path == "/dato/chat":
+            auth = self.headers.get("Authorization", "")
+            presented = auth[7:] if auth.startswith("Bearer ") else ""
+            if not TOKEN or not hmac.compare_digest(presented, TOKEN):
+                return self._reply(401, {"error": "invalid token"})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length)) if length > 0 else {}
+                message = body.get("message", "")
+                session_id = body.get("session_id", f"chat-{uuid.uuid4().hex[:8]}")
+                if not message:
+                    return self._reply(400, {"error": "message required"})
+                result = _run_agent(message, session_id)
+                return self._reply(200, result)
+            except Exception:
+                return self._reply(500, {"error": "chat failed"})
+
         if self.path != "/dato/task":
             return self._reply(404, {"error": "not found"})
         auth = self.headers.get("Authorization", "")

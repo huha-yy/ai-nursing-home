@@ -61,7 +61,9 @@
     </div>
     <div id="img-preview" style="display:none;padding:6px 12px;background:#f8f8f8;border-radius:8px;margin-bottom:4px"></div>
     <div class="nh-chat-input-area">
-      <textarea id="chat-input" rows="1" placeholder="输入您的问题…" autofocus></textarea>
+      <input type="file" id="file-upload" accept="image/*" style="display:none" multiple>
+      <button id="btn-upload" type="button" title="上传图片" style="background:none;border:1px solid #ddd;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;margin-right:4px">📎</button>
+      <textarea id="chat-input" rows="1" placeholder="输入您的问题… 支持拖拽/粘贴图片" autofocus></textarea>
       <button id="chat-send" type="button">发送</button>
     </div>
   </div>
@@ -196,6 +198,45 @@
   ta.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
   });
+
+  // Upload button
+  document.getElementById('btn-upload').addEventListener('click', function() {
+    document.getElementById('file-upload').click();
+  });
+  document.getElementById('file-upload').addEventListener('change', function(e) {
+    handleFiles(e.target.files);
+    this.value = '';
+  });
+
+  // Drag & drop on chat area
+  var chatMain = document.querySelector('.nh-chat-main');
+  chatMain.addEventListener('dragover', function(e) { e.preventDefault(); e.stopPropagation(); });
+  chatMain.addEventListener('dragenter', function(e) { e.preventDefault(); });
+  chatMain.addEventListener('drop', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    handleFiles(e.dataTransfer.files);
+  });
+
+  function handleFiles(files) {
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!f.type.match(/^image\//)) continue;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var b64 = ev.target.result.split(',')[1];
+        pendingImage = {
+          base64: b64,
+          previewHtml: '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
+        };
+        var preview = document.getElementById('img-preview');
+        preview.innerHTML = pendingImage.previewHtml +
+          '<span onclick="document.getElementById(\'img-preview\').style.display=\'none\';pendingImage=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除</span>';
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(f);
+      break; // only handle first image
+    }
+  }
 
   loadChatList();
 })();

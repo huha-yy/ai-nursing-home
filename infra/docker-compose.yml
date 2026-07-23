@@ -280,6 +280,10 @@ services:
     networks:
       - dato_net
     depends_on:
+      dato-postgres:
+        condition: service_healthy
+      dato-control-migrate:
+        condition: service_completed_successfully
       dl-cognee-model-download:
         condition: service_completed_successfully
 
@@ -316,39 +320,35 @@ services:
       - python3
       - -c
       - |
-        import os
-        models = ["/models/hf/hub/models--BAAI--bge-m3", "/models/hf/hub/models--BAAI--bge-reranker-v2-m3"]
+        import os, subprocess, sys
+        models = {"/models/hub/models--BAAI--bge-m3": "BAAI/bge-m3",
+                  "/models/hub/models--BAAI--bge-reranker-v2-m3": "BAAI/bge-reranker-v2-m3"}
         all_ok = True
-        for m in models:
-            if os.path.isdir(m):
-                size = sum(f.stat().st_size for f in __import__("pathlib").Path(m).rglob("*") if f.is_file())
-                print(f"  {os.path.basename(m)}: {size/(1024**3):.1f}GB OK", flush=True)
+        for path, name in models.items():
+            if os.path.isdir(path):
+                size = sum(f.stat().st_size for f in __import__("pathlib").Path(path).rglob("*") if f.is_file())
+                print(f"  {name}: {size/(1024**3):.1f}GB OK", flush=True)
             else:
-                print(f"  {os.path.basename(m)}: MISSING", flush=True)
+                print(f"  {name}: MISSING", flush=True)
                 all_ok = False
         if all_ok:
-            print("All models present, download not needed. Exiting 0.", flush=True)
-        else:
-            print("Models missing, attempting download...", flush=True)
-            import subprocess, sys
-            subprocess.run([sys.executable, "-m", "pip", "install", "FlagEmbedding", "--quiet",
-                "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"], check=True)
-            for m in ["BAAI/bge-m3", "BAAI/bge-reranker-v2-m3"]:
-                print(f"Downloading {m}...", flush=True)
-                if "bge-m3" in m:
-                    from FlagEmbedding import BGEM3FlagModel
-                    BGEM3FlagModel(m, use_fp16=False, device="cpu")
-                else:
-                    from FlagEmbedding import FlagReranker
-                    FlagReranker(m, use_fp16=False, device="cpu")
-                print(f"{m} done", flush=True)
-            print("All models downloaded.", flush=True)
-        exit(0)
+            print("All models present, exiting.", flush=True)
+            sys.exit(0)
+        print("Downloading missing models via huggingface_hub...", flush=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "huggingface_hub", "-q",
+            "-i", "https://mirrors.aliyun.com/pypi/simple"], check=True)
+        for path, name in models.items():
+            if not os.path.isdir(path):
+                print(f"Downloading {name}...", flush=True)
+                subprocess.run([sys.executable, "-m", "huggingface_hub", "download",
+                    name, "--local-dir", path, "--resume-download"], check=True)
+                print(f"{name} done", flush=True)
+        print("All models ready.", flush=True)
     environment:
-      HF_HOME: /models/hf
+      HF_HUB_ENABLE_HF_TRANSFER: "1"
       HF_ENDPOINT: https://hf-mirror.com
     volumes:
-      - cognee_hf_models:/models/hf
+      - cognee_hf_models:/models
 
   dl-llm-local:
     build:

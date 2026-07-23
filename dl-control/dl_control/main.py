@@ -283,6 +283,16 @@ async def build_app() -> FastAPI:
         await _save_user_chats(sess.user_id, chats)
         return JSONResponse({"chat_id": chat_id}, 200)
 
+    @app.get("/api/nursing/chats/{chat_id}/messages")
+    async def nursing_chats_messages(chat_id: str, request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        msgs = await _get_chat_msgs(chat_id)
+        return JSONResponse({"messages": msgs}, 200)
+
     @app.delete("/api/nursing/chats/{chat_id}")
     async def nursing_chats_delete(chat_id: str, request: _Request):
         raw = request.cookies.get(_NURSING_COOKIE, "")

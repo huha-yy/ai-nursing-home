@@ -58,49 +58,47 @@ RUN chown -R node:node /opt/openclaw/skills/custom/cognee/
 COPY openclaw/skills/workflow/ /opt/openclaw/skills/custom/workflow/
 RUN chown -R node:node /opt/openclaw/skills/custom/workflow/
 
-# Content pipeline: content-ops skills
-COPY openclaw/skills/hotspot-monitor/   /opt/openclaw/skills/custom/hotspot-monitor/
-COPY openclaw/skills/relevance-judge/   /opt/openclaw/skills/custom/relevance-judge/
-COPY openclaw/skills/fact-research/     /opt/openclaw/skills/custom/fact-research/
-COPY openclaw/skills/content-strategy/  /opt/openclaw/skills/custom/content-strategy/
-COPY openclaw/skills/wechat-content/    /opt/openclaw/skills/custom/wechat-content/
-COPY openclaw/skills/xhs-content/       /opt/openclaw/skills/custom/xhs-content/
-COPY openclaw/skills/douyin-content/    /opt/openclaw/skills/custom/douyin-content/
-COPY openclaw/skills/image-generator/   /opt/openclaw/skills/custom/image-generator/
-COPY openclaw/skills/article-composer/  /opt/openclaw/skills/custom/article-composer/
-COPY openclaw/skills/compliance-check/  /opt/openclaw/skills/custom/compliance-check/
-COPY openclaw/skills/publish-package/   /opt/openclaw/skills/custom/publish-package/
-COPY openclaw/skills/feishu-publisher/  /opt/openclaw/skills/custom/feishu-publisher/
-# Phase 1+2 integration skills (from openclaw-mvp)
-COPY openclaw/skills/humanizer/         /opt/openclaw/skills/custom/humanizer/
+# Nursing MVP skills
+COPY openclaw/skills/nursing-schedule/    /opt/openclaw/skills/custom/nursing-schedule/
+COPY openclaw/skills/nursing-work-order/  /opt/openclaw/skills/custom/nursing-work-order/
+COPY openclaw/skills/logistics-inventory/ /opt/openclaw/skills/custom/logistics-inventory/
+COPY openclaw/skills/logistics-query/     /opt/openclaw/skills/custom/logistics-query/
+COPY openclaw/skills/resident-query/      /opt/openclaw/skills/custom/resident-query/
+COPY openclaw/skills/staff-query/         /opt/openclaw/skills/custom/staff-query/
+COPY openclaw/skills/meal-query/          /opt/openclaw/skills/custom/meal-query/
+COPY openclaw/skills/activity-query/      /opt/openclaw/skills/custom/activity-query/
+COPY openclaw/skills/finance-query/       /opt/openclaw/skills/custom/finance-query/
+COPY openclaw/skills/alert-query/         /opt/openclaw/skills/custom/alert-query/
+COPY openclaw/skills/report-generate/     /opt/openclaw/skills/custom/report-generate/
 COPY openclaw/skills/self-improving/    /opt/openclaw/skills/custom/self-improving/
 COPY openclaw/skills/web-content-fetcher/ /opt/openclaw/skills/custom/web-content-fetcher/
 COPY openclaw/skills/openai-whisper/    /opt/openclaw/skills/custom/openai-whisper/
 COPY openclaw/skills/nano-pdf/          /opt/openclaw/skills/custom/nano-pdf/
 # Phase 2 features
 COPY openclaw/skills/vision-ocr/        /opt/openclaw/skills/custom/vision-ocr/
-COPY openclaw/skills/ppt-generator/     /opt/openclaw/skills/custom/ppt-generator/
+COPY openclaw/skills/ppt-master/        /opt/openclaw/skills/custom/ppt-master/
 # GBrain knowledge base MCP shim
 COPY openclaw/skills/gbrain-mcp/       /opt/openclaw/skills/custom/gbrain-mcp/
-RUN chown -R node:node /opt/openclaw/skills/custom/hotspot-monitor/ \
-                       /opt/openclaw/skills/custom/relevance-judge/ \
-                       /opt/openclaw/skills/custom/fact-research/ \
-                       /opt/openclaw/skills/custom/content-strategy/ \
-                       /opt/openclaw/skills/custom/wechat-content/ \
-                       /opt/openclaw/skills/custom/xhs-content/ \
-                       /opt/openclaw/skills/custom/douyin-content/ \
-                       /opt/openclaw/skills/custom/image-generator/ \
-                       /opt/openclaw/skills/custom/article-composer/ \
-                       /opt/openclaw/skills/custom/compliance-check/ \
-                       /opt/openclaw/skills/custom/publish-package/ \
-                       /opt/openclaw/skills/custom/feishu-publisher/ \
-                       /opt/openclaw/skills/custom/humanizer/ \
+RUN chown -R node:node /opt/openclaw/skills/custom/admin-mgmt/ \
+                       /opt/openclaw/skills/custom/cognee/ \
+                       /opt/openclaw/skills/custom/workflow/ \
+                       /opt/openclaw/skills/custom/nursing-schedule/ \
+                       /opt/openclaw/skills/custom/nursing-work-order/ \
+                       /opt/openclaw/skills/custom/logistics-inventory/ \
+                       /opt/openclaw/skills/custom/logistics-query/ \
+                       /opt/openclaw/skills/custom/resident-query/ \
+                       /opt/openclaw/skills/custom/staff-query/ \
+                       /opt/openclaw/skills/custom/meal-query/ \
+                       /opt/openclaw/skills/custom/activity-query/ \
+                       /opt/openclaw/skills/custom/finance-query/ \
+                       /opt/openclaw/skills/custom/alert-query/ \
+                       /opt/openclaw/skills/custom/report-generate/ \
                        /opt/openclaw/skills/custom/self-improving/ \
                        /opt/openclaw/skills/custom/web-content-fetcher/ \
                        /opt/openclaw/skills/custom/openai-whisper/ \
                        /opt/openclaw/skills/custom/nano-pdf/ \
                        /opt/openclaw/skills/custom/vision-ocr/ \
-                       /opt/openclaw/skills/custom/ppt-generator/ \
+                       /opt/openclaw/skills/custom/ppt-master/ \
                        /opt/openclaw/skills/custom/gbrain-mcp/
 
 # ComfyUI MCP server

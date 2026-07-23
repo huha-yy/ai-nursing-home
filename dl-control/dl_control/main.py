@@ -368,9 +368,29 @@ async def build_app() -> FastAPI:
 
         if file_b64 and not file_type.startswith("image/"):
             try:
-                import base64
-                file_content = base64.b64decode(file_b64).decode("utf-8", errors="replace")[:4000]
-                message = f"用户上传了文件「{file_name}」，内容如下：\n\n{file_content}\n\n用户问题：{message or '请简述这个文件的内容'}"
+                import base64, io, zipfile, re
+                raw = base64.b64decode(file_b64)
+
+                # .docx = ZIP of XML files — extract text from word/document.xml
+                if file_name.endswith('.docx') or file_type.endswith('officedocument'):
+                    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                        xml = zf.read('word/document.xml').decode('utf-8')
+                    # Extract text between <w:t> tags
+                    texts = re.findall(r'<w:t[^>]*>([^<]+)</w:t>', xml)
+                    file_content = ''.join(texts)[:4000]
+                # Plain text files
+                elif any(file_name.endswith(ext) for ext in ('.md', '.txt', '.csv', '.json', '.yaml', '.yml', '.py', '.html', '.css', '.js', '.xml', '.log')):
+                    file_content = raw.decode("utf-8", errors="replace")[:4000]
+                else:
+                    # Binary or unknown format — try UTF-8, fall back gracefully
+                    try:
+                        file_content = raw.decode("utf-8")[:4000]
+                    except UnicodeDecodeError:
+                        message = f"用户上传了文件「{file_name}」（{file_type or '二进制'}格式），用户问题：{message or '请简述这个文件的内容'}"
+                        file_content = None
+
+                if file_content is not None:
+                    message = f"用户上传了文件「{file_name}」，内容如下：\n\n{file_content}\n\n用户问题：{message or '请简述这个文件的内容'}"
             except Exception:
                 message = f"用户上传了文件「{file_name}」" + (f"，用户问题：{message}" if message else "，请简述这个文件的内容")
 

@@ -184,7 +184,11 @@
     btn.disabled = true;
     btn.textContent = '思考中…';
     var payload = { message: text };
-    if (att) payload.image = att.base64;
+    if (att) {
+      payload.file = att.base64;
+      payload.filename = att.filename;
+      payload.filetype = att.type;
+    }
     if (currentChatId) payload.chat_id = currentChatId;
     fetch('/api/nursing/chat', {
       method: 'POST',

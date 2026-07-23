@@ -358,12 +358,21 @@ async def build_app() -> FastAPI:
         # Build messages: system + history + current message
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history[-20:])
-        # Image upload: infrastructure ready, but current DeepSeek V4 model
-        # does not support vision. Returns a helpful message for now.
-        if image_b64:
-            return JSONResponse({
-                "reply": "图片上传功能已就绪，但当前 DeepSeek V4 模型暂不支持图片识别。后续切换到支持 Vision 的模型后即可使用。"
-            }, 200)
+        # File upload: distinguish images from other files
+        file_b64 = body.get("file", "") or image_b64  # compat with old 'image' field
+        file_name = body.get("filename", "")
+        file_type = body.get("filetype", "")
+
+        if file_b64 and file_type.startswith("image/"):
+            return JSONResponse({"reply": "图片上传功能已就绪，但当前 DeepSeek V4 模型暂不支持图片识别。后续切换到支持 Vision 的模型后即可使用。"}, 200)
+
+        if file_b64 and not file_type.startswith("image/"):
+            try:
+                import base64
+                file_content = base64.b64decode(file_b64).decode("utf-8", errors="replace")[:4000]
+                message = f"用户上传了文件「{file_name}」，内容如下：\n\n{file_content}\n\n用户问题：{message or '请简述这个文件的内容'}"
+            except Exception:
+                message = f"用户上传了文件「{file_name}」" + (f"，用户问题：{message}" if message else "，请简述这个文件的内容")
 
         user_msg = {"role": "user", "content": message}
         messages.append(user_msg)

@@ -358,15 +358,14 @@ async def build_app() -> FastAPI:
         # Build messages: system + history + current message
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history[-20:])
-        # Build user message (with optional image for vision)
+        # Image upload: infrastructure ready, but current DeepSeek V4 model
+        # does not support vision. Returns a helpful message for now.
         if image_b64:
-            user_msg = {"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
-            ]}
-            if message:
-                user_msg["content"].append({"type": "text", "text": message})
-        else:
-            user_msg = {"role": "user", "content": message}
+            return JSONResponse({
+                "reply": "图片上传功能已就绪，但当前 DeepSeek V4 模型暂不支持图片识别。后续切换到支持 Vision 的模型后即可使用。"
+            }, 200)
+
+        user_msg = {"role": "user", "content": message}
         messages.append(user_msg)
 
         try:

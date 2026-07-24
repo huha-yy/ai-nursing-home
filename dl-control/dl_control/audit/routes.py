@@ -28,8 +28,12 @@ def make_router(
         offset = (page - 1) * _PAGE_SIZE
         async with db.conn(user_id=authed.user_id, role="admin") as conn:
             cur = await conn.execute(
-                "SELECT occurred_at, actor_user_id, action, target, meta "
-                "FROM audit_log ORDER BY occurred_at DESC LIMIT %s OFFSET %s",
+                "SELECT a.occurred_at, a.actor_user_id, a.action, a.target, a.meta, "
+                "COALESCE(u.username, n.name, '—') as actor_name "
+                "FROM audit_log a "
+                "LEFT JOIN users u ON a.actor_user_id = u.id "
+                "LEFT JOIN nursing_users n ON a.actor_user_id::text = n.user_id "
+                "ORDER BY a.occurred_at DESC LIMIT %s OFFSET %s",
                 (_PAGE_SIZE, offset),
             )
             rows = await cur.fetchall()
@@ -42,8 +46,8 @@ def make_router(
             today, week = await cur.fetchone()
         events = [
             {
-                "occurred_at": row[0].isoformat(timespec="seconds"),
-                "actor": str(row[1]) if row[1] else None,
+                "occurred_at": row[0].strftime("%m月%d日 %H:%M"),
+                "actor": row[5],
                 "action": row[2],
                 "target": row[3],
                 "meta": row[4],

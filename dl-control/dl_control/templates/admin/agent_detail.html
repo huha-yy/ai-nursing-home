@@ -1,94 +1,158 @@
 {% extends "base.html" %}
-{% block title %}{{ agent.display_name }} — dl-control{% endblock %}
-{% block body %}
-<h2>{{ agent.display_name }}</h2>
-<dl class="detail-grid">
-  <dt>{{ t("agents.id") }}</dt><dd><code>{{ agent.id }}</code></dd>
-  <dt>{{ t("agents.col.tier") }}</dt>
-  <dd><span class="badge badge-{{ agent.tier }}">{{ agent.tier }}</span></dd>
-  <dt>{{ t("common.status") }}</dt>
-  <dd><span class="badge badge-status">{{ agent.status }}</span></dd>
-  <dt>{{ t("agents.col.skills") }}</dt>
-  <dd>
-    {{ agent.skill_list | join(", ") if agent.skill_list else "—" }}
-    <button class="ghost-btn" style="margin-left:0.5rem;font-size:0.85rem" onclick="document.getElementById('skills-editor').style.display='block'">{{ t("agents.edit_skills") }}</button>
-  </dd>
-  <dt>{{ t("agents.model") }}</dt><dd><code>{{ agent.model_selection }}</code></dd>
-  <dt>{{ t("agents.channels") }}</dt><dd><code>{{ agent.channel_config }}</code></dd>
-  <dt>{{ t("common.created") }}</dt><dd>{{ agent.created_at }}</dd>
-  <dt>{{ t("common.updated") }}</dt><dd>{{ agent.updated_at }}</dd>
-</dl>
+{% block title %}{{ agent.display_name }} — AI 养老院院长{% endblock %}
+{% block admin_body %}
 
-{% include "admin/feishu/_needs_restart_banner.html" %}
+<div class="admin-page-header">
+  <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
+    <a href="/admin/agents">← Agent 管理</a>
+    {% if agent.precreated_id %}
+    <span style="margin-left:0.5rem">· 预置角色：{{ agent.precreated_id }}</span>
+    {% endif %}
+  </p>
+  <h2>{{ agent.display_name }}</h2>
+  <p class="admin-page-sub">{{ agent.id }}</p>
+</div>
 
-{% if agent.tier == "tier0" %}
-<p><a href="/admin/agents/{{ agent.id }}/feishu" class="action-link">{{ t("agents.configure_feishu") }}</a>
-<a href="/admin/agents/{{ agent.id }}/gbrain" class="action-link">{{ t("agents.configure_gbrain") }}</a></p>
-{% endif %}
-
-{% if agent.precreated_id %}
-<section>
-  <h3>{{ t("agents.precreated_source") }}: {{ agent.precreated_id }}</h3>
-  {% if agent.precreated_source_removed %}
-    <span class="badge badge-info">{{ t("agents.source_removed") }}</span>
-  {% elif agent.precreated_source_drift %}
-    <span class="badge badge-warning">{{ t("agents.seed_drift") }}</span>
-    <form method="post" action="/admin/agents/{{ agent.id }}/precreated/apply" style="display:inline">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="expected_current_sha" value="{{ agent.precreated_current_sha }}">
-      <button type="submit">{{ t("agents.apply_seed_update") }}</button>
-    </form>
-  {% else %}
-    <span class="badge badge-success">{{ t("agents.in_sync") }}</span>
-  {% endif %}
+<section class="admin-section">
+  <h3>基本信息</h3>
+  <div class="detail-cards">
+    <div class="detail-card">
+      <span class="detail-card-label">级别</span>
+      <span class="detail-card-value"><span class="badge badge-{{ agent.tier }}">{{ agent.tier }}</span></span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">状态</span>
+      <span class="detail-card-value"><span class="badge badge-status">{{ agent.status }}</span></span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">模型</span>
+      <span class="detail-card-value"><code>{{ agent.model_selection }}</code></span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">创建时间</span>
+      <span class="detail-card-value">{{ agent.created_at }}</span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">更新时间</span>
+      <span class="detail-card-value">{{ agent.updated_at }}</span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">通道</span>
+      <span class="detail-card-value"><code>{{ agent.channel_config }}</code></span>
+    </div>
+  </div>
 </section>
-{% endif %}
 
-{# ── Skills editor (inline toggle) ── #}
-<div id="skills-editor" style="display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; margin:1rem 0">
-  <h3>{{ t("agents.edit_skills") }}</h3>
-  <form method="post" action="/admin/agents/{{ agent.id }}/skills" class="stacked-form">
+<section class="admin-section">
+  <h3>技能配置
+    <button class="ghost-btn" id="edit-skills-btn" style="margin-left:0.75rem;width:auto;font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="document.getElementById('skills-editor').style.display='block';this.style.display='none'">编辑</button>
+  </h3>
+  <div class="skill-tags">
+    {% if agent.skill_list %}
+      {% for s in agent.skill_list %}
+      <span class="skill-tag">{{ s }}</span>
+      {% endfor %}
+    {% else %}
+    <span class="empty-note" style="padding:0">未配置技能</span>
+    {% endif %}
+  </div>
+</section>
+
+<div id="skills-editor" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0;margin-bottom:1.5rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border)">
+    <h3 style="margin:0">编辑技能</h3>
+    <button type="button" class="ghost-btn" style="width:auto;font-size:0.8rem;padding:0.25rem 0.6rem"
+            onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">✕ 关闭</button>
+  </div>
+  <form method="post" action="/admin/agents/{{ agent.id }}/skills" style="padding:1.25rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div style="margin-top:0.4rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:0.8rem">
-      <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">System skills</div>
-      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.2rem 0.8rem; margin-bottom:0.8rem; padding-bottom:0.8rem; border-bottom:1px solid var(--border)">
-        {% for s in vendor_skills %}
-        <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
-          <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}
-        </label>
-        {% endfor %}
+    <div class="skill-picker">
+      <div class="skill-picker-group">
+        <p class="skill-picker-label">系统技能</p>
+        <div class="skill-checkboxes">
+          {% for s in vendor_skills %}
+          <label class="skill-check"><input type="checkbox" name="skill_list" value="{{ s }}"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}</label>
+          {% endfor %}
+        </div>
       </div>
-      <div style="font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem">Content pipeline skills</div>
-      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:0.2rem 1rem">
-        {% for s in custom_skills %}
-        <label style="font-size:0.85rem; font-weight:400; cursor:pointer; padding:0.1rem 0; white-space:nowrap; display:block; line-height:1.6">
-          <input type="checkbox" name="skill_list" value="{{ s }}" style="vertical-align:middle; margin:0 0.3rem 0 0"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}
-        </label>
-        {% endfor %}
+      <div class="skill-picker-group">
+        <p class="skill-picker-label">定制技能</p>
+        <div class="skill-checkboxes">
+          {% for s in custom_skills %}
+          <label class="skill-check"><input type="checkbox" name="skill_list" value="{{ s }}"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}</label>
+          {% endfor %}
+        </div>
       </div>
     </div>
-    <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
-      <button type="submit" class="primary-btn" style="width:auto">{{ t("agents.save") }}</button>
-      <button type="button" class="ghost-btn" onclick="document.getElementById('skills-editor').style.display='none'">{{ t("agents.cancel") }}</button>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem">
+      <button type="submit" class="primary-btn" style="width:auto">保存</button>
+      <button type="button" class="ghost-btn" style="width:auto"
+              onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">取消</button>
     </div>
   </form>
 </div>
 
-<section class="actions">
-  {% if agent.status == 'registered' or agent.status == 'error' or agent.status == 'stopped' %}
-  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/provision">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">{{ t("agents.provision") }}</button>
-  </form>
-  {% elif agent.status == 'active' %}
-  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">{{ t("agents.apply_restart") }}</button>
-  </form>
-  {% else %}
-  <p>{{ t("agents.no_action_prefix") }} <strong>{{ agent.status }}</strong> {{ t("agents.no_action_suffix") }}</p>
-  {% endif %}
+{% if agent.precreated_id %}
+<section class="admin-section">
+  <h3>预置模板状态</h3>
+  <div class="detail-cards">
+    <div class="detail-card">
+      <span class="detail-card-label">模板 ID</span>
+      <span class="detail-card-value"><code>{{ agent.precreated_id }}</code></span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">同步状态</span>
+      <span class="detail-card-value">
+        {% if agent.precreated_source_removed %}
+        <span class="badge badge-info">源已删除</span>
+        {% elif agent.precreated_source_drift %}
+        <span class="badge badge-warning">模板漂移</span>
+        <form method="post" action="/admin/agents/{{ agent.id }}/precreated/apply" style="display:inline;margin-left:0.5rem">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="expected_current_sha" value="{{ agent.precreated_current_sha }}">
+          <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">应用更新</button>
+        </form>
+        {% else %}
+        <span class="badge badge-status">已同步</span>
+        {% endif %}
+      </span>
+    </div>
+  </div>
 </section>
+{% endif %}
 
-<p class="empty-note"><a href="/admin/agents">{{ t("agents.all_agents") }}</a></p>
+<section class="admin-section">
+  <h3>操作</h3>
+  <div class="detail-cards">
+    {% if agent.tier == "tier0" %}
+    <div class="detail-card">
+      <span class="detail-card-label">飞书</span>
+      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/feishu">配置飞书通道 →</a></span>
+    </div>
+    <div class="detail-card">
+      <span class="detail-card-label">GBrain</span>
+      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/gbrain">配置 GBrain →</a></span>
+    </div>
+    {% endif %}
+    <div class="detail-card">
+      <span class="detail-card-label">容器</span>
+      <span class="detail-card-value">
+        {% if agent.status == 'registered' or agent.status == 'error' or agent.status == 'stopped' %}
+        <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/provision" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">启动容器</button>
+        </form>
+        {% elif agent.status == 'active' %}
+        <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">重启容器</button>
+        </form>
+        {% else %}
+        <span>{{ agent.status }}</span>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+</section>
 {% endblock %}

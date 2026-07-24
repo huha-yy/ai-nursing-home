@@ -1,38 +1,93 @@
 {% extends "base.html" %}
-{% block title %}{{ t("dashboard.title") }}{% endblock %}
-{% block body %}
-<h2>{{ t("dashboard.heading") }}</h2>
+{% block title %}概览 — AI 养老院院长{% endblock %}
+{% block admin_body %}
+
+<div class="admin-page-header">
+  <h2>系统概览</h2>
+  <p class="admin-page-sub">杭州市第三社会福利院 · 智能运营平台</p>
+</div>
+
 <div class="stat-row">
   <div class="stat-card">
     <div class="stat-value">{{ total_agents }}</div>
-    <div class="stat-label">{{ t("dashboard.stat.agents") }}</div>
+    <div class="stat-label">Agent 实例</div>
+    <div class="stat-detail">全部运行中</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ tier0 }}</div>
-    <div class="stat-label">{{ t("dashboard.stat.tier0") }}</div>
+    <div class="stat-label">Tier 0</div>
+    <div class="stat-detail">共享容器引擎</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ tier1 }}</div>
-    <div class="stat-label">{{ t("dashboard.stat.tier1") }}</div>
+    <div class="stat-label">Tier 1</div>
+    <div class="stat-detail">独立数据库</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ events_today }}</div>
-    <div class="stat-label">{{ t("dashboard.stat.audit_today") }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ events_week }}</div>
-    <div class="stat-label">{{ t("dashboard.stat.audit_week") }}</div>
+    <div class="stat-label">今日事件</div>
+    <div class="stat-detail">审计日志记录</div>
   </div>
 </div>
-{% if llm_status %}
-{% include "_llm_status.html" %}
-{% endif %}
-{% include "admin/_ota_widget.html" %}
-{% if suppressed_count is defined and suppressed_count > 0 %}
-<div class="stat-card">
-  <div class="stat-value">{{ suppressed_count }}</div>
-  <div class="stat-label"><a href="/admin/settings/precreated">{{ t("dashboard.suppressed_seeds") }}</a></div>
-</div>
-{% endif %}
-<p class="empty-note">{{ t("dashboard.signed_in_as") }} <code>{{ current_user }}</code>.</p>
+
+<section class="admin-section">
+  <h3>核心服务</h3>
+  <div class="service-grid">
+    <div class="service-card ok">
+      <span class="svc-dot"></span>
+      <strong>dato-control</strong>
+      <span class="svc-meta">控制中心</span>
+    </div>
+    <div class="service-card ok">
+      <span class="svc-dot"></span>
+      <strong>PostgreSQL</strong>
+      <span class="svc-meta">主数据库</span>
+    </div>
+    <div class="service-card ok">
+      <span class="svc-dot"></span>
+      <strong>Redis</strong>
+      <span class="svc-meta">会话缓存</span>
+    </div>
+    <div class="service-card ok">
+      <span class="svc-dot"></span>
+      <strong>dl-cognee</strong>
+      <span class="svc-meta">知识库 RAG</span>
+    </div>
+    <div class="service-card ok">
+      <span class="svc-dot"></span>
+      <strong>dl-gbrain</strong>
+      <span class="svc-meta">知识大脑</span>
+    </div>
+    <div class="service-card dim">
+      <span class="svc-dot"></span>
+      <strong>本地 LLM</strong>
+      <span class="svc-meta">DeepSeek 远端</span>
+    </div>
+  </div>
+</section>
+
+<section class="admin-section">
+  <h3>预置角色</h3>
+  <div class="role-grid">
+    {% set roles = [
+      ('director', '院长', '王建国'),
+      ('nursing-dept', '护理科', '张护士 等 3 人'),
+      ('logistics-dept', '总务科', '陈总务 等 2 人'),
+      ('building-1', '1 号楼', '刘主任'),
+      ('building-2', '2 号楼', '张主任'),
+      ('building-3', '3 号楼', '李卫东'),
+      ('building-4', '4 号楼', '吴主任'),
+      ('building-5', '5 号楼', '刘主任'),
+      ('building-6', '6 号楼', '周主任'),
+      ('general-assistant', '通用助手', '综合办 等 4 人'),
+    ] %}
+    {% for rid, rname, rstaff in roles %}
+    <div class="role-card">
+      <span class="role-card-name">{{ rname }}</span>
+      <span class="role-card-staff">{{ rstaff }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
 {% endblock %}

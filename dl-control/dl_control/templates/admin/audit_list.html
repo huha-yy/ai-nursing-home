@@ -1,39 +1,63 @@
 {% extends "base.html" %}
-{% block title %}{{ t("audit.title") }}{% endblock %}
-{% block body %}
-<h2>{{ t("audit.heading") }}</h2>
-<div class="stat-row">
-  <div class="stat-card">
-    <div class="stat-value">{{ events_today }}</div>
-    <div class="stat-label">{{ t("audit.today") }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ events_week }}</div>
-    <div class="stat-label">{{ t("audit.last_7_days") }}</div>
-  </div>
+{% block title %}审计日志 — AI 养老院院长{% endblock %}
+{% block admin_body %}
+
+<div class="admin-page-header">
+  <h2>审计日志</h2>
+  <p class="admin-page-sub">今日 {{ events_today }} 条 · 近 7 天 {{ events_week }} 条</p>
 </div>
+
+{%
+set action_labels = {
+  'login_succeeded': '登录成功',
+  'login_failed': '登录失败',
+  'nursing_login_succeeded': '院内人员登录',
+  'nursing_login_failed': '院内人员登录失败',
+  'logout': '退出登录',
+  'agent_provisioned': 'Agent 创建',
+  'agent_restart': 'Agent 重启',
+  'agent_delete': 'Agent 删除',
+  'agent_reconcile_complete': 'Agent 状态巡检',
+  'agent_reconcile_started': '开始 Agent 巡检',
+  'container_inspect': '容器检查',
+  'precreated_reconcile_done': '预置模板同步',
+  'precreated_provision_failed': 'Agent 创建失败',
+  'workflow.grant_added': '工作流授权',
+  'workflow.grant_removed': '撤销授权',
+  'workflow.schedule_added': '添加调度',
+  'workflow.schedule_removed': '删除调度',
+  'workflow.started': '启动工作流',
+  'workflow.completed': '工作流完成',
+  'workflow.failed': '工作流失败',
+  'skill_updated': '技能配置更新',
+  'password_changed': '修改密码',
+}
+%}
+
 {% if events %}
 <table class="data-table">
   <thead>
-    <tr><th>{{ t("audit.col.when") }}</th><th>{{ t("audit.col.actor") }}</th><th>{{ t("audit.col.action") }}</th><th>{{ t("audit.col.target") }}</th><th>{{ t("audit.col.meta") }}</th></tr>
+    <tr><th>时间</th><th>操作者</th><th>操作</th><th>目标</th><th>详情</th></tr>
   </thead>
   <tbody>
     {% for e in events %}
     <tr>
-      <td>{{ e.occurred_at }}</td>
-      <td>{{ e.actor or "—" }}</td>
-      <td>{{ e.action }}</td>
+      <td style="white-space:nowrap;font-size:0.85rem;color:var(--text-dim)">{{ e.occurred_at }}</td>
+      <td>{{ e.actor }}</td>
+      <td>{{ action_labels.get(e.action, e.action) }}</td>
       <td>{{ e.target or "—" }}</td>
-      <td><code>{{ e.meta }}</code></td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.82rem;color:var(--text-dim)">
+        {% if e.meta is mapping %}{% for k, v in e.meta.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ e.meta }}{% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 <div class="pager">
-  {% if page > 1 %}<a href="?page={{ page - 1 }}">{{ t("audit.newer") }}</a>{% endif %}
-  {% if has_next %}<a href="?page={{ page + 1 }}">{{ t("audit.older") }}</a>{% endif %}
+  {% if page > 1 %}<a href="?page={{ page - 1 }}">← 较新</a>{% endif %}
+  {% if has_next %}<a href="?page={{ page + 1 }}">较旧 →</a>{% endif %}
 </div>
 {% else %}
-<p class="empty-note">{{ t("audit.none") }}</p>
+<p class="empty-note">暂无审计记录。</p>
 {% endif %}
 {% endblock %}

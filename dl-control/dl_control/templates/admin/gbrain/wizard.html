@@ -1,7 +1,7 @@
 {# wizard.html — GBrain OAuth configuration page #}
 {% extends "base.html" %}
 {% block title %}{{ t("gbrain.title") }} — {{ agent.display_name }} — dl-control{% endblock %}
-{% block body %}
+{% block admin_body %}
 <h1>{{ t("gbrain.config_heading") }} — {{ agent.display_name }}</h1>
 
 {% include "admin/gbrain/_needs_restart_banner.html" %}

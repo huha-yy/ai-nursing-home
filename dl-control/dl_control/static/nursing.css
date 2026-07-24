@@ -22,23 +22,121 @@
   --nh-sidebar-w: 300px;
 }
 
-/* -- Login page ------------------------------------------------------- */
+/* =================================================================
+   Login page — "签到台"
+   Material warmth. One card. One accent color. Nothing more.
+   ================================================================= */
+
+/* Page background — like the warm walls of the facility lobby */
+body.login-page {
+  background: #F5EDE3;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Override base body margin/flex so the card truly centers */
+body.login-page main {
+  width: 100%;
+}
+
+/* The card — like a sign-in sheet on a wooden desk */
 .nursing-auth-card {
   text-align: center;
-  padding: 3rem 2.5rem;
-  max-width: 420px;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 2.5rem 2.25rem 2rem;
+  background: #FFFFFF;
+  border-radius: 12px;
+  border-top: 3px solid var(--nh-primary);
+  box-shadow: 0 1px 3px rgba(74, 55, 40, 0.06),
+              0 8px 24px rgba(74, 55, 40, 0.07),
+              0 24px 56px rgba(74, 55, 40, 0.04);
 }
 
 .nursing-auth-card .nursing-brand {
-  font-size: 2rem;
-  color: var(--nh-primary);
-  margin-bottom: 0.25rem;
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: #4A3728;
+  margin-bottom: 0.1rem;
+  letter-spacing: 0.03em;
 }
 
 .nursing-auth-card .auth-sub {
-  color: var(--nh-text-dim);
+  color: #8B7355;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Greeting — warm but matter-of-fact, not cutesy */
+.nursing-auth-card .greeting {
+  font-size: 0.88rem;
+  color: #8B7355;
+  margin-bottom: 1.3rem;
+}
+
+/* Form fields — generous sizing for staff who aren't tech workers */
+.nursing-auth-card .stacked-form label {
+  text-align: left;
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4A3728;
+  letter-spacing: 0.01em;
+}
+
+.nursing-auth-card .stacked-form input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.7rem 0.85rem;
   font-size: 1rem;
-  margin-bottom: 2rem;
+  font-family: inherit;
+  color: #4A3728;
+  background: #FDFAF6;
+  border: 1.5px solid #E8DDD2;
+  border-radius: var(--nh-radius);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.nursing-auth-card .stacked-form input:focus {
+  outline: none;
+  border-color: var(--nh-primary);
+  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.10);
+}
+
+/* Button — the only loud element on the page */
+.nursing-btn {
+  margin-top: 0.5rem;
+  padding: 0.75rem !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.05em;
+  border-radius: var(--nh-radius) !important;
+  background: var(--nh-primary) !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.nursing-btn:hover {
+  background: var(--nh-primary-hover) !important;
+}
+
+/* Admin link — almost invisible unless you look for it */
+.login-admin-link {
+  display: block;
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.76rem;
+  color: #B8A590;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.login-admin-link:hover {
+  color: #6B7B8D;
 }
 
 .nursing-auth-card .stacked-form label {

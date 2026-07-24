@@ -1,11 +1,18 @@
 {% extends "base.html" %}
 {% block title %}AI 养老院院长 — 登录{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/nursing.css">
+{% endblock %}
+{% block body_class %}login-page{% endblock %}
 {% block body %}
 <div class="auth-card nursing-auth-card">
   <h1 class="auth-mark nursing-brand">AI 养老院院长</h1>
   <p class="auth-sub">杭州市第三社会福利院</p>
+  <p class="greeting" id="greeting"></p>
+
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" action="/auth/nursing-login" class="stacked-form">
+
+  <form method="post" action="/auth/nursing-login" class="stacked-form" id="login-form">
     <label>用户名
       <input type="text" name="username" autocomplete="username"
              pattern="[A-Za-z0-9_]{1,32}" required autofocus>
@@ -15,5 +22,32 @@
     </label>
     <button type="submit" class="primary-btn nursing-btn">登录</button>
   </form>
+
+  <a href="#" class="login-admin-link" id="admin-link" title="管理员入口">管理员入口</a>
 </div>
+
+<script>
+(function() {
+  var h = new Date().getHours();
+  var g = document.getElementById('greeting');
+  if      (h < 8)  g.textContent = '早上好，早班辛苦了';
+  else if (h < 12) g.textContent = '上午好，请注意查房安排';
+  else if (h < 14) g.textContent = '中午好，午间别忘了巡查';
+  else if (h < 18) g.textContent = '下午好，今天也辛苦了';
+  else             g.textContent = '晚上好，夜班请注意安全';
+
+  var admin = document.getElementById('admin-link');
+  var form  = document.getElementById('login-form');
+  admin.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (form.action.endsWith('/login')) {
+      form.action = '/auth/nursing-login';
+      admin.textContent = '管理员入口';
+    } else {
+      form.action = '/login';
+      admin.textContent = '返回登录';
+    }
+  });
+})();
+</script>
 {% endblock %}

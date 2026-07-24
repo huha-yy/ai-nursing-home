@@ -359,6 +359,73 @@ Three modules:
 - `secrets.py` — Secret management utilities
 - `manifest_verify.py` — Install bundle manifest verification (minisign)
 
+## Deployment checklist
+
+**CRITICAL — read before first `make init` on a new environment.**
+
+### DEEPSEEK_API_KEY setup order
+
+`DEEPSEEK_API_KEY` is baked into **three** places at first boot. If you start with a
+placeholder and replace it later, stale copies survive in two of the three — the chat
+UI will keep returning 401 until all three are fixed.
+
+| # | Location | Populated when | Refresh method |
+|---|----------|---------------|----------------|
+| 1 | `infra/.env` | manual / `scripts/init` | edit file + recreate container |
+| 2 | Agent `config/.env` (×10) | reconciler at bootstrap | `sed` + restart, or delete agents + reconcile |
+| 3 | Agent `auth-profiles.json` (×10) | first agent boot (`setup-deepseek.sh`) | delete `/home/node/.openclaw/.deepseek-configured` marker + restart agent |
+| 4 | `dato-control` container env | container creation | `docker compose up -d --force-recreate dato-control` |
+
+**Correct order for a new environment:**
+
+1. **Edit `infra/.env`** — set `DEEPSEEK_API_KEY=sk-your-real-key` **before anything else**
+2. `make init` — this generates secrets, builds/loads images, creates agents, bootstraps admin
+3. Verify: `curl` the `/api/nursing/chat` endpoint
+
+If you already started with a placeholder key (sites 1, 2, 3, and 4 all contain stale
+values), run:
+
+```bash
+# 1. Update infra/.env with real key
+# 2. Update agent config/.env files
+for d in $AGENT_ROOT/*/; do
+  sed -i "s|DEEPSEEK_API_KEY='.*'|DEEPSEEK_API_KEY='sk-real-key'|" "$d/config/.env"
+done
+# 3. Delete auth cache marker and restart agents
+for CID in $(docker ps -q --filter "name=dato-agent"); do
+  docker exec $CID rm -f /home/node/.openclaw/.deepseek-configured
+done
+docker restart $(docker ps --format '{{.Names}}' | grep dato-agent)
+# 4. Recreate control container
+docker compose ... up -d --force-recreate dato-control
+```
+
+### Nursing users UUID compatibility
+
+The `nursing_users` table uses text-based IDs (`u001`, `u002`, …) but the `users` and
+`audit_log` tables use UUIDs. Three code paths in `auth/service.py` and `auth/routes.py`
+have been patched to pass `None` instead of text IDs to the audit log. If you add new
+audit events for nursing logins, make sure to guard the `actor_user_id` parameter with
+`_looks_like_uuid()`.
+
+### Docker registry mirrors
+
+The host may not have direct access to Docker Hub or ghcr.io. The following workarounds
+were needed on the 192.168.10.247 appliance:
+
+| Registry | Mirror / method |
+|----------|----------------|
+| Docker Hub (`docker.io`) | `docker.m.daocloud.io` — pull then `docker tag` |
+| GitHub Container Registry (`ghcr.io`) | Clash proxy (`127.0.0.1:7890`) — Python script that downloads layers via HTTP proxy, then `docker load` |
+| HuggingFace (`huggingface.co`) | `hf-mirror.com` — direct HTTP file download (bypass `huggingface_hub` library to avoid Xet/CAS 401 errors) |
+
+### Container networking after Docker restart
+
+`docker restart` (or `systemctl restart docker`) can break DNS resolution for
+containers on the default bridge network. Containers started with `--network host`
+still work. If `dl-cognee-model-download` or other init containers fail with
+"Name or service not known", use `--network host` or restart the Docker daemon.
+
 ## Key conventions
 
 - **Python 3.12+**, `uv` for package management. Each sub-project has its own `pyproject.toml` and `uv.lock`.
@@ -371,3 +438,4 @@ Three modules:
 - **Precreated agent workspace changes:** Edit both the seed template AND the running agent's bind-mount, then restart the container.
 - **SKILL.md changes:** `docker cp` into the running agent container, then restart.
 - **Brand configs are pure YAML** — adding a new brand never requires Python code changes.
+- **Workflow display names are Chinese.** `FlowDescriptor` in `dl_control/workflows/flows/catalog.py` sets `display_name` and `description` in Chinese — these are the user-facing labels shown in the admin UI. Templates read `flow.display_name` / `flow.description` directly from the database. No template-level mapping needed. When adding a new workflow, write the Chinese names in the catalog and `register_flows` persists them to the `workflow` table on boot.

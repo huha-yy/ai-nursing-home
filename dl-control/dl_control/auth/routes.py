@@ -16,6 +16,12 @@ from dl_control.auth.middleware import (
     ua_fingerprint,
 )
 from dl_control.auth.service import LoginError, try_login, try_nursing_login
+
+def _looks_like_uuid(s: str | None) -> bool:
+    """Return True if s looks like a UUID (has dashes and hex chars)."""
+    if not s:
+        return False
+    return len(s) == 36 and s.count("-") == 4
 from dl_control.auth.sessions import SessionStore
 from dl_control.db import Database
 from dl_control.i18n_routes import translator_for
@@ -120,13 +126,16 @@ def make_router(
             sess = await sessions.load(sid)
             if sess is not None:
                 await sessions.delete(sid)
-                async with db.conn(user_id=sess.user_id, role=sess.role) as conn:
-                    await write_event(
-                        conn,
-                        actor_user_id=sess.user_id,
-                        action="logout",
-                        target="session",
-                    )
+                # Nursing users have text IDs — skip audit to avoid UUID FK violation
+                audit_id = sess.user_id if _looks_like_uuid(sess.user_id) else None
+                if audit_id:
+                    async with db.conn(user_id=audit_id, role=sess.role) as conn:
+                        await write_event(
+                            conn,
+                            actor_user_id=audit_id,
+                            action="logout",
+                            target="session",
+                        )
         resp = RedirectResponse(url="/login", status_code=302)
         clear_session_cookie(resp)
         return resp

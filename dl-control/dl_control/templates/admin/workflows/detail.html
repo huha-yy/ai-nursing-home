@@ -1,134 +1,148 @@
 {% extends "base.html" %}
-{% block title %}{{ flow.display_name }} — dl-control{% endblock %}
-{% block body %}
-<h2>{{ flow.display_name }} <small>{{ flow.id }} @ {{ flow.latest_version or "—" }}</small></h2>
-<p>{{ flow.description or "" }}
-   {% if flow.enabled %}<span class="badge badge-status">{{ t("workflows.badge.enabled") }}</span>
-   {% else %}<span class="badge badge-warning">{{ t("workflows.badge.disabled") }}</span>{% endif %}</p>
+{% block title %}{{ flow.display_name }} — AI 养老院院长{% endblock %}
+{% block admin_body %}
 
-<h3>{{ t("workflows.schedules") }}</h3>
-{% if schedules %}
-<table class="data-table">
-  <thead><tr><th>{{ t("workflows.col.cron_utc") }}</th><th>{{ t("workflows.col.input_template") }}</th><th>{{ t("workflows.col.enabled") }}</th><th>{{ t("workflows.col.last_fired") }}</th><th>{{ t("workflows.col.next_fire") }}</th><th></th></tr></thead>
-  <tbody>
-    {% for sc in schedules %}
-    <tr>
-      <td><code>{{ sc.cron }}</code></td>
-      <td><code>{{ sc.input_template | tojson }}</code></td>
-      <td>{{ t("common.yes") if sc.enabled else t("common.no") }}</td>
-      <td>{{ sc.last_fired_at or "—" }}</td>
-      <td>{{ sc.next_fire_at or "—" }}</td>
-      <td>
-        <form method="post" action="/admin/workflows/schedules/{{ sc.id }}/enabled" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="workflow_id" value="{{ flow.id }}">
-          <input type="hidden" name="enabled" value="{{ 'false' if sc.enabled else 'true' }}">
-          <button type="submit">{{ t("common.disable") if sc.enabled else t("common.enable") }}</button>
-        </form>
-        <form method="post" action="/admin/workflows/schedules/{{ sc.id }}/delete" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="workflow_id" value="{{ flow.id }}">
-          <button type="submit" class="ghost-btn">{{ t("common.delete") }}</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty-note">{{ t("workflows.no_schedules") }}</p>
-{% endif %}
+<div class="admin-page-header">
+  <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
+    <a href="/admin/workflows">← 工作流</a>
+  </p>
+  <h2>{{ flow.display_name }}</h2>
+  <p class="admin-page-sub">
+    <code>{{ flow.id }}</code> · {{ flow.latest_version or "—" }} ·
+    {% if flow.enabled %}<span class="badge badge-status">已启用</span>
+    {% else %}<span class="badge badge-warning">已禁用</span>{% endif %}
+    {% if flow.description %} · {{ flow.description }}{% endif %}
+  </p>
+</div>
 
-<form method="post" action="/admin/workflows/{{ flow.id }}/schedules">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>{{ t("workflows.cron_utc_label") }} <input type="text" name="cron" placeholder="0 9 * * 1" required></label>
-  <label>{{ t("workflows.input_template_json") }} <input type="text" name="input_json" placeholder='{"correlation_key": "weekly"}'></label>
-  <button type="submit">{{ t("workflows.add_schedule") }}</button>
-</form>
-
-<h3>{{ t("workflows.agent_grants") }}</h3>
-{% if grants %}
-<table class="data-table">
-  <thead><tr><th>{{ t("workflows.col.agent") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.granted") }}</th><th></th></tr></thead>
-  <tbody>
-    {% for g in grants %}
-    <tr>
-      <td>{{ g.display_name }} <code>{{ g.agent_id | string | truncate(8, true, "") }}</code></td>
-      <td><span class="badge badge-status">{{ g.status }}</span></td>
-      <td>{{ g.granted_at }}</td>
-      <td>
-        <form method="post" action="/admin/workflows/{{ flow.id }}/grants/{{ g.agent_id }}/delete" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="ghost-btn">{{ t("common.revoke") }}</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty-note">{{ t("workflows.no_grants") }}</p>
-{% endif %}
-
-{% if grantable %}
-<form method="post" action="/admin/workflows/{{ flow.id }}/grants">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>{{ t("workflows.col.agent") }}
-    <select name="agent_id">
-      {% for a in grantable %}
-      <option value="{{ a.id }}">{{ a.display_name }}</option>
+<section class="admin-section">
+  <h3>定时调度</h3>
+  {% if schedules %}
+  <table class="data-table">
+    <thead><tr><th>Cron</th><th>输入参数</th><th>启用</th><th>上次触发</th><th>下次触发</th><th></th></tr></thead>
+    <tbody>
+      {% for sc in schedules %}
+      <tr>
+        <td><code>{{ sc.cron }}</code></td>
+        <td><code style="font-size:0.78rem">{{ sc.input_template | tojson | truncate(80) }}</code></td>
+        <td>{{ "是" if sc.enabled else "否" }}</td>
+        <td style="font-size:0.85rem">{{ sc.last_fired_at or "—" }}</td>
+        <td style="font-size:0.85rem">{{ sc.next_fire_at or "—" }}</td>
+        <td>
+          <form method="post" action="/admin/workflows/schedules/{{ sc.id }}/enabled" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="workflow_id" value="{{ flow.id }}">
+            <input type="hidden" name="enabled" value="{{ 'false' if sc.enabled else 'true' }}">
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem">{{ '禁用' if sc.enabled else '启用' }}</button>
+          </form>
+          <form method="post" action="/admin/workflows/schedules/{{ sc.id }}/delete" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="workflow_id" value="{{ flow.id }}">
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">删除</button>
+          </form>
+        </td>
+      </tr>
       {% endfor %}
-    </select>
-  </label>
-  <button type="submit">{{ t("workflows.grant_start") }}</button>
-</form>
-{% endif %}
-
-<h3>{{ t("workflows.default_agent") }}</h3>
-<p>{{ t("workflows.default_agent_desc") }}
-  {% if flow.default_agent_id %}
-    <code>{{ flow.default_agent_id }}</code>
+    </tbody>
+  </table>
   {% else %}
-    <em>{{ t("workflows.default_agent_fallback") }}</em>
+  <p class="empty-note">暂无定时调度。</p>
   {% endif %}
-</p>
-{% if active_agents %}
-<form method="post" action="/admin/workflows/{{ flow.id }}/default-agent">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>{{ t("common.agent") }}
-    <select name="default_agent_id">
-      <option value="">{{ t("workflows.default_agent_fallback") }}</option>
-      {% for a in active_agents %}
-      <option value="{{ a.id }}" {{ 'selected' if flow.default_agent_id == a.id else '' }}>
-        {{ a.display_name }}
-      </option>
-      {% endfor %}
-    </select>
-  </label>
-  <button type="submit">{{ t("common.save") }}</button>
-</form>
-{% endif %}
+  <form method="post" action="/admin/workflows/{{ flow.id }}/schedules" style="display:flex;gap:0.5rem;align-items:flex-end;margin-top:0.75rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">Cron 表达式
+      <input type="text" name="cron" placeholder="0 9 * * 1" required style="margin-top:0.2rem;width:100%">
+    </label>
+    <label style="flex:2;font-size:0.82rem;color:var(--text-dim)">输入参数 (JSON)
+      <input type="text" name="input_json" placeholder='{"correlation_key": "weekly"}' style="margin-top:0.2rem;width:100%">
+    </label>
+    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">添加</button>
+  </form>
+</section>
 
-<h3>{{ t("workflows.runs") }}</h3>
-{% if runs %}
-<table class="data-table">
-  <thead><tr><th>{{ t("workflows.col.run") }}</th><th>{{ t("workflows.col.version") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.trigger") }}</th><th>{{ t("workflows.col.correlation") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("common.created") }}</th><th>{{ t("workflows.col.finished") }}</th></tr></thead>
-  <tbody>
-    {% for run in runs %}
-    <tr>
-      <td><a href="/admin/workflow-runs/{{ run.id }}">{{ run.id | string | truncate(8, true, "") }}</a></td>
-      <td>{{ run.workflow_version }}</td>
-      <td><span class="badge badge-status">{{ run.status }}</span></td>
-      <td>{{ run.trigger }}</td>
-      <td>{{ run.correlation_key or "—" }}</td>
-      <td>{{ run.current_step or "—" }}</td>
-      <td>{{ run.created_at }}</td>
-      <td>{{ run.finished_at or "—" }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty-note">{{ t("workflows.no_flow_runs") }}</p>
-{% endif %}
+<section class="admin-section">
+  <h3>Agent 授权</h3>
+  {% if grants %}
+  <table class="data-table">
+    <thead><tr><th>Agent</th><th>状态</th><th>授权时间</th><th></th></tr></thead>
+    <tbody>
+      {% for g in grants %}
+      <tr>
+        <td>{{ g.display_name }} <code style="font-size:0.8rem">{{ g.agent_id | string | truncate(8, true, "") }}</code></td>
+        <td><span class="badge badge-status">{{ g.status }}</span></td>
+        <td>{{ g.granted_at }}</td>
+        <td>
+          <form method="post" action="/admin/workflows/{{ flow.id }}/grants/{{ g.agent_id }}/delete" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">撤销</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-note">暂无 Agent 授权。</p>
+  {% endif %}
+  {% if grantable %}
+  <form method="post" action="/admin/workflows/{{ flow.id }}/grants" style="display:flex;gap:0.5rem;align-items:flex-end;margin-top:0.75rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">授权给
+      <select name="agent_id" style="margin-top:0.2rem;width:100%">
+        {% for a in grantable %}
+        <option value="{{ a.id }}">{{ a.display_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">授权</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="admin-section">
+  <h3>默认执行 Agent</h3>
+  <p style="color:var(--text-dim);font-size:0.85rem;margin:0 0 0.75rem">
+    {% if flow.default_agent_id %}<code>{{ flow.default_agent_id }}</code>
+    {% else %}未指定（由运行时的可用 Agent 自动选择）{% endif %}
+  </p>
+  {% if active_agents %}
+  <form method="post" action="/admin/workflows/{{ flow.id }}/default-agent" style="display:flex;gap:0.5rem;align-items:flex-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">选择 Agent
+      <select name="default_agent_id" style="margin-top:0.2rem;width:100%">
+        <option value="">自动选择</option>
+        {% for a in active_agents %}
+        <option value="{{ a.id }}" {{ 'selected' if flow.default_agent_id == a.id else '' }}>{{ a.display_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">保存</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="admin-section">
+  <h3>运行记录</h3>
+  {% if runs %}
+  <table class="data-table">
+    <thead><tr><th>运行 ID</th><th>版本</th><th>状态</th><th>触发方式</th><th>关联 Key</th><th>当前步骤</th><th>开始时间</th><th>结束时间</th></tr></thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td><a href="/admin/workflow-runs/{{ run.id }}">{{ run.id | string | truncate(8, true, "") }}</a></td>
+        <td>{{ run.workflow_version }}</td>
+        <td><span class="badge badge-status">{{ run.status }}</span></td>
+        <td>{{ run.trigger }}</td>
+        <td>{{ run.correlation_key or "—" }}</td>
+        <td>{{ run.current_step or "—" }}</td>
+        <td style="font-size:0.85rem">{{ run.created_at }}</td>
+        <td style="font-size:0.85rem">{{ run.finished_at or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-note">暂无运行记录。</p>
+  {% endif %}
+</section>
 {% endblock %}

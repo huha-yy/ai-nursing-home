@@ -217,14 +217,16 @@ async def try_nursing_login(
 
     user_id, db_username, name, role, password_hash, dept, building, floor = row
     user_id = str(user_id)
+    # Nursing users have text IDs (e.g. "u001"), not UUIDs.
+    # Pass None for audit so FK constraint doesn't fail; real identity is in the session.
 
     # 4. Password mismatch.
     if not verify_password(password, password_hash):
         await _bump_counters(redis, username=username, ip=ip, window=rate_limit_window)
-        async with db.conn(user_id=user_id, role="system") as conn:
+        async with db.conn(user_id=None, role="system") as conn:
             await write_event(
                 conn,
-                actor_user_id=user_id,
+                actor_user_id=None,
                 action="nursing_login_failed",
                 target="login",
                 meta={"reason": "password_mismatch", "ip": ip},
@@ -232,10 +234,10 @@ async def try_nursing_login(
         raise LoginError("password_mismatch")
 
     # 5. Success.
-    async with db.conn(user_id=user_id, role="system") as conn:
+    async with db.conn(user_id=None, role="system") as conn:
         await write_event(
             conn,
-            actor_user_id=user_id,
+            actor_user_id=None,
             action="nursing_login_succeeded",
             target="login",
             meta={"ip": ip},

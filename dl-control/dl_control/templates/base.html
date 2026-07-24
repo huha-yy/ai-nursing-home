@@ -6,12 +6,13 @@
   <title>{% block title %}AI 养老院院长{% endblock %}</title>
   {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <link rel="stylesheet" href="/static/styles.css">
+  {% block head_extra %}
   {% if nursing_user %}<link rel="stylesheet" href="/static/nursing.css">{% endif %}
+  {% endblock %}
   <script src="/static/htmx.min.js" defer></script>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   {% if nursing_user %}
-  {# -- Nursing top bar -- #}
   <header class="nursing-topbar">
     <span class="nh-brand">AI 养老院院长</span>
     <nav>
@@ -37,24 +38,44 @@
     </form>
   </header>
   {% elif current_user %}
-  {# -- Admin top bar (unchanged) -- #}
   <header class="topbar">
-    <span class="brand">dato<span class="brand-sub">dl-control</span></span>
+    <span class="brand">AI 养老院院长</span>
     <nav>
-      <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>{{ t("nav.dashboard") }}</a>
-      <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>{{ t("nav.agents") }}</a>
-      <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>{{ t("nav.workflows") }}</a>
-      <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>{{ t("nav.audit") }}</a>
+      <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>概览</a>
+      <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>Agent</a>
+      <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>工作流</a>
+      <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>审计</a>
     </nav>
     {% include "_lang_toggle.html" %}
+    <span class="admin-user-label">管理员</span>
     <form method="post" action="/logout" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="ghost-btn">{{ t("nav.signout") }}</button>
+      <button type="submit" class="ghost-btn">退出</button>
     </form>
   </header>
   {% else %}
   <div class="lang-toggle-floating">{% include "_lang_toggle.html" %}</div>
   {% endif %}
+
+  {% if current_user and not nursing_user %}
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-section">
+        <p class="admin-sidebar-heading">导航</p>
+        <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>概览</a>
+        <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>Agent 管理</a>
+        <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>工作流</a>
+        <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>审计日志</a>
+      </div>
+      <div class="admin-sidebar-section">
+        <p class="admin-sidebar-heading">配置</p>
+        <a href="/admin/settings/precreated">预置模板</a>
+      </div>
+    </aside>
+    <main class="admin-content">{% block admin_body %}{% endblock %}</main>
+  </div>
+  {% else %}
   <main>{% block body %}{% endblock %}</main>
+  {% endif %}
 </body>
 </html>

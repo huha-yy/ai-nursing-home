@@ -110,6 +110,26 @@ def make_router(
                 status_code=303,
             )
 
+        @r.post("/admin/agents/{agent_id}/delete", dependencies=[csrf])
+        async def delete_agent_form(
+            request: Request,
+            agent_id: uuid.UUID,
+            authed: AuthedRequest = admin,
+        ):
+            try:
+                await service.delete_agent(
+                    db,
+                    actor_user_id=authed.user_id,
+                    agent_id=str(agent_id),
+                )
+            except Exception as exc:
+                t = translator_for(request)
+                return HTMLResponse(
+                    status_code=500,
+                    content=f'<div class="banner-error">{t("agents.err.delete_failed")}: {exc}</div>',
+                )
+            return RedirectResponse("/admin/agents", status_code=303)
+
         @r.post(
             "/admin/agents/{agent_id}/precreated/apply",
             dependencies=[csrf],

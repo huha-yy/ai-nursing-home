@@ -11,7 +11,7 @@
   {% endblock %}
   <script src="/static/htmx.min.js" defer></script>
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}{% if nursing_user %} nursing-page{% endif %}">
   {% if nursing_user %}
   <header class="nursing-topbar">
     <span class="nh-brand">AI 养老院院长</span>

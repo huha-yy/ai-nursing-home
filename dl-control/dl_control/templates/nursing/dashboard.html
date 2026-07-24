@@ -1,83 +1,68 @@
 {% extends "base.html" %}
-{% block title %}AI 养老院院长 — 运营总览{% endblock %}
+{% block title %}运营总览 — AI 养老院院长{% endblock %}
 {% block body %}
-
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="/static/echarts.min.js"></script>
 
 <div class="nh-dashboard">
 
-  {# -- Page header -- #}
   <div class="nh-dash-header">
-    <h1>AI 养老院院长 — 运营总览</h1>
+    <h1>运营总览</h1>
     <span class="nh-dash-date"></span>
   </div>
 
-  {# -- KPI cards row -- #}
+  {# -- KPI row -- #}
   <div class="nh-dash-kpis" id="kpi-row">
     <div class="nh-kpi-card">
-      <div class="nh-kpi-icon">&#x1F3E5;</div>
+      <div class="nh-kpi-icon nh-kpi-icon-people"></div>
       <div class="nh-kpi-val" id="kpi-residents">--</div>
       <div class="nh-kpi-label">在院人数</div>
     </div>
     <div class="nh-kpi-card">
-      <div class="nh-kpi-icon">&#x1F46C;</div>
+      <div class="nh-kpi-icon nh-kpi-icon-duty"></div>
       <div class="nh-kpi-val" id="kpi-duty">--</div>
       <div class="nh-kpi-label">今日当班</div>
     </div>
     <div class="nh-kpi-card">
-      <div class="nh-kpi-icon">&#x1F4E6;</div>
+      <div class="nh-kpi-icon nh-kpi-icon-inventory"></div>
       <div class="nh-kpi-val" id="kpi-inventory">--</div>
       <div class="nh-kpi-label">库存预警</div>
     </div>
     <div class="nh-kpi-card">
-      <div class="nh-kpi-icon">&#x1F3A2;</div>
+      <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
       <div class="nh-kpi-val" id="kpi-alerts">--</div>
       <div class="nh-kpi-label">未处理告警</div>
     </div>
   </div>
 
-  {# -- Middle row: focus residents + completion chart -- #}
+  {# -- Middle row -- #}
   <div class="nh-dash-mid">
-    {# Focus residents #}
     <div class="nh-dash-panel nh-focus-panel">
-      <h3 class="nh-dash-panel-title">&#x1F4CB; 今日重点关注老人</h3>
+      <h3 class="nh-dash-panel-title">今日重点关注老人</h3>
       <div id="focus-list" class="nh-focus-list">
         <div class="nh-focus-empty">加载中…</div>
       </div>
     </div>
-
-    {# Completion rate donut chart #}
     <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">&#x1F4CA; 今日护理完成率</h3>
-      <div id="completion-chart" style="width:100%;height:280px;"></div>
+      <h3 class="nh-dash-panel-title">今日护理完成率</h3>
+      <div id="completion-chart" style="width:100%;height:280px"></div>
     </div>
-
-    {# Building distribution bar chart #}
     <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">&#x1F3E2; 各楼栋在院人数分布</h3>
-      <div id="building-chart" style="width:100%;height:280px;"></div>
+      <h3 class="nh-dash-panel-title">各楼栋在院人数</h3>
+      <div id="building-chart" style="width:100%;height:280px"></div>
     </div>
   </div>
 
-  {# -- Low stock panel -- #}
+  {# -- Low stock table -- #}
   <div class="nh-dash-panel nh-stock-panel">
-    <h3 class="nh-dash-panel-title">&#x1F4E6; 库存不足 (&lt;安全线)</h3>
+    <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
     <table class="nh-stock-table">
-      <thead>
-        <tr>
-          <th>物品名称</th>
-          <th>当前库存</th>
-          <th>安全库存</th>
-          <th>状态</th>
-        </tr>
-      </thead>
+      <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
       <tbody id="stock-tbody">
         <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
       </tbody>
     </table>
   </div>
 
-  {# -- Refresh indicator -- #}
   <div class="nh-dash-footer">
     <span id="refresh-countdown">30 秒后自动刷新</span>
     <span class="nh-dash-divider">|</span>
@@ -202,12 +187,12 @@
       el.innerHTML = '<div class="nh-focus-empty">今日无重点关注老人 &#x2705;</div>';
       return;
     }
-    var sevMap = { danger: '&#x1F534;', warning: '&#x1F7E1;', info: '&#x1F535;' };
+    var sevMap = { danger: 'danger', warning: 'warning', info: 'info' };
     var html = '';
     items.forEach(function(r) {
-      var icon = sevMap[r.severity] || '&#x26AB;';
+      var sev = sevMap[r.severity] || 'info';
       html += '<div class="nh-focus-item">'
-        + '<span class="nh-focus-icon">' + icon + '</span>'
+        + '<span class="nh-focus-icon" data-sev="' + sev + '"></span>'
         + '<span class="nh-focus-name">' + r.name + '</span>'
         + '<span class="nh-focus-room">' + r.room + '</span>'
         + '<span class="nh-focus-sep">&mdash;</span>'
@@ -228,10 +213,10 @@
       var ratio = s.quantity / s.safety;
       var level, cls;
       if (ratio < 0.5) {
-        level = '&#x1F534; 严重不足';
+        level = '严重不足';
         cls = 'nh-stock-danger';
       } else {
-        level = '&#x1F7E1; 低于安全线';
+        level = '低于安全线';
         cls = 'nh-stock-warn';
       }
       html += '<tr>'
@@ -284,7 +269,7 @@
     refreshTimer = setInterval(function() {
       countdown--;
       if (countdown <= 0) {
-        refreshData();
+          refreshData();
         countdown = 30;
       }
       countdownEl.textContent = countdown + ' 秒后自动刷新';
@@ -300,221 +285,5 @@
 })();
 </script>
 
-<style>
-/* ============================================================
-   Dashboard styles — extends nursing.css palette
-   ============================================================ */
-
-.nh-dashboard {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-
-.nh-dash-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 1.5rem;
-}
-
-.nh-dash-header h1 {
-  margin: 0;
-  font-size: 1.4rem;
-  color: var(--nh-text);
-}
-
-.nh-dash-date {
-  font-size: 0.95rem;
-  color: var(--nh-text-dim);
-}
-
-/* -- KPI cards -- */
-.nh-dash-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.nh-kpi-card {
-  background: var(--nh-surface);
-  border: 1px solid var(--nh-border);
-  border-radius: var(--nh-radius);
-  padding: 1.25rem 1rem;
-  text-align: center;
-  box-shadow: var(--nh-shadow);
-  transition: box-shadow 0.2s;
-}
-
-.nh-kpi-card:hover {
-  box-shadow: var(--nh-shadow-hover);
-}
-
-.nh-kpi-icon {
-  font-size: 1.6rem;
-  margin-bottom: 0.3rem;
-}
-
-.nh-kpi-val {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--nh-primary);
-  line-height: 1.2;
-}
-
-.nh-kpi-val.kpi-warn { color: var(--nh-warning); }
-.nh-kpi-val.kpi-danger { color: var(--nh-danger); }
-.nh-kpi-val.kpi-ok { color: var(--nh-accent); }
-
-.nh-kpi-label {
-  font-size: 0.85rem;
-  color: var(--nh-text-dim);
-  margin-top: 0.2rem;
-}
-
-/* -- Middle row: 3 panels side by side -- */
-.nh-dash-mid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-/* -- Panels -- */
-.nh-dash-panel {
-  background: var(--nh-surface);
-  border: 1px solid var(--nh-border);
-  border-radius: var(--nh-radius);
-  padding: 1.25rem;
-  box-shadow: var(--nh-shadow);
-}
-
-.nh-dash-panel-title {
-  margin: 0 0 1rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--nh-text);
-}
-
-/* -- Focus list -- */
-.nh-focus-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.nh-focus-item {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  padding: 0.5rem 0.6rem;
-  background: var(--nh-bg);
-  border-radius: 6px;
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-
-.nh-focus-icon {
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.nh-focus-name {
-  font-weight: 600;
-  color: var(--nh-text);
-}
-
-.nh-focus-room {
-  color: var(--nh-text-dim);
-  font-size: 0.8rem;
-}
-
-.nh-focus-sep {
-  color: var(--nh-border);
-  margin: 0 0.15rem;
-}
-
-.nh-focus-reason {
-  color: var(--nh-text-dim);
-  flex: 1;
-  min-width: 0;
-}
-
-.nh-focus-empty {
-  text-align: center;
-  color: var(--nh-text-dim);
-  padding: 2rem 0;
-  font-size: 0.95rem;
-}
-
-/* -- Stock table -- */
-.nh-stock-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.nh-stock-table th,
-.nh-stock-table td {
-  text-align: left;
-  padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid var(--nh-border);
-  font-size: 0.88rem;
-}
-
-.nh-stock-table th {
-  font-weight: 600;
-  color: var(--nh-text-dim);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.nh-stock-table td {
-  color: var(--nh-text);
-}
-
-.nh-stock-danger {
-  color: var(--nh-danger);
-  font-weight: 600;
-}
-
-.nh-stock-warn {
-  color: var(--nh-warning);
-  font-weight: 600;
-}
-
-.nh-stock-empty {
-  text-align: center !important;
-  color: var(--nh-text-dim);
-  padding: 2rem 0 !important;
-  font-size: 0.95rem;
-}
-
-/* -- Footer -- */
-.nh-dash-footer {
-  text-align: center;
-  color: var(--nh-text-dim);
-  font-size: 0.8rem;
-  padding: 0.75rem 0;
-}
-
-.nh-dash-divider {
-  margin: 0 0.6rem;
-  color: var(--nh-border);
-}
-
-/* -- Responsive -- */
-@media (max-width: 1024px) {
-  .nh-dash-kpis { grid-template-columns: repeat(2, 1fr); }
-  .nh-dash-mid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 600px) {
-  .nh-dash-kpis { grid-template-columns: 1fr; }
-  .nh-dashboard { padding: 1rem; }
-}
-</style>
 
 {% endblock %}

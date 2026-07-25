@@ -33,160 +33,202 @@ body.nursing-page {
 }
 
 /* =================================================================
-   Login page — "签到台"
-   Material warmth. One card. One accent color. Nothing more.
+
+/* =================================================================
+
+/* =================================================================
+
+/* =================================================================
+   Login page — Photo background + glass card
    ================================================================= */
 
-/* Page background — like the warm walls of the facility lobby */
 body.login-page {
-  background: #F5EDE3;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
-/* Override base body margin/flex so the card truly centers */
-body.login-page main {
-  width: 100%;
+body.login-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url('https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1920&q=80') center/cover no-repeat, #F2EBE0;
+  filter: brightness(0.95) saturate(0.9);
+  z-index: 0;
 }
 
-/* The card — like a sign-in sheet on a wooden desk */
-.nursing-auth-card {
+body.login-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(245,235,220,0.25) 0%, rgba(230,180,130,0.15) 50%, rgba(245,235,220,0.25) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.login-stage {
+  position: relative;
+  z-index: 2;
+  width: 100%; height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1200px;
+}
+
+.login-stage::before {
+  content: '';
+  position: absolute;
+  width: 800px; height: 800px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(230,126,34,0.18) 0%, rgba(230,126,34,0.04) 40%, transparent 70%);
+  top: -30%; right: -20%;
+  pointer-events: none;
+}
+
+.login-stage::after {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, transparent 70%);
+  bottom: -25%; left: -15%;
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 3;
+  width: 380px;
+  padding: 2.5rem 2rem 2rem;
   text-align: center;
-  max-width: 380px;
-  margin: 0 auto;
-  padding: 2.5rem 2.25rem 2rem;
-  background: #FFFFFF;
-  border: 1px solid #E8DDD2;
-  border-radius: 12px;
-  border-top: 3px solid var(--nh-primary);
-  box-shadow: 0 1px 3px rgba(74, 55, 40, 0.06),
-              0 8px 24px rgba(74, 55, 40, 0.07),
-              0 24px 56px rgba(74, 55, 40, 0.04);
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(16px) saturate(110%);
+  -webkit-backdrop-filter: blur(16px) saturate(110%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.07),
+              0 2px 8px rgba(0, 0, 0, 0.04);
+  transform-style: preserve-3d;
+  transition: transform 0.1s linear;
 }
 
-.nursing-auth-card .nursing-brand {
-  font-size: 1.65rem;
+.login-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.login-brand {
+  margin: 0;
+  font-size: 1.55rem;
   font-weight: 700;
-  color: #4A3728;
-  margin-bottom: 0.1rem;
-  letter-spacing: 0.03em;
+  color: #1A1A1A;
+  letter-spacing: 0.04em;
 }
 
-.nursing-auth-card .auth-sub {
-  color: var(--nh-text-dim);
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-/* Greeting — warm but matter-of-fact, not cutesy */
-.nursing-auth-card .greeting {
+.login-sub {
+  margin: 0.3rem 0 1.4rem;
   font-size: 0.88rem;
-  color: var(--nh-text-dim);
-  margin-bottom: 1.3rem;
-}
-
-/* Form fields — generous sizing for staff who aren't tech workers */
-.nursing-auth-card .stacked-form label {
-  text-align: left;
-  display: block;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #4A3728;
-  letter-spacing: 0.01em;
-}
-
-.nursing-auth-card .stacked-form input {
-  display: block;
-  width: 100%;
-  margin-top: 0.35rem;
-  padding: 0.7rem 0.85rem;
-  font-size: 1rem;
-  font-family: inherit;
-  color: #4A3728;
-  background: #FDFAF6;
-  border: 1.5px solid #E8DDD2;
-  border-radius: var(--nh-radius);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.nursing-auth-card .stacked-form input:focus {
-  outline: none;
-  border-color: var(--nh-primary);
-  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.10);
-}
-
-/* Button — the only loud element on the page */
-.nursing-btn {
-  margin-top: 0.5rem;
-  padding: 0.75rem !important;
-  font-size: 1rem !important;
-  letter-spacing: 0.05em;
-  border-radius: var(--nh-radius) !important;
-  background: var(--nh-primary) !important;
-  color: #fff !important;
-  border: none !important;
-  font-weight: 600 !important;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.nursing-btn:hover {
-  background: var(--nh-primary-hover) !important;
-}
-
-/* Admin link — almost invisible unless you look for it */
-.login-admin-link {
-  display: block;
-  text-align: center;
-  margin-top: 1rem;
-  font-size: 0.76rem;
-  color: #B8A590;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.login-admin-link:hover {
-  color: #6B7B8D;
-}
-
-.nursing-auth-card .stacked-form label {
-  color: var(--nh-text);
+  color: #3D3D3D;
   font-weight: 500;
 }
 
-.nursing-auth-card .stacked-form input {
-  border: 1px solid var(--nh-border);
-  border-radius: var(--nh-radius);
-  padding: 0.65rem 0.85rem;
-  font-size: 1rem;
-  background: var(--nh-bg);
-  color: var(--nh-text);
+.login-greeting {
+  font-size: 0.84rem;
+  color: #555555;
+  margin-bottom: 1.3rem;
 }
 
-.nursing-auth-card .stacked-form input:focus {
+.login-error {
+  background: rgba(232, 180, 176, 0.35);
+  border: 1px solid rgba(200, 80, 60, 0.3);
+  color: #B8403A;
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 1rem;
+  font-size: 0.84rem;
+  border-radius: 8px;
+}
+
+.login-field {
+  text-align: left;
+  margin-bottom: 1rem;
+}
+
+.login-field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3D3D3D;
+  margin-bottom: 0.3rem;
+}
+
+.login-field input {
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #1A1A1A;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(180, 160, 140, 0.45);
+  border-radius: 10px;
+  transition: all 0.25s;
+}
+
+.login-field input:focus {
   outline: none;
-  border-color: var(--nh-primary);
-  box-shadow: 0 0 0 3px var(--nh-primary-light);
+  border-color: rgba(230, 126, 34, 0.6);
+  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.08);
+  background: rgba(255, 255, 255, 0.85);
 }
 
-.nursing-btn {
-  background: var(--nh-primary) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: var(--nh-radius) !important;
-  padding: 0.7rem 1.5rem !important;
-  font-size: 1.05rem !important;
-  font-weight: 600 !important;
+.login-btn {
+  display: block;
+  width: 100%;
+  padding: 0.7rem;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #E67E22, #F09030);
+  border: none;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(230, 126, 34, 0.2);
 }
 
-.nursing-btn:hover {
-  background: var(--nh-primary-hover) !important;
+.login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(230, 126, 34, 0.35);
+  background: linear-gradient(135deg, #D35400, #E08020);
 }
 
-/* -- Nursing top bar -------------------------------------------------- */
+.login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(230, 126, 34, 0.2);
+}
+
+.login-admin {
+  display: block;
+  text-align: center;
+  margin-top: 1.2rem;
+  font-size: 0.78rem;
+  color: #8B7B6B;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.login-admin:hover {
+  color: #3D3D3D;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card { transform: none !important; transition: none !important; }
+}
 .nursing-topbar {
   background: var(--nh-surface);
   border-bottom: 1px solid var(--nh-border);

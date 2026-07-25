@@ -5,25 +5,31 @@
 {% endblock %}
 {% block body_class %}login-page{% endblock %}
 {% block body %}
-<div class="auth-card nursing-auth-card">
-  <h1 class="auth-mark nursing-brand">AI 养老院院长</h1>
-  <p class="auth-sub">杭州市第三社会福利院</p>
-  <p class="greeting" id="greeting"></p>
+<div class="login-stage" id="login-stage">
 
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <div class="login-card" id="login-card">
+    <h1 class="login-brand">AI 养老院院长</h1>
+    <p class="login-sub">杭州市第三社会福利院</p>
+    <p class="login-greeting" id="greeting"></p>
 
-  <form method="post" action="/auth/nursing-login" class="stacked-form" id="login-form">
-    <label>用户名
-      <input type="text" name="username" autocomplete="username"
-             pattern="[A-Za-z0-9_]{1,32}" required autofocus>
-    </label>
-    <label>密码
-      <input type="password" name="password" autocomplete="current-password" required>
-    </label>
-    <button type="submit" class="primary-btn nursing-btn">登录</button>
-  </form>
+    {% if error %}<p class="login-error">{{ error }}</p>{% endif %}
 
-  <a href="#" class="login-admin-link" id="admin-link" title="管理员入口">管理员入口</a>
+    <form method="post" action="/auth/nursing-login" id="login-form">
+      <div class="login-field">
+        <label for="login-user">用户名</label>
+        <input id="login-user" type="text" name="username" autocomplete="username"
+               pattern="[A-Za-z0-9_]{1,32}" required autofocus>
+      </div>
+      <div class="login-field">
+        <label for="login-pass">密码</label>
+        <input id="login-pass" type="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="login-btn">登录</button>
+    </form>
+
+    <a href="#" class="login-admin" id="admin-link">管理员入口</a>
+  </div>
+
 </div>
 
 <script>
@@ -47,6 +53,29 @@
       form.action = '/login';
       admin.textContent = '返回登录';
     }
+  });
+
+  // 3D tilt + parallax
+  var stage = document.getElementById('login-stage');
+  var card  = document.getElementById('login-card');
+
+  stage.addEventListener('mousemove', function(e) {
+    var w = stage.offsetWidth;
+    var h = stage.offsetHeight;
+    var x = (e.clientX - stage.getBoundingClientRect().left) / w - 0.5;
+    var y = (e.clientY - stage.getBoundingClientRect().top)  / h - 0.5;
+
+    card.style.transform = 'rotateY(' + (x * 8) + 'deg) rotateX(' + (-y * 8) + 'deg) translateZ(0)';
+    stage.style.setProperty('--mx', (x * -20) + 'px');
+    stage.style.setProperty('--my', (y * -20) + 'px');
+  });
+
+  stage.addEventListener('mouseleave', function() {
+    card.style.transform = 'rotateY(0) rotateX(0) translateZ(0)';
+    stage.style.setProperty('--mx', '0px');
+    stage.style.setProperty('--my', '0px');
+    card.style.transition = 'transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1)';
+    setTimeout(function() { card.style.transition = 'transform 0.1s linear'; }, 600);
   });
 })();
 </script>

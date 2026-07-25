@@ -1,18 +1,13 @@
 {% if agent.needs_restart %}
-<div class="banner banner-warning">
-  <strong>{{ t("feishu.restart_required") }}</strong> {{ t("feishu.restart_explainer") }}
+<div style="background:rgba(210,153,34,0.1);border:1px solid var(--warn);padding:0.7rem 1rem;border-radius:6px;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem">
+  <span style="color:var(--warn);font-size:0.85rem;font-weight:600;flex:1">配置已保存，需要重启 Agent 才能生效</span>
   {% if agent.status == 'active' %}
-  {# One-click restart only when the agent is active. The restart takes a few
-     seconds (stop → regenerate → start → liveness); block double-submit so a
-     second click can't hit the in-flight CAS guard and dump a 409. #}
-  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart"
-        class="restart-form"
-        onsubmit="if(this.dataset.sent)return false;this.dataset.sent='1';var b=this.querySelector('button');setTimeout(function(){b.disabled=true;b.textContent={{ t("feishu.restarting") | tojson | forceescape }};},0);">
+  <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart" style="display:inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit">{{ t("feishu.restart_agent") }}</button>
+    <button type="submit" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.8rem">立即重启</button>
   </form>
   {% else %}
-  <a href="/admin/agents/{{ agent.id }}" class="action-link">{{ t("feishu.open_to_apply") }}</a>
+  <a href="/admin/agents/{{ agent.id }}" style="font-size:0.85rem">前往 Agent 详情操作</a>
   {% endif %}
 </div>
 {% endif %}

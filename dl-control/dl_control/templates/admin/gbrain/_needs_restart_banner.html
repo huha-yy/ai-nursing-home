@@ -1,16 +1,16 @@
 {% if agent.needs_restart %}
-<div class="banner banner-warning needs-restart" id="needs-restart-banner">
-  <span>{{ t("gbrain.restart_required") }}</span>
+<div style="background:rgba(210,153,34,0.1);border:1px solid var(--warn);padding:0.7rem 1rem;border-radius:6px;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem" id="needs-restart-banner">
+  <span style="color:var(--warn);font-size:0.85rem;font-weight:600;flex:1">配置已保存，需要重启 Agent 才能生效</span>
   {% if agent.status == "active" %}
   <button hx-post="/api/v1/admin/agents/{{ agent.id }}/restart"
           hx-trigger="click"
           hx-target="#needs-restart-banner"
           hx-swap="outerHTML"
-          class="btn btn-sm btn-primary">
-    {{ t("gbrain.restart_agent") }}
+          class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.8rem">
+    立即重启
   </button>
   {% else %}
-  <a href="/admin/agents/{{ agent.id }}" class="action-link">{{ t("gbrain.open_to_apply") }}</a>
+  <a href="/admin/agents/{{ agent.id }}" style="font-size:0.85rem">前往 Agent 详情操作</a>
   {% endif %}
 </div>
 {% endif %}

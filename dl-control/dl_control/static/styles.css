@@ -402,6 +402,24 @@ select {
   font: inherit;
 }
 
+/* -- Standalone form inputs (not wrapped in .stacked-form) -- */
+.form-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* -- buttons ----------------------------------------------------------- */
 .primary-btn, .ghost-btn {
   font: inherit;

@@ -32,8 +32,12 @@ async def get_workflow(
     workflow_id: str,
 ) -> dict[str, Any] | None:
     cur = await conn.execute(
-        "SELECT id, display_name, description, enabled, latest_version, "
-        "default_trigger, default_agent_id FROM workflow WHERE id = %s",
+        "SELECT w.id, w.display_name, w.description, w.enabled, w.latest_version, "
+        "w.default_trigger, w.default_agent_id, "
+        "COALESCE(a.display_name, '') as default_agent_name "
+        "FROM workflow w "
+        "LEFT JOIN agents a ON w.default_agent_id = a.id "
+        "WHERE w.id = %s",
         (workflow_id,),
     )
     r = await cur.fetchone()
@@ -47,6 +51,7 @@ async def get_workflow(
         "latest_version": r[4],
         "default_trigger": r[5],
         "default_agent_id": str(r[6]) if r[6] else None,
+        "default_agent_name": r[7] or "",
     }
 
 

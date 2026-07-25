@@ -2,31 +2,32 @@
   {% include "admin/gbrain/_needs_restart_banner.html" %}
 
   {% if success %}
-  <div class="banner banner-success">{{ t("gbrain.creds_saved") }}</div>
+  <div style="background:rgba(74,158,92,0.12);border:1px solid var(--ok);color:var(--ok);padding:0.6rem 0.9rem;border-radius:6px;margin-bottom:1rem">{{ t("gbrain.creds_saved") }}</div>
   {% endif %}
   {% if error %}
-  <div class="banner banner-error">{{ error }}</div>
+  <div style="background:rgba(208,69,59,0.08);border:1px solid var(--danger);color:var(--danger);padding:0.6rem 0.9rem;border-radius:6px;margin-bottom:1rem">{{ error }}</div>
   {% endif %}
 
   <form hx-post="/admin/agents/{{ agent.id }}/gbrain/credentials"
         hx-target="#gbrain-wizard"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        class="stacked-form" style="max-width:480px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <fieldset>
-      <legend>{{ t("gbrain.credentials") }}</legend>
 
-      <label>{{ t("gbrain.client_id") }}
-        <input name="client_id" type="text" required
-               value="{{ agent.client_id or '' }}"
-               placeholder="gbrain_cl_xxxxxxxxxxxxxxx">
-      </label>
+    <label>Client ID
+      <input name="client_id" type="text" required
+             value="{{ agent.client_id or '' }}"
+             placeholder="gbrain_cl_xxxxxxxxxxxxxxx">
+    </label>
 
-      <label>{{ t("gbrain.client_secret") }}
-        <input name="client_secret" type="password" required autocomplete="new-password"
-               placeholder="{{ t('gbrain.client_secret_placeholder') }}">
-      </label>
+    <label>Client Secret
+      <input name="client_secret" type="password" required autocomplete="new-password"
+             placeholder="输入 Client Secret">
+    </label>
 
-      <button type="submit">{{ t("gbrain.save_credentials") }}</button>
-    </fieldset>
+    <div style="display:flex;gap:0.5rem">
+      <button type="submit" class="primary-btn" style="width:auto">保存凭据</button>
+      <a href="/admin/agents/{{ agent.id }}" class="ghost-btn" style="width:auto;text-decoration:none;line-height:2.2">取消</a>
+    </div>
   </form>
 </div>

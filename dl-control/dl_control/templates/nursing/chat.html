@@ -17,7 +17,7 @@
   <aside class="nh-sidebar">
     <div class="nh-sidebar-section">
       <h3>当前用户</h3>
-      <div class="nh-stat-row"><span>角色</span><span class="nh-stat-val">{{ role_label }}</span></div>
+      <div class="nh-stat-row"><span>身份</span><span class="nh-stat-val">{{ role_label }}</span></div>
       <div class="nh-stat-row"><span>姓名</span><span class="nh-stat-val">{{ nursing_user.name }}</span></div>
       {% if dept %}<div class="nh-stat-row"><span>科室</span><span class="nh-stat-val">{{ dept }}</span></div>{% endif %}
       {% if building %}<div class="nh-stat-row"><span>楼栋</span><span class="nh-stat-val">{{ building }}</span></div>{% endif %}
@@ -33,16 +33,15 @@
     </div>
 
     {% if role == 'director' %}
-    <div class="nh-sidebar-section"><h3>全院概览</h3><div class="nh-stat">36</div><div class="nh-stat-label">在院老人总数</div></div>
-    <div class="nh-sidebar-section"><div class="nh-stat-row"><span>今日值班</span><span class="nh-stat-val">12人</span></div><div class="nh-stat-row"><span>库存预警</span><span class="nh-stat-val warn">3项</span></div><div class="nh-stat-row"><span>未处理告警</span><span class="nh-stat-val danger">7条</span></div></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 全院在院老人总数<br>· 今日排班情况<br>· 库存预警物资<br>· 未处理健康告警<br>· 本日护理完成率</p></div>
     {% elif role == 'nursing_dept' %}
-    <div class="nh-sidebar-section"><h3>今日排班</h3><div class="nh-stat">20</div><div class="nh-stat-label">在岗护工</div></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 今日排班表<br>· 工单完成率<br>· 某楼栋当班人员</p></div>
     {% elif role == 'logistics_dept' %}
-    <div class="nh-sidebar-section"><h3>库存概况</h3><div class="nh-stat">15</div><div class="nh-stat-label">物品种类</div></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 库存盘点<br>· 低于安全线的物资<br>· 采购建议</p></div>
     {% elif role in ('building', 'floor') %}
-    <div class="nh-sidebar-section"><h3>{% if building %}{{ building }}{% endif %}{% if floor %} {{ floor }}{% endif %}</h3><div class="nh-stat">6</div><div class="nh-stat-label">本区域老人</div></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 本楼老人情况<br>· 今天谁当班<br>· 本日菜单和活动</p></div>
     {% else %}
-    <div class="nh-sidebar-section"><h3>{{ dept or '综合' }}</h3><div class="nh-stat-row"><span>在院老人</span><span class="nh-stat-val">36人</span></div></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 今日菜单<br>· 活动安排<br>· 院内通知</p></div>
     {% endif %}
 
     <div class="nh-sidebar-footer">杭州市第三社会福利院<br>AI 养老院院长 v0.1</div>

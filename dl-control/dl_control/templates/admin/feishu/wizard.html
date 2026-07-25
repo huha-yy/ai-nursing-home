@@ -1,8 +1,15 @@
-{# wizard.html — combined Feishu configuration page (spec §9.2) #}
 {% extends "base.html" %}
-{% block title %}{{ t("feishu.title") }} — {{ agent.display_name }} — dl-control{% endblock %}
+{% block title %}飞书配置 — {{ agent.display_name }} — AI 养老院院长{% endblock %}
 {% block admin_body %}
-<h1>{{ t("feishu.config_heading") }} — {{ agent.display_name }}</h1>
+
+<div class="admin-page-header">
+  <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
+    <a href="/admin/agents/{{ agent.id }}">← {{ agent.display_name }}</a>
+    <span style="margin-left:0.5rem">· <a href="/admin/agents">Agent 管理</a></span>
+  </p>
+  <h2>飞书配置</h2>
+  <p class="admin-page-sub">{{ agent.display_name }} · 飞书通道凭据与绑定</p>
+</div>
 
 {% include "admin/feishu/_needs_restart_banner.html" %}
 
@@ -10,9 +17,5 @@
   {% include "admin/feishu/_wizard_form.html" %}
 </section>
 
-{# _pairings_table.html is the self-contained #pairings-section fragment: it
-   already renders Pending Requests + Approved + Tombstones, and is what the
-   approve/revoke HTMX swap returns. Including _pending_requests here too would
-   render the pending list twice on initial load. #}
 {% include "admin/feishu/_pairings_table.html" %}
 {% endblock %}

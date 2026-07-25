@@ -1,47 +1,64 @@
 {% extends "base.html" %}
-{% block title %}{{ t("settings.suppressed_title") }}{% endblock %}
+{% block title %}预置模板 — AI 养老院院长{% endblock %}
 {% block admin_body %}
-<h1>{{ t("settings.suppressed_title") }}</h1>
+
+<div class="admin-page-header">
+  <h2>预置模板</h2>
+  <p class="admin-page-sub">Agent 的出厂设置 · 系统启动时自动创建</p>
+</div>
+
+<section class="admin-section">
+  <h3>模板列表</h3>
+  <div class="role-grid">
+    {% set roles = [
+      ('director', '院长', '全院管理、运营报表'),
+      ('nursing-dept', '护理科', '排班、工单管理'),
+      ('logistics-dept', '总务科', '库存、物资配送'),
+      ('building-1', '1 号楼', '本楼老人查询'),
+      ('building-2', '2 号楼', '本楼老人查询'),
+      ('building-3', '3 号楼', '本楼老人查询'),
+      ('building-4', '4 号楼', '本楼老人查询'),
+      ('building-5', '5 号楼', '本楼老人查询'),
+      ('building-6', '6 号楼', '本楼老人查询'),
+      ('general-assistant', '通用助手', '公开信息查询'),
+    ] %}
+    {% for rid, rname, rdesc in roles %}
+    <div class="role-card">
+      <span class="role-card-name">{{ rname }}</span>
+      <span class="role-card-staff">{{ rdesc }}</span>
+      <code style="font-size:0.72rem;color:var(--text-dim)">{{ rid }}</code>
+    </div>
+    {% endfor %}
+  </div>
+</section>
 
 {% if suppressed %}
-<table>
-  <thead>
-    <tr>
-      <th>{{ t("settings.col.seed_id") }}</th>
-      <th>{{ t("settings.col.display_name") }}</th>
-      <th>{{ t("settings.col.suppressed_at") }}</th>
-      <th>{{ t("settings.col.suppressed_by") }}</th>
-      <th>{{ t("settings.col.actions") }}</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for s in suppressed %}
-    <tr>
-      <td>{{ s.precreated_id }}</td>
-      <td>{{ s.display_name }}{% if not s.seed_exists %} <em>{{ t("settings.seed_removed") }}</em>{% endif %}</td>
-      <td>{{ s.suppressed_at }}</td>
-      <td>{{ s.suppressed_by_username }}</td>
-      <td>
-        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/unsuppress" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit">{{ t("settings.unsuppress") }}</button>
-        </form>
-        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/recreate-now" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit">{{ t("settings.unsuppress_recreate") }}</button>
-        </form>
-        {% if not s.seed_exists %}
-        <form method="post" action="/admin/precreated/{{ s.precreated_id }}/forget" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit">{{ t("settings.forget") }}</button>
-        </form>
-        {% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section class="admin-section">
+  <h3>已禁用的模板</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>模板 ID</th><th>名称</th><th>禁用时间</th><th>操作人</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+    {% for s in suppressed %}
+      <tr>
+        <td>{{ s.precreated_id }}</td>
+        <td>{{ s.display_name }}{% if not s.seed_exists %} <em>源已删除</em>{% endif %}</td>
+        <td>{{ s.suppressed_at }}</td>
+        <td>{{ s.suppressed_by_username }}</td>
+        <td>
+          <form method="post" action="/admin/precreated/{{ s.precreated_id }}/unsuppress" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">恢复</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% else %}
-<p>{{ t("settings.none_suppressed") }}</p>
+<p style="color:var(--text-dim);font-size:0.85rem">当前全部 10 个模板已启用。如需禁用某个角色，请通过 API 或后台管理操作。</p>
 {% endif %}
+
 {% endblock %}

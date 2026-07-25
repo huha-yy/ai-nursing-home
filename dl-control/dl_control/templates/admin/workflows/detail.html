@@ -48,15 +48,17 @@
   {% else %}
   <p class="empty-note">暂无定时调度。</p>
   {% endif %}
-  <form method="post" action="/admin/workflows/{{ flow.id }}/schedules" style="display:flex;gap:0.5rem;align-items:flex-end;margin-top:0.75rem">
+  <form method="post" action="/admin/workflows/{{ flow.id }}/schedules" class="stacked-form" style="max-width:none;margin-top:0.75rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">Cron 表达式
-      <input type="text" name="cron" placeholder="0 9 * * 1" required style="margin-top:0.2rem;width:100%">
-    </label>
-    <label style="flex:2;font-size:0.82rem;color:var(--text-dim)">输入参数 (JSON)
-      <input type="text" name="input_json" placeholder='{"correlation_key": "weekly"}' style="margin-top:0.2rem;width:100%">
-    </label>
-    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">添加</button>
+    <div style="display:flex;gap:1rem;margin-bottom:0.5rem">
+      <label style="flex:1">Cron 表达式
+        <input type="text" name="cron" placeholder="0 9 * * 1" required>
+      </label>
+      <label style="flex:1">输入参数 (JSON)
+        <input type="text" name="input_json" placeholder='{"correlation_key": "weekly"}'>
+      </label>
+    </div>
+    <button type="submit" class="primary-btn" style="width:auto">添加</button>
   </form>
 </section>
 
@@ -85,10 +87,10 @@
   <p class="empty-note">暂无 Agent 授权。</p>
   {% endif %}
   {% if grantable %}
-  <form method="post" action="/admin/workflows/{{ flow.id }}/grants" style="display:flex;gap:0.5rem;align-items:flex-end;margin-top:0.75rem">
+  <form method="post" action="/admin/workflows/{{ flow.id }}/grants" class="stacked-form" style="max-width:480px;margin-top:0.75rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">授权给
-      <select name="agent_id" style="margin-top:0.2rem;width:100%">
+    <label style="margin-bottom:0.5rem">授权给
+      <select name="agent_id" >
         {% for a in grantable %}
         <option value="{{ a.id }}">{{ a.display_name }}</option>
         {% endfor %}
@@ -102,14 +104,14 @@
 <section class="admin-section">
   <h3>默认执行 Agent</h3>
   <p style="color:var(--text-dim);font-size:0.85rem;margin:0 0 0.75rem">
-    {% if flow.default_agent_id %}<code>{{ flow.default_agent_id }}</code>
+    {% if flow.default_agent_id %}<code>{{ flow.default_agent_name }}</code>
     {% else %}未指定（由运行时的可用 Agent 自动选择）{% endif %}
   </p>
   {% if active_agents %}
-  <form method="post" action="/admin/workflows/{{ flow.id }}/default-agent" style="display:flex;gap:0.5rem;align-items:flex-end">
+  <form method="post" action="/admin/workflows/{{ flow.id }}/default-agent" class="stacked-form" style="max-width:480px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label style="flex:1;font-size:0.82rem;color:var(--text-dim)">选择 Agent
-      <select name="default_agent_id" style="margin-top:0.2rem;width:100%">
+    <label style="margin-bottom:0.5rem">选择 Agent
+      <select name="default_agent_id" >
         <option value="">自动选择</option>
         {% for a in active_agents %}
         <option value="{{ a.id }}" {{ 'selected' if flow.default_agent_id == a.id else '' }}>{{ a.display_name }}</option>

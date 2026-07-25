@@ -617,6 +617,23 @@ async def build_app() -> FastAPI:
             )).fetchone()
             monthly_complaints = row[0] if row else 0
 
+            # -- Yesterday comparison --
+            row = await (await conn.execute(
+                "SELECT count(DISTINCT staff_name) FROM nursing_schedules "
+                "WHERE date = CURRENT_DATE - 1"
+            )).fetchone()
+            on_duty_yesterday = row[0] if row else 0
+
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_inventory WHERE quantity < safety_stock"
+            )).fetchone()
+            inventory_alerts_yesterday = row[0] if row else inventory_alerts  # same snapshot
+
+            row = await (await conn.execute(
+                "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
+            )).fetchone()
+            pending_health_alerts_yesterday = row[0] if row else pending_health_alerts
+
             # -- Focus residents (from unhandled health alerts) --
             frows = await (await conn.execute(
                 "SELECT r.name, r.room, a.content, a.severity "
@@ -681,6 +698,7 @@ async def build_app() -> FastAPI:
                 "inventory_alerts": inventory_alerts,
                 "pending_health_alerts": pending_health_alerts,
                 "monthly_complaints": monthly_complaints,
+                "on_duty_yesterday": on_duty_yesterday,
             },
             "focus_residents": focus_residents,
             "low_stock_items": low_stock_items,

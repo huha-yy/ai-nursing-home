@@ -10,27 +10,36 @@
     <span class="nh-dash-date"></span>
   </div>
 
+  <div class="nh-dash-status" id="status-bar">
+    <span class="nh-status-text" id="status-text">加载中…</span>
+    <span class="nh-status-badge" id="status-badge"></span>
+  </div>
+
   {# -- KPI row -- #}
   <div class="nh-dash-kpis" id="kpi-row">
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-people"></div>
       <div class="nh-kpi-val" id="kpi-residents">--</div>
-      <div class="nh-kpi-label">在院人数</div>
+      <div class="nh-kpi-label">在院老人</div>
+      <div class="nh-kpi-trend" id="trend-residents"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-duty"></div>
       <div class="nh-kpi-val" id="kpi-duty">--</div>
       <div class="nh-kpi-label">今日当班</div>
+      <div class="nh-kpi-trend" id="trend-duty"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-inventory"></div>
       <div class="nh-kpi-val" id="kpi-inventory">--</div>
       <div class="nh-kpi-label">库存预警</div>
+      <div class="nh-kpi-trend" id="trend-inventory"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
       <div class="nh-kpi-val" id="kpi-alerts">--</div>
       <div class="nh-kpi-label">未处理告警</div>
+      <div class="nh-kpi-trend" id="trend-alerts"></div>
     </div>
   </div>
 
@@ -50,6 +59,15 @@
       <h3 class="nh-dash-panel-title">各楼栋在院人数</h3>
       <div id="building-chart" style="width:100%;height:280px"></div>
     </div>
+  </div>
+
+  {# -- Shift handover -- #}
+  <div class="nh-dash-handover" id="handover-panel">
+    <div class="nh-handover-top">
+      <span class="nh-handover-shift" id="handover-shift">--</span>
+      <span class="nh-handover-countdown" id="handover-countdown"></span>
+    </div>
+    <div class="nh-handover-summary" id="handover-summary"></div>
   </div>
 
   {# -- Low stock table -- #}
@@ -102,7 +120,7 @@
     if (!completionChart) return;
     var pct = parseInt(rateStr) || 0;
     var option = {
-      tooltip: { trigger: 'item', formatter: '完成率: {c}%' },
+      tooltip: { trigger: 'item', formatter: '{b}: {c}%' },
       series: [{
         type: 'pie',
         radius: ['55%', '75%'],
@@ -183,21 +201,35 @@
 
   function renderFocusList(items) {
     var el = document.getElementById('focus-list');
+    var cnt = document.getElementById('focus-count');
     if (!items || items.length === 0) {
-      el.innerHTML = '<div class="nh-focus-empty">今日无重点关注老人 &#x2705;</div>';
+      el.innerHTML = '<div class="nh-focus-empty">今日无重点关注老人</div>';
+      if (cnt) cnt.textContent = '';
       return;
     }
-    var sevMap = { danger: 'danger', warning: 'warning', info: 'info' };
-    var html = '';
+    if (cnt) cnt.textContent = items.length + ' 人';
+
+    var groups = { danger: [], warning: [], info: [] };
     items.forEach(function(r) {
-      var sev = sevMap[r.severity] || 'info';
-      html += '<div class="nh-focus-item">'
-        + '<span class="nh-focus-icon" data-sev="' + sev + '"></span>'
-        + '<span class="nh-focus-name">' + r.name + '</span>'
-        + '<span class="nh-focus-room">' + r.room + '</span>'
-        + '<span class="nh-focus-sep">&mdash;</span>'
-        + '<span class="nh-focus-reason">' + r.reason + '</span>'
-        + '</div>';
+      var s = groups[r.severity] ? r.severity : 'info';
+      groups[s].push(r);
+    });
+
+    var labels = { danger: '紧急关注', warning: '需关注', info: '常规关注' };
+    var html = '';
+    ['danger', 'warning', 'info'].forEach(function(sev) {
+      if (!groups[sev].length) return;
+      html += '<div class="nh-focus-group"><div class="nh-focus-group-head" data-sev="' + sev + '">' +
+        '<span class="nh-focus-group-dot"></span>' + labels[sev] + ' · ' + groups[sev].length + ' 人</div>';
+      groups[sev].forEach(function(r) {
+        html += '<div class="nh-focus-item" data-sev="' + sev + '">' +
+          '<span class="nh-focus-icon"></span>' +
+          '<span class="nh-focus-name">' + r.name + '</span>' +
+          '<span class="nh-focus-room">' + r.room + '</span>' +
+          '<span class="nh-focus-sep">&mdash;</span>' +
+          '<span class="nh-focus-reason">' + r.reason + '</span></div>';
+      });
+      html += '</div>';
     });
     el.innerHTML = html;
   }
@@ -229,6 +261,43 @@
     tbody.innerHTML = html;
   }
 
+  function updateShiftHandover(data) {
+    var h = new Date().getHours();
+    var m = new Date().getMinutes();
+    var now = h * 60 + m;
+    var shiftName, shiftEnd;
+    if (now >= 360 && now < 840)       { shiftName = '早班'; shiftEnd = 840; }
+    else if (now >= 840 && now < 1320)  { shiftName = '晚班'; shiftEnd = 1320; }
+    else                                { shiftName = '夜班'; shiftEnd = 360 + 1440; }
+
+    var remaining = shiftEnd - now;
+    if (remaining < 0) remaining += 1440;
+    var rh = Math.floor(remaining / 60);
+    var rm = remaining % 60;
+
+    var shiftHours = shiftEnd > 24*60 ? Math.floor((shiftEnd-1440)/60)+':00' : Math.floor(shiftEnd/60)+':00';
+    var shiftStart = (shiftEnd - 480 > 0 ? Math.floor((shiftEnd-480)/60)+':00' : Math.floor((shiftEnd-480+1440)/60)+':00');
+    document.getElementById('handover-shift').textContent = shiftName + ' ' + shiftStart + ' – ' + shiftHours;
+
+    var cd = document.getElementById('handover-countdown');
+    if (remaining <= 60) {
+      cd.textContent = '即将交班 · ' + rm + ' 分钟';
+      cd.className = 'nh-handover-countdown countdown-urgent';
+    } else {
+      cd.textContent = '还有 ' + rh + ' 小时 ' + (rm > 0 ? rm + ' 分钟 ' : '') + '交班';
+      cd.className = 'nh-handover-countdown';
+    }
+
+    var s = data.summary;
+    var fc = (data.focus_residents || []).length;
+    var p = [];
+    if (s.pending_health_alerts > 0) p.push(s.pending_health_alerts + ' 条健康告警');
+    if (s.inventory_alerts > 0) p.push(s.inventory_alerts + ' 项库存预警');
+    if (fc > 0) p.push(fc + ' 位老人需关注');
+    if (s.on_duty_today > 0) p.push(s.on_duty_today + ' 人当班');
+    document.getElementById('handover-summary').textContent = p.length > 0 ? '今天发生：' + p.join(' · ') : '今天一切正常';
+  }
+
   function refreshData() {
     fetch('/api/nursing/dashboard', { credentials: 'same-origin' })
       .then(function(r) {
@@ -247,6 +316,48 @@
         altEl.textContent = s.pending_health_alerts;
         altEl.className = 'nh-kpi-val' + (s.pending_health_alerts > 0 ? ' kpi-danger' : ' kpi-ok');
 
+        // Trend indicators
+        function trend(el, curr, prev, inverse) {
+          if (!el || prev === null || prev === undefined) return;
+          var diff = curr - prev;
+          if (diff === 0) { el.innerHTML = '持平'; el.className = 'nh-kpi-trend trend-flat'; return; }
+          var arrow = diff > 0 ? '↑' : '↓';
+          el.innerHTML = arrow + ' ' + Math.abs(diff) + ' vs 昨日';
+          var isGood = inverse ? (diff < 0) : (diff > 0);
+          el.className = 'nh-kpi-trend ' + (isGood ? 'trend-good' : 'trend-bad');
+        }
+        trend(document.getElementById('trend-residents'), s.total_residents, s.total_residents_yesterday || null, false);
+        trend(document.getElementById('trend-duty'), s.on_duty_today, s.on_duty_yesterday || null, false);
+        trend(document.getElementById('trend-inventory'), s.inventory_alerts, s.inventory_alerts_yesterday || null, true);
+        trend(document.getElementById('trend-alerts'), s.pending_health_alerts, s.pending_health_alerts_yesterday || null, true);
+
+        // Status bar
+        var st = document.getElementById('status-bar');
+        var stText = document.getElementById('status-text');
+        var stBadge = document.getElementById('status-badge');
+        var alerts = s.pending_health_alerts;
+        var inv = s.inventory_alerts;
+        var focusCount = (data.focus_residents || []).length;
+        if (alerts > 0) {
+          st.className = 'nh-dash-status status-danger';
+          stText.textContent = alerts + ' 条未处理健康告警 · ' + focusCount + ' 位老人需关注';
+          stBadge.textContent = '需立即处理';
+          stBadge.className = 'nh-status-badge badge-danger';
+        } else if (inv > 0 || focusCount > 0) {
+          st.className = 'nh-dash-status status-warning';
+          var parts = [];
+          if (inv > 0) parts.push(inv + ' 项库存预警');
+          if (focusCount > 0) parts.push(focusCount + ' 位老人需关注');
+          stText.textContent = parts.join(' · ');
+          stBadge.textContent = '需关注';
+          stBadge.className = 'nh-status-badge badge-warning';
+        } else {
+          st.className = 'nh-dash-status status-ok';
+          stText.textContent = '全院正常 · ' + s.total_residents + ' 位老人 · ' + s.on_duty_today + ' 人当班';
+          stBadge.textContent = '运行正常';
+          stBadge.className = 'nh-status-badge badge-ok';
+        }
+
         // Focus residents
         renderFocusList(data.focus_residents);
 
@@ -255,6 +366,7 @@
 
         // Charts
         updateCompletionChart(data.completion_rate);
+        updateShiftHandover(data);
         updateBuildingChart(data.building_distribution);
       })
       .catch(function(err) {

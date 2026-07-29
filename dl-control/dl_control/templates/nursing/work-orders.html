@@ -2,125 +2,79 @@
 {% block title %}护理工单 — AI 养老院院长{% endblock %}
 {% block body %}
 
-{% set done = orders | selectattr('done', 'equalto', true) | list | length %}
 {% set total = orders | length %}
-{% set rate = (done / total * 100) | int if total > 0 else 0 %}
+{% set done = orders | selectattr('done', 'equalto', true) | list | length %}
 {% set pending = total - done %}
-
-{# group orders by type #}
-{% set types = {} %}
-{% for o in orders %}
-  {% set _ = types.setdefault(o.type, []).append(o) %}
-{% endfor %}
+{% set rate = (done / total * 100) | int if total > 0 else 0 %}
 
 <div class="nh-wo-page">
 
   {# -- Header -- #}
-  <div class="nh-wo-header">
-    <div class="nh-wo-header-left">
-      <a href="/dashboard" class="nh-wo-back">← 返回大屏</a>
-      <h1 class="nh-wo-title">护理工单</h1>
-      <span class="nh-wo-date">{{ orders[0].time if orders else '' }}</span>
-    </div>
-    <div class="nh-wo-header-right">
-      {% if nursing_user.role != 'general' and nursing_user.name %}
-        <span class="nh-wo-user">{{ nursing_user.name }}</span>
-      {% endif %}
-    </div>
+  <div class="nh-wo-top">
+    <a href="/dashboard" class="nh-wo-backlink">← 大屏</a>
+    <span class="nh-wo-top-date">{{ orders[0].time if orders else '-' }}</span>
   </div>
 
-  {# -- Summary cards -- #}
-  <div class="nh-wo-summary">
-    <div class="nh-wo-stat nh-wo-stat-total">
-      <div class="nh-wo-stat-val">{{ total }}</div>
-      <div class="nh-wo-stat-label">工单总数</div>
-    </div>
-    <div class="nh-wo-stat nh-wo-stat-done">
-      <div class="nh-wo-stat-val">{{ done }}</div>
-      <div class="nh-wo-stat-label">已完成</div>
-    </div>
-    <div class="nh-wo-stat nh-wo-stat-pending">
-      <div class="nh-wo-stat-val">{{ pending }}</div>
-      <div class="nh-wo-stat-label">待处理</div>
-    </div>
-    <div class="nh-wo-stat nh-wo-stat-rate">
-      <div class="nh-wo-stat-val">{{ rate }}<span class="nh-wo-stat-unit">%</span></div>
-      <div class="nh-wo-stat-label">完成率</div>
+  <div class="nh-wo-hgroup">
+    <h1 class="nh-wo-title">护理工单</h1>
+    <div class="nh-wo-tags">
+      <button class="nh-wo-tag active" data-filter="all">全部 {{ total }}</button>
+      <button class="nh-wo-tag nh-wo-tag-pending" data-filter="pending">待处理 {{ pending }}</button>
+      <button class="nh-wo-tag nh-wo-tag-done" data-filter="done">已完成 {{ done }}</button>
     </div>
   </div>
 
   {# -- Progress bar -- #}
-  <div class="nh-wo-progress-wrap">
-    <div class="nh-wo-progress-bar">
-      <div class="nh-wo-progress-done" style="width:{{ rate }}%"></div>
-    </div>
-    <span class="nh-wo-progress-text">{{ done }}/{{ total }} 已完成</span>
+  <div class="nh-wo-bar-wrap">
+    <div class="nh-wo-bar"><div class="nh-wo-bar-fill" style="width:{{ rate }}%"></div></div>
+    <span class="nh-wo-bar-label">{{ done }}/{{ total }} 完成 · {{ rate }}%</span>
   </div>
 
-  {# -- Filter chips -- #}
-  <div class="nh-wo-filters" id="wo-filters">
-    <button class="nh-wo-chip active" data-filter="all">全部</button>
-    <button class="nh-wo-chip" data-filter="pending">待处理</button>
-    <button class="nh-wo-chip" data-filter="done">已完成</button>
+  {# -- Table -- #}
+  <div class="nh-wo-table-wrap">
+    <table class="nh-wo-table">
+      <thead>
+        <tr>
+          <th class="col-type">类型</th>
+          <th class="col-room">房间</th>
+          <th class="col-name">老人</th>
+          <th class="col-note">备注</th>
+          <th class="col-staff">负责</th>
+          <th class="col-status">状态</th>
+        </tr>
+      </thead>
+      <tbody id="wo-tbody">
+        {% for o in orders %}
+        <tr class="wo-row{% if o.done %} is-done{% else %} is-pending{% endif %}" data-status="{% if o.done %}done{% else %}pending{% endif %}">
+          <td class="col-type"><span class="type-tag">{{ o.type }}</span></td>
+          <td class="col-room">{{ o.room or '-' }}</td>
+          <td class="col-name">{{ o.resident or '-' }}</td>
+          <td class="col-note">{{ o.note or '-' }}</td>
+          <td class="col-staff">{{ o.staff or '-' }}</td>
+          <td class="col-status">
+            <span class="st-badge{% if o.done %} st-ok{% else %} st-pend{% endif %}">
+              {% if o.done %}已完成{% else %}待处理{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
-  {# -- Work order groups -- #}
-  <div class="nh-wo-body" id="wo-body">
-    {% for type_name, items in types.items() | sort %}
-      {% set type_done = items | selectattr('done', 'equalto', true) | list | length %}
-      <div class="nh-wo-group">
-        <div class="nh-wo-group-head">
-          <span class="nh-wo-group-icon">{{ type_name[:2] }}</span>
-          <div class="nh-wo-group-info">
-            <span class="nh-wo-group-name">{{ type_name }}</span>
-            <span class="nh-wo-group-stat">{{ type_done }}/{{ items | length }} 完成</span>
-          </div>
-        </div>
-        <div class="nh-wo-group-items">
-          {% for o in items %}
-          <div class="nh-wo-card{% if o.done %} is-done{% else %} is-pending{% endif %}"
-               data-status="{% if o.done %}done{% else %}pending{% endif %}">
-            <div class="nh-wo-card-left">
-              <span class="nh-wo-card-room">{{ o.room or '—' }}</span>
-              <span class="nh-wo-card-divider">·</span>
-              <span class="nh-wo-card-name">{{ o.resident or '—' }}</span>
-            </div>
-            <div class="nh-wo-card-mid">
-              {% if o.note %}
-              <span class="nh-wo-card-note">{{ o.note[:60] }}{% if o.note|length > 60 %}…{% endif %}</span>
-              {% endif %}
-            </div>
-            <div class="nh-wo-card-right">
-              {% if o.staff %}
-              <span class="nh-wo-card-staff">{{ o.staff }}</span>
-              {% endif %}
-              <span class="nh-wo-card-badge{% if o.done %} badge-done{% else %} badge-pending{% endif %}">
-                {% if o.done %}已完成{% else %}待处理{% endif %}
-              </span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-    {% endfor %}
-  </div>
-
-  <p class="nh-wo-back-bottom"><a href="/dashboard">← 返回大屏</a></p>
 </div>
 
-{# -- Filter script -- #}
 <script>
 (function(){
-  var chips = document.querySelectorAll('#wo-filters .nh-wo-chip');
-  var cards = document.querySelectorAll('.nh-wo-card');
-  chips.forEach(function(c){
-    c.addEventListener('click', function(){
-      chips.forEach(function(x){ x.classList.remove('active'); });
-      c.classList.add('active');
-      var filter = c.dataset.filter;
-      cards.forEach(function(card){
-        if (filter === 'all') { card.style.display = ''; }
-        else { card.style.display = card.dataset.status === filter ? '' : 'none'; }
+  var tags = document.querySelectorAll('.nh-wo-tag');
+  var rows = document.querySelectorAll('.wo-row');
+  tags.forEach(function(t){
+    t.addEventListener('click', function(){
+      tags.forEach(function(x){ x.classList.remove('active'); });
+      t.classList.add('active');
+      var f = t.dataset.filter;
+      rows.forEach(function(r){
+        r.style.display = f === 'all' || r.dataset.status === f ? '' : 'none';
       });
     });
   });

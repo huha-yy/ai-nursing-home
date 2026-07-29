@@ -219,6 +219,15 @@ async def build_app() -> FastAPI:
         {"director", "nursing_dept", "logistics_dept", "building", "floor", "general"}
     )
 
+    # Helper: pick CURRENT_DATE when data exists, else the latest available
+    # date from the table.  Prevents "N/A" displays when seed data is older
+    # than today (fresh deploy / date drift).
+    def _eff_date(table: str) -> str:
+        return (
+            f"COALESCE((SELECT date FROM {table} WHERE date = CURRENT_DATE LIMIT 1), "
+            f"(SELECT MAX(date) FROM {table}))"
+        )
+
     @app.get("/chat", response_class=HTMLResponse)
     async def nursing_chat(request: _Request):
         raw = request.cookies.get(_NURSING_COOKIE, "")
@@ -340,15 +349,15 @@ async def build_app() -> FastAPI:
         matched_skill = None
         SKILL_QUERIES = [
             (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
-             "SELECT staff_name, shift, date, building FROM nursing_schedules WHERE date = CURRENT_DATE ORDER BY shift, staff_name LIMIT 20"),
+             f"SELECT staff_name, shift, date, building FROM nursing_schedules WHERE date = ({_eff_date('nursing_schedules')}) ORDER BY shift, staff_name LIMIT 20"),
             (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
-             "SELECT type, COUNT(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done FROM nursing_work_orders WHERE date = CURRENT_DATE GROUP BY type"),
+             f"SELECT type, COUNT(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done FROM nursing_work_orders WHERE date = ({_eff_date('nursing_work_orders')}) GROUP BY type"),
             (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"], "logistics-inventory",
              "SELECT item_name, quantity, unit, safety_stock, CASE WHEN quantity < safety_stock THEN '预警' ELSE '正常' END as status FROM nursing_inventory ORDER BY item_name"),
             (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"], "resident-query",
              "SELECT name, building, floor, room, age, diagnosis, care_level FROM nursing_residents ORDER BY building, room LIMIT 15"),
             (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
-             "SELECT meal_type, menu FROM nursing_meals WHERE date = CURRENT_DATE ORDER BY CASE meal_type WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'dinner' THEN 3 END"),
+             f"SELECT meal_type, menu FROM nursing_meals WHERE date = ({_eff_date('nursing_meals')}) ORDER BY CASE meal_type WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'dinner' THEN 3 END"),
             (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
              "SELECT title, date, time, location FROM nursing_activities WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
             (["费用", "结算", "缴费", "账单"], "finance-query",
@@ -586,10 +595,97 @@ async def build_app() -> FastAPI:
                 )
         return {"alerts": alerts}
 
+    @app.get("/alerts", response_class=HTMLResponse)
+    async def nursing_alerts_page(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return RedirectResponse(url="/login", status_code=302)
+        nursing_user = {
+            "name": getattr(sess, "name", None) or sess.user_id,
+            "role": sess.role,
+            "dept": getattr(sess, "dept", None) or "",
+            "building": getattr(sess, "building", None) or "",
+            "floor": getattr(sess, "floor", None) or "",
+        }
+        async with db.conn(user_id=None, role="system") as conn:
+            cur = await conn.execute(
+                "SELECT a.id, r.name, r.room, a.content, a.category, a.severity, a.created_at, a.handled "
+                "FROM nursing_health_alerts a "
+                "JOIN nursing_residents r ON a.resident_id = r.id "
+                "ORDER BY CASE a.severity WHEN 'danger' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END, a.created_at DESC"
+            )
+            rows = await cur.fetchall()
+        alerts = [{
+            "id": r[0], "name": r[1], "room": r[2], "content": r[3],
+            "category": r[4], "severity": r[5],
+            "created_at": r[6].strftime("%m月%d日 %H:%M:%S") if r[6] else "",
+            "handled": r[7],
+        } for r in rows]
+        return TEMPLATES.TemplateResponse(request, "nursing/alerts.html", {
+            "active": "alerts",
+            "nursing_user": nursing_user,
+            "csrf_token": sess.csrf_token,
+            "alerts": alerts,
+        })
+
+    @app.post("/api/nursing/alerts/{alert_id}/handle")
+    async def nursing_alerts_handle(alert_id: int, request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        async with db.conn(user_id=None, role="system") as conn:
+            await conn.execute(
+                "UPDATE nursing_health_alerts SET handled = true WHERE id = %s", (alert_id,)
+            )
+        return JSONResponse({"ok": True})
+
+    @app.get("/work-orders", response_class=HTMLResponse)
+    async def nursing_work_orders_page(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return RedirectResponse(url="/login", status_code=302)
+        nursing_user = {
+            "name": getattr(sess, "name", None) or sess.user_id,
+            "role": sess.role,
+            "dept": getattr(sess, "dept", None) or "",
+            "building": getattr(sess, "building", None) or "",
+            "floor": getattr(sess, "floor", None) or "",
+        }
+        async with db.conn(user_id=None, role="system") as conn:
+            cur = await conn.execute(
+                f"SELECT w.type, r.room, r.name, w.completed, w.date "
+                f"FROM nursing_work_orders w "
+                f"JOIN nursing_residents r ON w.resident_id = r.id "
+                f"WHERE w.date = ({_eff_date('nursing_work_orders')}) "
+                f"ORDER BY w.completed, w.type"
+            )
+            rows = await cur.fetchall()
+        orders = [{
+            "type": r[0], "room": r[1], "resident": r[2],
+            "done": r[3],
+            "time": r[4].strftime("%m月%d日") if r[4] else "",
+        } for r in rows]
+        return TEMPLATES.TemplateResponse(request, "nursing/work-orders.html", {
+            "active": "dashboard",
+            "nursing_user": nursing_user,
+            "orders": orders,
+        })
+
     @app.get("/api/nursing/dashboard")
     async def nursing_dashboard_api():
         """Aggregated operational dashboard data for the nursing home."""
         async with db.conn(user_id=None, role="system") as conn:
+            # -- Effective date helpers: fall back to latest available data
+            #    when the seed has no rows for CURRENT_DATE (fresh deploy / drift).
+            _sch_d = _eff_date("nursing_schedules")
+            _wo_d = _eff_date("nursing_work_orders")
+
             # -- Summary KPIs --
             row = await (await conn.execute(
                 "SELECT count(*) FROM nursing_residents"
@@ -597,8 +693,8 @@ async def build_app() -> FastAPI:
             total_residents = row[0] if row else 0
 
             row = await (await conn.execute(
-                "SELECT count(DISTINCT staff_name) FROM nursing_schedules "
-                "WHERE date = CURRENT_DATE"
+                f"SELECT count(DISTINCT staff_name) FROM nursing_schedules "
+                f"WHERE date = ({_sch_d})"
             )).fetchone()
             on_duty_today = row[0] if row else 0
 
@@ -619,8 +715,8 @@ async def build_app() -> FastAPI:
 
             # -- Yesterday comparison --
             row = await (await conn.execute(
-                "SELECT count(DISTINCT staff_name) FROM nursing_schedules "
-                "WHERE date = CURRENT_DATE - 1"
+                f"SELECT count(DISTINCT staff_name) FROM nursing_schedules "
+                f"WHERE date = ({_sch_d}) - 1"
             )).fetchone()
             on_duty_yesterday = row[0] if row else 0
 
@@ -661,9 +757,9 @@ async def build_app() -> FastAPI:
 
             # -- Schedule today --
             srows = await (await conn.execute(
-                "SELECT shift, count(DISTINCT staff_name) "
-                "FROM nursing_schedules WHERE date = CURRENT_DATE "
-                "GROUP BY shift"
+                f"SELECT shift, count(DISTINCT staff_name) "
+                f"FROM nursing_schedules WHERE date = ({_sch_d}) "
+                f"GROUP BY shift"
             )).fetchall()
             schedule_today = {"day_shift": 0, "night_shift": 0}
             for r in srows:
@@ -674,13 +770,23 @@ async def build_app() -> FastAPI:
 
             # -- Completion rate --
             row = await (await conn.execute(
-                "SELECT "
-                "count(*) FILTER (WHERE completed = TRUE) AS done, "
-                "count(*) AS total "
-                "FROM nursing_work_orders WHERE date = CURRENT_DATE"
+                f"SELECT "
+                f"count(*) FILTER (WHERE completed = TRUE) AS done, "
+                f"count(*) AS total "
+                f"FROM nursing_work_orders WHERE date = ({_wo_d})"
             )).fetchone()
             done, total = row[0] or 0, row[1] or 0
             completion_rate = f"{int(done / total * 100)}%" if total > 0 else "N/A"
+
+            # -- Work order breakdown --
+            orows = await (await conn.execute(
+                f"SELECT type, count(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done "
+                f"FROM nursing_work_orders WHERE date = ({_wo_d}) "
+                f"GROUP BY type ORDER BY type"
+            )).fetchall()
+            work_order_details = [
+                {"type": r[0], "total": r[1], "done": r[2]} for r in orows
+            ]
 
             # -- Building distribution --
             brows = await (await conn.execute(
@@ -704,6 +810,7 @@ async def build_app() -> FastAPI:
             "low_stock_items": low_stock_items,
             "schedule_today": schedule_today,
             "completion_rate": completion_rate,
+            "work_order_details": work_order_details,
             "building_distribution": building_distribution,
         }
 

@@ -643,3 +643,39 @@ INSERT INTO nursing_complaints (content, source, status) VALUES
 ('2号楼1层晚上走廊灯光太亮，影响睡眠', '家属反馈', 'pending'),
 ('餐厅早餐粥太稀，希望增加稠度', '老人代表', 'resolved'),
 ('5号楼2层空调制冷不足，已连续3天报修未处理', '护工上报', 'pending');
+
+-- ===================================================================
+-- CURRENT_DATE guarantee: ensure today's work_orders, schedules, and
+-- meals always have data by replicating from the latest seed date.
+-- These blocks are idempotent — they run harmlessly on every boot.
+-- Unique indexes are added inline so the ON CONFLICT clauses work.
+-- ===================================================================
+
+-- Add unique indexes for idempotent INSERT (harmless if they already exist)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_schedules_staff_date_shift
+    ON nursing_schedules (staff_name, date, shift);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_meals_date_meal
+    ON nursing_meals (date, meal_type);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_work_orders_res_date_type
+    ON nursing_work_orders (resident_id, date, type);
+
+-- Work orders for today (replicate from the last seeded date)
+INSERT INTO nursing_work_orders (resident_id, type, date, completed, staff_name, note)
+SELECT resident_id, type, CURRENT_DATE, completed, staff_name, note
+FROM nursing_work_orders
+WHERE date = (SELECT MAX(date) FROM nursing_work_orders WHERE date < CURRENT_DATE)
+ON CONFLICT (resident_id, date, type) DO NOTHING;
+
+-- Schedules for today (replicate yesterday's pattern)
+INSERT INTO nursing_schedules (staff_name, date, shift, building, floor, zone, task_note)
+SELECT staff_name, CURRENT_DATE, shift, building, floor, zone, task_note
+FROM nursing_schedules
+WHERE date = CURRENT_DATE - 1
+ON CONFLICT (staff_name, date, shift) DO NOTHING;
+
+-- Meals for today (replicate last week's same-day menu if available)
+INSERT INTO nursing_meals (date, meal_type, menu)
+SELECT CURRENT_DATE, meal_type, menu
+FROM nursing_meals
+WHERE date = CURRENT_DATE - 7
+ON CONFLICT (date, meal_type) DO NOTHING;

@@ -27,8 +27,6 @@ from dl_control.workflows.model import (
     Flow,
     Retry,
     Step,
-    StepContext,
-    StepResult,
 )
 
 # ---------------------------------------------------------------------------
@@ -45,44 +43,36 @@ _OPS_PREFIX = (
 )
 
 
-def _agent_task(
-    agent_id_key: str,
-    message_builder,
-    workflow_id: str | None = None,
-):
-    """Build a deterministic prepare function for CallAgent.
+def _resolve_agent(input: dict[str, Any], key: str, precreated_id: str):
+    """Resolve an agent UUID for a workflow step.
 
-    agent_id_key: key in the workflow input dict holding the agent UUID.
-    message_builder: fn(input, outputs) -> str message for the agent.
-    workflow_id: used to look up the DB-backed default from config_cache.
+    Priority order:
+    1. Explicit value in workflow input (``input[key]``).
+    2. DB-backed precreated-agent cache (``get_agent_by_precreated``).
+    3. Per-workflow default_agent_id (``get_default("nursing.ops")``).
+    4. Raise ``KeyError`` with a helpful message.
     """
+    from uuid import UUID
 
-    def prepare(input: dict[str, Any], outputs: dict[str, Any]):
-        raw = input.get(agent_id_key)
-        if not raw:
-            db_default = config_cache.get_default(workflow_id) if workflow_id else None
-            raw = db_default or config_cache.get_hardcoded_fallback()
-        if not raw:
-            raise KeyError(agent_id_key)
-        agent_id = raw if hasattr(raw, "hex") else __import__("uuid").UUID(raw)
-        message = message_builder(input, outputs)
-        return AgentTask(agent_id=agent_id, message=message)
-
-    return prepare
+    raw = input.get(key)
+    if not raw:
+        raw = config_cache.get_agent_by_precreated(precreated_id)
+    if not raw:
+        raw = config_cache.get_default("nursing.ops")
+    if not raw:
+        raise KeyError(
+            f"{key}: no explicit agent ID provided and "
+            f"'{precreated_id}' agent not found in the precreated-agent cache. "
+            f"请先在管理后台为护理运营流程配置智能体。"
+        )
+    return UUID(raw) if isinstance(raw, str) else raw
 
 
 # --- Step prepare functions ---
 
 
 def _prepare_nursing_schedule(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
-    raw = input.get("nursing_agent_id")
-    if not raw:
-        raw = config_cache.get_default("nursing.ops") or config_cache.get_hardcoded_fallback()
-    if not raw:
-        raise KeyError("nursing_agent_id")
-    from uuid import UUID
-
-    agent_id = UUID(raw) if isinstance(raw, str) else raw
+    agent_id = _resolve_agent(input, "nursing_agent_id", "nursing-dept")
     building = input.get("building", "3号楼")
     week_start = input.get("week_start", "")
     msg = (
@@ -102,14 +92,7 @@ def _prepare_nursing_schedule(input: dict[str, Any], outputs: dict[str, Any]) ->
 
 
 def _prepare_logistics(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
-    raw = input.get("logistics_agent_id")
-    if not raw:
-        raw = config_cache.get_default("nursing.ops") or config_cache.get_hardcoded_fallback()
-    if not raw:
-        raise KeyError("logistics_agent_id")
-    from uuid import UUID
-
-    agent_id = UUID(raw) if isinstance(raw, str) else raw
+    agent_id = _resolve_agent(input, "logistics_agent_id", "logistics-dept")
     building = input.get("building", "3号楼")
     schedule_result = outputs.get("nursing-schedule-step", "{}")
     msg = (
@@ -127,14 +110,7 @@ def _prepare_logistics(input: dict[str, Any], outputs: dict[str, Any]) -> AgentT
 
 
 def _prepare_finance(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
-    raw = input.get("general_agent_id")
-    if not raw:
-        raw = config_cache.get_default("nursing.ops") or config_cache.get_hardcoded_fallback()
-    if not raw:
-        raise KeyError("general_agent_id")
-    from uuid import UUID
-
-    agent_id = UUID(raw) if isinstance(raw, str) else raw
+    agent_id = _resolve_agent(input, "general_agent_id", "general-assistant")
     schedule = outputs.get("nursing-schedule-step", "")
     logistics = outputs.get("logistics-step", "")
     msg = (
@@ -153,14 +129,7 @@ def _prepare_finance(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTas
 
 
 def _prepare_director_report(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
-    raw = input.get("director_agent_id")
-    if not raw:
-        raw = config_cache.get_default("nursing.ops") or config_cache.get_hardcoded_fallback()
-    if not raw:
-        raise KeyError("director_agent_id")
-    from uuid import UUID
-
-    agent_id = UUID(raw) if isinstance(raw, str) else raw
+    agent_id = _resolve_agent(input, "director_agent_id", "director")
     schedule = outputs.get("nursing-schedule-step", "")
     logistics = outputs.get("logistics-step", "")
     finance = outputs.get("finance-step", "")

@@ -33,24 +33,27 @@ class DispatchConfig:
 
 
 def read_agent_internal_token(agents_root: str, agent_id: str) -> str | None:
-    """Parse DL_INTERNAL_TOKEN out of the agent's config/.env. The on-disk
-    value is shell-quoted (render_env_file); shlex.split decodes it — the
-    same idiom as provisioning's _existing_token."""
+    """Parse DL_INTERNAL_TOKEN out of the agent's config/.env.
+
+    The task receiver (dato_task_receiver.py) validates incoming /dato/task
+    requests against the DL_INTERNAL_TOKEN environment variable.  The
+    entrypoint sources the .env file, so the last value for the key wins."""
     env_path = Path(agents_root) / agent_id / "config" / ".env"
     try:
         text = env_path.read_text()
     except OSError:
         return None
+    token = None
     for line in text.splitlines():
         if not line.startswith("DL_INTERNAL_TOKEN="):
             continue
         try:
             parts = shlex.split(line, posix=True)
         except ValueError:
-            return None
+            continue
         if parts and "=" in parts[0]:
-            return parts[0].split("=", 1)[1] or None
-    return None
+            token = parts[0].split("=", 1)[1] or None
+    return token  # last-wins (same semantic as shell sourcing)
 
 
 async def dispatch_task(

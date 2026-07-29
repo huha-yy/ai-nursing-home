@@ -2,83 +2,91 @@
 {% block title %}护理工单 — AI 养老院院长{% endblock %}
 {% block body %}
 
+<style>
+.nh-wo{max-width:720px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+.nh-wo-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.nh-wo-back{font-size:.85rem;color:#E67E22;text-decoration:none}
+.nh-wo-date{font-size:.82rem;color:#6B5A45}
+.nh-wo-ttl{font-size:1.5rem;font-weight:700;color:#4A3728;margin:0 0 1rem}
+.nh-wo-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:.85rem}
+.nh-wo-kpi{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.7rem;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.nh-wo-kpi strong{display:block;font-size:1.35rem;font-weight:700;color:#4A3728}
+.nh-wo-kpi small{display:block;font-size:.72rem;color:#6B5A45;margin-top:.15rem}
+.nh-wo-kpi-ok strong{color:#27AE60}
+.nh-wo-kpi-warn strong{color:#E74C3C}
+.nh-wo-prog{height:4px;background:#EDE0D3;border-radius:2px;margin-bottom:1rem;overflow:hidden}
+.nh-wo-prog i{display:block;height:100%;background:#27AE60;border-radius:2px}
+.nh-wo-filt{display:flex;gap:.4rem;margin-bottom:1rem}
+.nh-wo-filt b{border:1px solid #E8D5C4;background:#fff;color:#6B5A45;padding:.25rem .7rem;border-radius:14px;font-size:.8rem;cursor:pointer;font-weight:500}
+.nh-wo-filt b.on{background:#4A3728;color:#fff;border-color:#4A3728}
+.nh-wo-list{display:flex;flex-direction:column;gap:.4rem}
+.nh-wo-item{display:flex;align-items:center;gap:.6rem;background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.55rem .7rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.nh-wo-item.done{opacity:.5}
+.nh-wo-i-type{background:#F5EDE3;color:#4A3728;padding:.1rem .35rem;border-radius:4px;font-size:.8rem;font-weight:500;flex-shrink:0}
+.nh-wo-i-room{font-weight:700;font-size:.85rem;color:#4A3728;flex-shrink:0;min-width:30px}
+.nh-wo-i-name{font-size:.85rem;color:#4A3728;font-weight:500;flex-shrink:0}
+.nh-wo-i-note{flex:1;font-size:.8rem;color:#6B5A45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.nh-wo-i-staff{font-size:.78rem;color:#6B5A45;flex-shrink:0}
+.nh-wo-i-st{font-size:.72rem;font-weight:700;padding:.12rem .45rem;border-radius:10px;color:#E65100;background:#FFF3E0;flex-shrink:0}
+.nh-wo-i-st.ok{color:#2E7D32;background:#E8F5E9}
+@media(max-width:640px){.nh-wo-kpis{grid-template-columns:repeat(2,1fr)}.nh-wo-i-note,.nh-wo-i-staff{display:none}}
+</style>
+
 {% set total = orders | length %}
 {% set done = orders | selectattr('done', 'equalto', true) | list | length %}
 {% set pending = total - done %}
 {% set rate = (done / total * 100) | int if total > 0 else 0 %}
 
-<div class="nh-wo-page">
+<div class="nh-wo">
 
-  {# -- Header -- #}
-  <div class="nh-wo-top">
-    <a href="/dashboard" class="nh-wo-backlink">← 大屏</a>
-    <span class="nh-wo-top-date">{{ orders[0].time if orders else '-' }}</span>
+  <div class="nh-wo-bar">
+    <a href="/dashboard" class="nh-wo-back">← 大屏</a>
+    <span class="nh-wo-date">{{ orders[0].time if orders else '-' }}</span>
   </div>
 
-  <div class="nh-wo-hgroup">
-    <h1 class="nh-wo-title">护理工单</h1>
-    <div class="nh-wo-tags">
-      <button class="nh-wo-tag active" data-filter="all">全部 {{ total }}</button>
-      <button class="nh-wo-tag nh-wo-tag-pending" data-filter="pending">待处理 {{ pending }}</button>
-      <button class="nh-wo-tag nh-wo-tag-done" data-filter="done">已完成 {{ done }}</button>
+  <h1 class="nh-wo-ttl">护理工单</h1>
+
+  <div class="nh-wo-kpis">
+    <div class="nh-wo-kpi"><strong>{{ total }}</strong><small>总工单</small></div>
+    <div class="nh-wo-kpi nh-wo-kpi-ok"><strong>{{ done }}</strong><small>已完成</small></div>
+    <div class="nh-wo-kpi nh-wo-kpi-warn"><strong>{{ pending }}</strong><small>待处理</small></div>
+    <div class="nh-wo-kpi"><strong>{{ rate }}%</strong><small>完成率</small></div>
+  </div>
+
+  <div class="nh-wo-prog"><i style="width:{{ rate }}%"></i></div>
+
+  <div class="nh-wo-filt">
+    <b class="on" data-f="all">全部 {{ total }}</b>
+    <b data-f="pending">待处理 {{ pending }}</b>
+    <b data-f="done">已完成 {{ done }}</b>
+  </div>
+
+  <div class="nh-wo-list" id="wo-list">
+  {% for o in orders %}
+    <div class="nh-wo-item{% if o.done %} done{% endif %}" data-s="{% if o.done %}done{% else %}pending{% endif %}">
+      <span class="nh-wo-i-type">{{ o.type }}</span>
+      <span class="nh-wo-i-room">{{ o.room or '-' }}</span>
+      <span class="nh-wo-i-name">{{ o.resident or '-' }}</span>
+      <span class="nh-wo-i-note">{{ o.note or '' }}</span>
+      <span class="nh-wo-i-staff">{{ o.staff or '' }}</span>
+      <span class="nh-wo-i-st{% if o.done %} ok{% endif %}">{% if o.done %}已完成{% else %}待处理{% endif %}</span>
     </div>
-  </div>
-
-  {# -- Progress bar -- #}
-  <div class="nh-wo-bar-wrap">
-    <div class="nh-wo-bar"><div class="nh-wo-bar-fill" style="width:{{ rate }}%"></div></div>
-    <span class="nh-wo-bar-label">{{ done }}/{{ total }} 完成 · {{ rate }}%</span>
-  </div>
-
-  {# -- Table -- #}
-  <div class="nh-wo-table-wrap">
-    <table class="nh-wo-table">
-      <thead>
-        <tr>
-          <th class="col-type">类型</th>
-          <th class="col-room">房间</th>
-          <th class="col-name">老人</th>
-          <th class="col-note">备注</th>
-          <th class="col-staff">负责</th>
-          <th class="col-status">状态</th>
-        </tr>
-      </thead>
-      <tbody id="wo-tbody">
-        {% for o in orders %}
-        <tr class="wo-row{% if o.done %} is-done{% else %} is-pending{% endif %}" data-status="{% if o.done %}done{% else %}pending{% endif %}">
-          <td class="col-type"><span class="type-tag">{{ o.type }}</span></td>
-          <td class="col-room">{{ o.room or '-' }}</td>
-          <td class="col-name">{{ o.resident or '-' }}</td>
-          <td class="col-note">{{ o.note or '-' }}</td>
-          <td class="col-staff">{{ o.staff or '-' }}</td>
-          <td class="col-status">
-            <span class="st-badge{% if o.done %} st-ok{% else %} st-pend{% endif %}">
-              {% if o.done %}已完成{% else %}待处理{% endif %}
-            </span>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% endfor %}
   </div>
 
 </div>
 
 <script>
-(function(){
-  var tags = document.querySelectorAll('.nh-wo-tag');
-  var rows = document.querySelectorAll('.wo-row');
-  tags.forEach(function(t){
-    t.addEventListener('click', function(){
-      tags.forEach(function(x){ x.classList.remove('active'); });
-      t.classList.add('active');
-      var f = t.dataset.filter;
-      rows.forEach(function(r){
-        r.style.display = f === 'all' || r.dataset.status === f ? '' : 'none';
-      });
+document.querySelectorAll('.nh-wo-filt b').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('.nh-wo-filt b').forEach(function(x){x.className=''});
+    b.className = 'on';
+    var f = b.dataset.f;
+    document.querySelectorAll('.nh-wo-item').forEach(function(i){
+      i.style.display = f==='all' ? '' : i.dataset.s===f ? '' : 'none';
     });
-  });
-})();
+  };
+});
 </script>
 
 {% endblock %}

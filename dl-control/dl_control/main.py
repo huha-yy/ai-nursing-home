@@ -659,7 +659,8 @@ async def build_app() -> FastAPI:
         }
         async with db.conn(user_id=None, role="system") as conn:
             cur = await conn.execute(
-                f"SELECT w.type, r.room, r.name, w.completed, w.date "
+                f"SELECT w.type, r.room, r.name, w.completed, w.date, "
+                f"w.staff_name, w.note "
                 f"FROM nursing_work_orders w "
                 f"JOIN nursing_residents r ON w.resident_id = r.id "
                 f"WHERE w.date = ({_eff_date('nursing_work_orders')}) "
@@ -670,6 +671,7 @@ async def build_app() -> FastAPI:
             "type": r[0], "room": r[1], "resident": r[2],
             "done": r[3],
             "time": r[4].strftime("%m月%d日") if r[4] else "",
+            "staff": r[5] or "", "note": r[6] or "",
         } for r in rows]
         return TEMPLATES.TemplateResponse(request, "nursing/work-orders.html", {
             "active": "dashboard",

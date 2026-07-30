@@ -45,6 +45,18 @@
 .nh-rp-sec-cell .val{display:block;font-size:.85rem;font-weight:700;color:#4A3728}
 .nh-rp-sec-items{margin:0;padding-left:1.2rem;font-size:.82rem;color:#4A3728}
 .nh-rp-sec-items li{margin-bottom:.2rem}
+/* markdown */
+.nh-rp-md{font-size:.84rem;color:#4A3728;line-height:1.55}
+.nh-rp-md h3{font-size:.95rem;color:#E67E22;margin:.6rem 0 .3rem;border-bottom:1px solid #F0E8DB;padding-bottom:.15rem}
+.nh-rp-md h2{font-size:1rem;color:#4A3728;margin:.7rem 0 .3rem}
+.nh-rp-md table{width:100%;border-collapse:collapse;margin:.4rem 0;font-size:.8rem}
+.nh-rp-md th,.nh-rp-md td{text-align:left;padding:.2rem .4rem;border-bottom:1px solid #F0E8DB}
+.nh-rp-md th{background:#FDF6EC;font-weight:600;color:#6B5A45}
+.nh-rp-md ul{margin:.3rem 0;padding-left:1.2rem}
+.nh-rp-md code{background:#F5EDE3;padding:0 .25rem;border-radius:3px;font-size:.8rem}
+.nh-rp-md strong{color:#E67E22}
+.nh-rp-meta{font-size:.78rem;color:#6B5A45;margin-top:.4rem}
+.nh-rp-txt{font-size:.8rem;color:#6B5A45;margin:0;white-space:pre-wrap;max-height:300px;overflow-y:auto}
 
 /* empty / loading */
 .nh-rp-empty{text-align:center;padding:3rem 1rem;color:#6B5A45;font-size:.9rem}
@@ -64,6 +76,42 @@
 </div>
 
 <script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function simpleMd(t){
+  // Minimal markdown→HTML for the LLM report output
+  var s = esc(t);
+  // Bold: **text** → <strong>
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Inline code: `text` → <code>
+  s = s.replace(/`(.+?)`/g, '<code>$1</code>');
+  // Headers: ### text → <h3>
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  // Tables: | a | b | → <tr><th/td>...
+  s = s.replace(/((?:^\|.+?\|$\n?)+)/gm, function(m){
+    var rows = m.trim().split('\n').filter(function(r){return r.indexOf('---')===-1});
+    if (rows.length < 2) return m;
+    var html = '<table>';
+    rows.forEach(function(row,ri){
+      var cells = row.split('|').filter(function(c){return c.trim()});
+      var tag = ri===0 ? 'th' : 'td';
+      html += '<tr>';
+      cells.forEach(function(c){html += '<'+tag+'>' + c.trim() + '</'+tag+'>';});
+      html += '</tr>';
+    });
+    html += '</table>';
+    return html;
+  });
+  // Unordered lists: - item
+  s = s.replace(/((?:^- .+$\n?)+)/gm, function(m){
+    return '<ul>' + m.trim().split('\n').map(function(li){return '<li>' + li.replace(/^- /,'') + '</li>';}).join('') + '</ul>';
+  });
+  // Line breaks
+  s = s.replace(/\n\n/g, '<br><br>');
+  return s;
+}
+
 (async function(){
   var el = document.getElementById('rp-body');
   try {
@@ -103,8 +151,8 @@
         html += '</div>';
         html += '<div class="nh-rp-step-body' + (i===0?' open':'') + '">';
         if (sum) {
-          // Special render for director-report-step: sections as cards
           if (k === 'director-report-step' && (sum['排班概况'] || sum['物资配送'] || sum['成本预估'])) {
+            // ── 院长周报：sections as card grids ──
             var secNames = ['排班概况','物资配送','成本预估'];
             secNames.forEach(function(sn){
               if (sum[sn]) {
@@ -122,18 +170,30 @@
               sum['重点关注'].forEach(function(it){ html += '<li>' + it + '</li>'; });
               html += '</ul></div>';
             }
-            // also show period/report_type
-            if (sum['period']) html += '<div style="font-size:.78rem;color:#6B5A45;margin-top:.4rem">' + sum['period'] + '</div>';
+            if (sum['period']) html += '<div class="nh-rp-meta">' + sum['period'] + '</div>';
+          } else if (k === 'finance-step' && sum['text']) {
+            // ── 财务科：render markdown report ──
+            html += '<div class="nh-rp-md">' + simpleMd(sum['text']) + '</div>';
+          } else if (sum['text']) {
+            // ── Fallback: plain text block ──
+            html += '<pre class="nh-rp-txt">' + esc(sum['text']) + '</pre>';
           } else {
-            // Generic key-value table for other steps
-            html += '<table>';
+            // ── 排班 / 物资 / generic: card grid with CN labels ──
+            var cnLabels = {
+              building:'楼栋',staff_count:'当班人数',total_shifts:'总班次',
+              day_shifts:'白班',night_shifts:'夜班',week:'时间段',
+              item:'物资',category:'分类',weekly_consumption:'周消耗',suggestion:'建议',
+              report_type:'报表类型',period:'周期'
+            };
+            html += '<div class="nh-rp-sec-grid">';
             Object.keys(sum).forEach(function(kk){
               var v = sum[kk];
-              if (v !== null && v !== undefined) {
-                html += '<tr><td class="k">' + kk + '</td><td class="v">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</td></tr>';
+              if (v !== null && v !== undefined && kk !== 'text') {
+                var label = cnLabels[kk] || kk;
+                html += '<div class="nh-rp-sec-cell"><span class="lbl">' + label + '</span><span class="val">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>';
               }
             });
-            html += '</table>';
+            html += '</div>';
           }
         }
         if (s.raw) {

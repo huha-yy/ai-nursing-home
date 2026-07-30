@@ -79,22 +79,20 @@
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 function simpleMd(t){
-  // Minimal markdown→HTML for the LLM report output
   var s = esc(t);
-  // Bold: **text** → <strong>
+  // Bold
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Inline code: `text` → <code>
+  // Inline code
   s = s.replace(/`(.+?)`/g, '<code>$1</code>');
-  // Headers: ### text → <h3>
-  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-  // Tables: | a | b | → <tr><th/td>...
-  s = s.replace(/((?:^\|.+?\|$\n?)+)/gm, function(m){
-    var rows = m.trim().split('\n').filter(function(r){return r.indexOf('---')===-1});
+  // Horizontal rules: ---
+  s = s.replace(/^---+$/gm, '<hr>');
+  // Tables: match blocks of pipe-delimited lines (skip separator rows)
+  s = s.replace(/((?:^\|.+?\|[ \t]*$\n?)+)/gm, function(m){
+    var rows = m.trim().split('\n').filter(function(r){return !/^\|[\s\-:|]+\|$/.test(r)});
     if (rows.length < 2) return m;
     var html = '<table>';
     rows.forEach(function(row,ri){
-      var cells = row.split('|').filter(function(c){return c.trim()});
+      var cells = row.split('|').filter(function(c){return c.trim()!==''});
       var tag = ri===0 ? 'th' : 'td';
       html += '<tr>';
       cells.forEach(function(c){html += '<'+tag+'>' + c.trim() + '</'+tag+'>';});
@@ -103,12 +101,13 @@ function simpleMd(t){
     html += '</table>';
     return html;
   });
-  // Unordered lists: - item
+  // Headers
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  // Lists
   s = s.replace(/((?:^- .+$\n?)+)/gm, function(m){
     return '<ul>' + m.trim().split('\n').map(function(li){return '<li>' + li.replace(/^- /,'') + '</li>';}).join('') + '</ul>';
   });
-  // Line breaks
-  s = s.replace(/\n\n/g, '<br><br>');
   return s;
 }
 

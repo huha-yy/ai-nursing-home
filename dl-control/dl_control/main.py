@@ -290,8 +290,18 @@ async def build_app() -> FastAPI:
                 "weekly_consumption": output.get("weekly_consumption"),
                 "suggestion": output.get("suggestion"),
             }
-        # director-report-step / finance-step: pass the full structured object
-        # so the frontend can render sections natively
+        if step_key == "finance-step":
+            # Flatten nested summary/cost_breakdown for card grid display
+            flat = {}
+            for k, v in output.items():
+                if isinstance(v, dict):
+                    for sk, sv in v.items():
+                        flat[f"{k}.{sk}"] = sv
+                elif isinstance(v, list):
+                    flat[k] = str(v)
+                else:
+                    flat[k] = v
+            return flat
         if step_key == "director-report-step":
             secs = output.get("sections", {})
             result = {

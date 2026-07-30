@@ -57,7 +57,7 @@ async def generate_weekly_schedule(
                     schedules.append(
                         {
                             "staff_name": name,
-                            "date": day.isoformat(),
+                            "date": day,
                             "shift": shift,
                             "building": building,
                         }

@@ -236,20 +236,36 @@ async def build_app() -> FastAPI:
             return None
         if isinstance(output, str):
             try: output = _json.loads(output)
-            except Exception: return {"text": output[:200]}
+            except Exception: return {"text": output[:500]}
         if not isinstance(output, dict):
             return None
+
         # Unwrap OpenClaw container: {"runId":..., "result":{"payloads":[{"text":"..."}]}}
+        text = None
         if "runId" in output and "result" in output:
             payloads = output.get("result", {}).get("payloads", [])
             if payloads and isinstance(payloads, list):
-                text = payloads[0].get("text", "") if isinstance(payloads[0], dict) else ""
-                for line in reversed(str(text).splitlines()):
+                text = payloads[0].get("text", "") if isinstance(payloads[0], dict) else str(payloads[0])
+
+        # Try to extract JSON from the unwrapped text (LLM often wraps JSON in ```json blocks)
+        if text and isinstance(text, str):
+            # Look for ```json ... ``` block first
+            if "```json" in text:
+                block = text.split("```json", 1)[1].split("```", 1)[0]
+                try: output = _json.loads(block); text = None
+                except Exception: pass
+            # Fall back: last JSON line
+            elif text.strip():
+                for line in reversed(text.splitlines()):
                     line = line.strip()
-                    if line.startswith("{"):
-                        try: output = _json.loads(line); break
+                    if line.startswith("{") and line.endswith("}"):
+                        try:
+                            parsed = _json.loads(line)
+                            if isinstance(parsed, dict) and len(parsed) > 1:
+                                output = parsed; text = None; break
                         except Exception: pass
-        # Per-step extractors
+
+        # If unwrapping succeeded, dispatch per-step
         if step_key == "nursing-schedule-step":
             return {
                 "building": output.get("building"),
@@ -266,7 +282,23 @@ async def build_app() -> FastAPI:
                 "weekly_consumption": output.get("weekly_consumption"),
                 "suggestion": output.get("suggestion"),
             }
-        return {"text": _json.dumps(output, ensure_ascii=False)[:300]}
+        # director-report-step / finance-step: pass the full structured object
+        # so the frontend can render sections natively
+        if step_key == "director-report-step":
+            secs = output.get("sections", {})
+            result = {
+                "report_type": output.get("report_type", ""),
+                "period": output.get("period", output.get("title", "")),
+                "building": output.get("building", ""),
+            }
+            for name in ("排班概况", "物资配送", "成本预估", "重点关注"):
+                if name in secs:
+                    result[name] = secs[name]
+            if result:
+                return result
+        if text:
+            return {"text": text[:800]}
+        return {"text": _json.dumps(output, ensure_ascii=False)[:500]}
 
     @app.get("/chat", response_class=HTMLResponse)
     async def nursing_chat(request: _Request):

@@ -36,6 +36,15 @@
 .nh-rp-step-body td.k{color:#6B5A45;font-weight:500;white-space:nowrap;width:90px}
 .nh-rp-step-body td.v{color:#4A3728}
 .nh-rp-step-body pre{font-size:.75rem;color:#6B5A45;margin:0;white-space:pre-wrap;max-height:200px;overflow-y:auto}
+/* report sections */
+.nh-rp-sec{margin-bottom:.55rem}
+.nh-rp-sec-title{font-size:.78rem;font-weight:700;color:#E67E22;margin-bottom:.2rem}
+.nh-rp-sec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.3rem}
+.nh-rp-sec-cell{background:#FFF8F0;border-radius:6px;padding:.35rem .5rem}
+.nh-rp-sec-cell .lbl{display:block;font-size:.68rem;color:#6B5A45;margin-bottom:.1rem}
+.nh-rp-sec-cell .val{display:block;font-size:.85rem;font-weight:700;color:#4A3728}
+.nh-rp-sec-items{margin:0;padding-left:1.2rem;font-size:.82rem;color:#4A3728}
+.nh-rp-sec-items li{margin-bottom:.2rem}
 
 /* empty / loading */
 .nh-rp-empty{text-align:center;padding:3rem 1rem;color:#6B5A45;font-size:.9rem}
@@ -94,14 +103,38 @@
         html += '</div>';
         html += '<div class="nh-rp-step-body' + (i===0?' open':'') + '">';
         if (sum) {
-          html += '<table>';
-          Object.keys(sum).forEach(function(kk){
-            var v = sum[kk];
-            if (v !== null && v !== undefined) {
-              html += '<tr><td class="k">' + kk + '</td><td class="v">' + v + '</td></tr>';
+          // Special render for director-report-step: sections as cards
+          if (k === 'director-report-step' && (sum['排班概况'] || sum['物资配送'] || sum['成本预估'])) {
+            var secNames = ['排班概况','物资配送','成本预估'];
+            secNames.forEach(function(sn){
+              if (sum[sn]) {
+                html += '<div class="nh-rp-sec"><div class="nh-rp-sec-title">' + sn + '</div>';
+                html += '<div class="nh-rp-sec-grid">';
+                Object.keys(sum[sn]).forEach(function(kk){
+                  html += '<div class="nh-rp-sec-cell"><span class="lbl">' + kk + '</span><span class="val">' + sum[sn][kk] + '</span></div>';
+                });
+                html += '</div></div>';
+              }
+            });
+            if (sum['重点关注'] && Array.isArray(sum['重点关注'])) {
+              html += '<div class="nh-rp-sec"><div class="nh-rp-sec-title">重点关注</div>';
+              html += '<ul class="nh-rp-sec-items">';
+              sum['重点关注'].forEach(function(it){ html += '<li>' + it + '</li>'; });
+              html += '</ul></div>';
             }
-          });
-          html += '</table>';
+            // also show period/report_type
+            if (sum['period']) html += '<div style="font-size:.78rem;color:#6B5A45;margin-top:.4rem">' + sum['period'] + '</div>';
+          } else {
+            // Generic key-value table for other steps
+            html += '<table>';
+            Object.keys(sum).forEach(function(kk){
+              var v = sum[kk];
+              if (v !== null && v !== undefined) {
+                html += '<tr><td class="k">' + kk + '</td><td class="v">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</td></tr>';
+              }
+            });
+            html += '</table>';
+          }
         }
         if (s.raw) {
           html += '<details style="margin-top:.4rem"><summary style="font-size:.78rem;color:#6B5A45;cursor:pointer">原始数据</summary>';

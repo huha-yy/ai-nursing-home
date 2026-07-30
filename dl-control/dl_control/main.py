@@ -245,7 +245,15 @@ async def build_app() -> FastAPI:
         if "runId" in output and "result" in output:
             payloads = output.get("result", {}).get("payloads", [])
             if payloads and isinstance(payloads, list):
-                text = payloads[0].get("text", "") if isinstance(payloads[0], dict) else str(payloads[0])
+                # Concatenate all payload texts (the LLM can split output
+                # across multiple payloads when reaching token limits).
+                parts = []
+                for p in payloads:
+                    if isinstance(p, dict):
+                        t = p.get("text", "")
+                        if isinstance(t, str) and t.strip():
+                            parts.append(t)
+                text = "\n".join(parts) if parts else None
 
         # Try to extract JSON from the unwrapped text (LLM often wraps JSON in ```json blocks)
         if text and isinstance(text, str):

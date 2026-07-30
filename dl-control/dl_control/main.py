@@ -297,8 +297,8 @@ async def build_app() -> FastAPI:
             if result:
                 return result
         if text:
-            return {"text": text[:800]}
-        return {"text": _json.dumps(output, ensure_ascii=False)[:500]}
+            return {"text": text[:8000]}
+        return {"text": _json.dumps(output, ensure_ascii=False)[:8000]}
 
     @app.get("/chat", response_class=HTMLResponse)
     async def nursing_chat(request: _Request):

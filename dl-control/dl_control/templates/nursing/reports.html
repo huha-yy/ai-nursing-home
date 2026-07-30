@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}运营周报 — AI 养老院院长{% endblock %}
+{% block body %}
+
+<style>
+.nh-rp{max-width:760px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+.nh-rp-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.nh-rp-back{font-size:.85rem;color:#E67E22;text-decoration:none}
+.nh-rp-ttl{font-size:1.4rem;font-weight:700;color:#4A3728;margin:0 0 1.2rem}
+
+/* run card */
+.nh-rp-run{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.nh-rp-run-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
+.nh-rp-run-id{font-family:monospace;font-size:.78rem;color:#6B5A45}
+.nh-rp-run-status{font-size:.75rem;font-weight:700;padding:.15rem .55rem;border-radius:10px}
+.nh-rp-run-status.ok{background:#E8F5E9;color:#2E7D32}
+.nh-rp-run-status.fail{background:#FEF0EF;color:#C0392B}
+.nh-rp-run-status.run{background:#FFF3E0;color:#E65100}
+.nh-rp-run-time{font-size:.75rem;color:#6B5A45}
+
+/* step list */
+.nh-rp-steps{display:flex;flex-direction:column;gap:.45rem}
+.nh-rp-step{border:1px solid #F0E8DB;border-radius:8px;overflow:hidden}
+.nh-rp-step-head{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:#FDF6EC;cursor:pointer;font-size:.85rem}
+.nh-rp-step-num{width:22px;height:22px;border-radius:50%;background:#E67E22;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
+.nh-rp-step-num.ok{background:#27AE60}
+.nh-rp-step-name{font-weight:600;color:#4A3728;flex:1}
+.nh-rp-step-badge{font-size:.7rem;font-weight:700;padding:.08rem .4rem;border-radius:8px}
+.nh-rp-step-badge.ok{background:#E8F5E9;color:#2E7D32}
+.nh-rp-step-badge.fail{background:#FEF0EF;color:#C0392B}
+
+.nh-rp-step-body{display:none;padding:.55rem .7rem .55rem 2.7rem;border-top:1px solid #F0E8DB;background:#FFFBF6}
+.nh-rp-step-body.open{display:block}
+.nh-rp-step-body table{width:100%;border-collapse:collapse;font-size:.82rem}
+.nh-rp-step-body td{padding:.2rem .5rem .2rem 0;vertical-align:top}
+.nh-rp-step-body td.k{color:#6B5A45;font-weight:500;white-space:nowrap;width:90px}
+.nh-rp-step-body td.v{color:#4A3728}
+.nh-rp-step-body pre{font-size:.75rem;color:#6B5A45;margin:0;white-space:pre-wrap;max-height:200px;overflow-y:auto}
+
+/* empty / loading */
+.nh-rp-empty{text-align:center;padding:3rem 1rem;color:#6B5A45;font-size:.9rem}
+.nh-rp-spin{display:inline-block;width:20px;height:20px;border:2px solid #E8D5C4;border-top-color:#E67E22;border-radius:50%;animation:spin .6s linear infinite;margin-right:.4rem;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+
+<div class="nh-rp">
+  <div class="nh-rp-bar">
+    <a href="/dashboard" class="nh-rp-back">← 大屏</a>
+  </div>
+  <h1 class="nh-rp-ttl">运营周报</h1>
+
+  <div id="rp-body">
+    <div class="nh-rp-empty"><span class="nh-rp-spin"></span>加载中…</div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  var el = document.getElementById('rp-body');
+  try {
+    var resp = await fetch('/api/nursing/report');
+    var data = await resp.json();
+    if (!data.runs || !data.runs.length) {
+      el.innerHTML = '<div class="nh-rp-empty">暂无工作流执行记录<br><small style="color:#999">请先触发护理运营工作流</small></div>';
+      return;
+    }
+    var html = '';
+    var stepNames = {
+      'nursing-schedule-step': '护理科 — 排班生成',
+      'logistics-step': '总务科 — 物资配送',
+      'finance-step': '财务科 — 成本预估',
+      'director-report-step': '院长 — 运营周报'
+    };
+    data.runs.forEach(function(run){
+      var sc = run.status === 'succeeded' ? 'ok' : (run.status === 'failed' ? 'fail' : 'run');
+      var st = run.status === 'succeeded' ? '已完成' : (run.status === 'failed' ? '失败' : run.status);
+      html += '<div class="nh-rp-run">';
+      html += '<div class="nh-rp-run-head">';
+      html += '<span class="nh-rp-run-id">#' + run.id.slice(0,8) + '</span>';
+      html += '<span class="nh-rp-run-status ' + sc + '">' + st + '</span>';
+      html += '</div>';
+      html += '<div class="nh-rp-run-time">' + (run.created_at||'') + ' → ' + (run.finished_at||'进行中') + '</div>';
+      html += '<div class="nh-rp-steps" style="margin-top:.7rem">';
+      var keys = Object.keys(run.steps).sort();
+      keys.forEach(function(k,i){
+        var s = run.steps[k];
+        var ok = s.status === 'succeeded';
+        var sum = s.summary || {};
+        html += '<div class="nh-rp-step">';
+        html += '<div class="nh-rp-step-head" onclick="this.nextElementSibling.classList.toggle(\'open\')">';
+        html += '<span class="nh-rp-step-num' + (ok?' ok':'') + '">' + (i+1) + '</span>';
+        html += '<span class="nh-rp-step-name">' + (stepNames[k]||k) + '</span>';
+        html += '<span class="nh-rp-step-badge' + (ok?' ok':' fail') + '">' + (ok?'成功':'失败') + '</span>';
+        html += '</div>';
+        html += '<div class="nh-rp-step-body' + (i===0?' open':'') + '">';
+        if (sum) {
+          html += '<table>';
+          Object.keys(sum).forEach(function(kk){
+            var v = sum[kk];
+            if (v !== null && v !== undefined) {
+              html += '<tr><td class="k">' + kk + '</td><td class="v">' + v + '</td></tr>';
+            }
+          });
+          html += '</table>';
+        }
+        if (s.raw) {
+          html += '<details style="margin-top:.4rem"><summary style="font-size:.78rem;color:#6B5A45;cursor:pointer">原始数据</summary>';
+          html += '<pre>' + JSON.stringify(s.raw, null, 2).slice(0,2000) + '</pre></details>';
+        }
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="nh-rp-empty">加载失败：' + e.message + '</div>';
+  }
+})();
+</script>
+
+{% endblock %}

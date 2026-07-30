@@ -228,6 +228,46 @@ async def build_app() -> FastAPI:
             f"(SELECT MAX(date) FROM {table}))"
         )
 
+    def _extract_step_summary(step_key: str, output) -> dict | None:
+        """Extract key fields from a workflow step's raw output (OpenClaw JSON
+        or plain LLM response). Returns a small dict for the report UI."""
+        import json as _json
+        if output is None:
+            return None
+        if isinstance(output, str):
+            try: output = _json.loads(output)
+            except Exception: return {"text": output[:200]}
+        if not isinstance(output, dict):
+            return None
+        # Unwrap OpenClaw container: {"runId":..., "result":{"payloads":[{"text":"..."}]}}
+        if "runId" in output and "result" in output:
+            payloads = output.get("result", {}).get("payloads", [])
+            if payloads and isinstance(payloads, list):
+                text = payloads[0].get("text", "") if isinstance(payloads[0], dict) else ""
+                for line in reversed(str(text).splitlines()):
+                    line = line.strip()
+                    if line.startswith("{"):
+                        try: output = _json.loads(line); break
+                        except Exception: pass
+        # Per-step extractors
+        if step_key == "nursing-schedule-step":
+            return {
+                "building": output.get("building"),
+                "staff_count": output.get("staff_count"),
+                "total_shifts": output.get("total_shifts"),
+                "day_shifts": output.get("day_shifts"),
+                "night_shifts": output.get("night_shifts"),
+                "week": output.get("week"),
+            }
+        if step_key == "logistics-step":
+            return {
+                "item": output.get("item"),
+                "category": output.get("category"),
+                "weekly_consumption": output.get("weekly_consumption"),
+                "suggestion": output.get("suggestion"),
+            }
+        return {"text": _json.dumps(output, ensure_ascii=False)[:300]}
+
     @app.get("/chat", response_class=HTMLResponse)
     async def nursing_chat(request: _Request):
         raw = request.cookies.get(_NURSING_COOKIE, "")
@@ -868,6 +908,59 @@ async def build_app() -> FastAPI:
 
         await _wfpw(redis, reason="nursing_workflow_start")
         return {"run_id": str(run_id)}
+
+    # -- Nursing weekly report (workflow results) --
+    @app.get("/api/nursing/report")
+    async def nursing_report_api():
+        """Return the latest nursing-ops workflow run with extracted step data."""
+        async with db.conn(user_id=None, role="system") as conn:
+            cur = await conn.execute(
+                "SELECT id::text, status, trigger, input, "
+                "created_at::timestamptz(0), finished_at::timestamptz(0) "
+                "FROM workflow_run WHERE workflow_id = 'nursing.ops' "
+                "ORDER BY created_at DESC LIMIT 10"
+            )
+            runs_raw = await cur.fetchall()
+
+            runs_list = []
+            for r in runs_raw:
+                rid = r[0]
+                cur2 = await conn.execute(
+                    "SELECT step_key, status, output FROM workflow_step "
+                    "WHERE run_id = %s ORDER BY step_key", (rid,)
+                )
+                steps = {}
+                for s in await cur2.fetchall():
+                    out = s[2]
+                    summary = _extract_step_summary(s[0], out)
+                    steps[s[0]] = {"status": s[1], "summary": summary, "raw": out}
+                runs_list.append({
+                    "id": rid, "status": r[1], "trigger": r[2],
+                    "input": r[3], "created_at": str(r[4]), "finished_at": str(r[5]),
+                    "steps": steps,
+                })
+
+        return {"runs": runs_list}
+
+    @app.get("/reports", response_class=HTMLResponse)
+    async def nursing_reports_page(request: _Request):
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return RedirectResponse(url="/login", status_code=302)
+        nursing_user = {
+            "name": getattr(sess, "name", None) or sess.user_id,
+            "role": sess.role,
+            "dept": getattr(sess, "dept", None) or "",
+            "building": getattr(sess, "building", None) or "",
+            "floor": getattr(sess, "floor", None) or "",
+        }
+        return TEMPLATES.TemplateResponse(request, "nursing/reports.html", {
+            "active": "dashboard",
+            "nursing_user": nursing_user,
+            "csrf_token": sess.csrf_token,
+        })
 
     @app.exception_handler(MustRotatePasswordError)
     async def _rotate_handler(_request, exc: MustRotatePasswordError):

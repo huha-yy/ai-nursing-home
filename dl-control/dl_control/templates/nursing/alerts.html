@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}健康告警 — AI 养老院院长{% endblock %}
+{% block body %}
+
+<div class="nh-alerts-page">
+  <div class="nh-alerts-header">
+    <p class="nh-alerts-back-top"><a href="/dashboard">← 返回大屏</a></p>
+    <h1>健康告警</h1>
+    <p class="nh-alerts-summary">
+      {% set danger_count = alerts | selectattr('severity', 'equalto', 'danger') | list | length %}
+      {% set warn_count = alerts | selectattr('severity', 'equalto', 'warning') | list | length %}
+      {% set info_count = alerts | selectattr('severity', 'equalto', 'info') | list | length %}
+      {% set unhandled = alerts | selectattr('handled', 'equalto', false) | list | length %}
+      共 {{ alerts | length }} 条 · {{ unhandled }} 条未处理 · 🔴{{ danger_count }} 🟡{{ warn_count }} 🔵{{ info_count }}
+    </p>
+  </div>
+
+  {% set groups = {'danger': [], 'warning': [], 'info': []} %}
+  {% for a in alerts %}
+    {% set _ = groups[a.severity].append(a) %}
+  {% endfor %}
+
+  {% set labels = {'danger': '紧急', 'warning': '需关注', 'info': '常规'} %}
+  {% for sev in ['danger', 'warning', 'info'] %}
+    {% if groups[sev] %}
+    <section class="nh-alerts-group">
+      <h2 class="nh-alerts-sev-head" data-sev="{{ sev }}">
+        <span class="nh-alerts-sev-dot"></span>
+        {{ labels[sev] }} · {{ groups[sev] | length }} 条
+      </h2>
+
+      {% for a in groups[sev] %}
+      <div class="nh-alert-card {% if a.handled %}handled{% endif %}" id="alert-{{ a.id }}">
+        <div class="nh-alert-top">
+          <span class="nh-alert-name">{{ a.name }}</span>
+          <span class="nh-alert-room">{{ a.room }}</span>
+          <span class="nh-alert-tag">{{ a.category }}</span>
+          {% if a.handled %}
+          <span class="nh-alert-badge badge-handled">已处理</span>
+          {% else %}
+          <button class="nh-alert-handle-btn"
+                  onclick="handleAlert({{ a.id }}, this)">标记已处理</button>
+          {% endif %}
+        </div>
+        <p class="nh-alert-content">{{ a.content }}</p>
+        <span class="nh-alert-time">{{ a.created_at }}</span>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  {% endfor %}
+
+  <p class="nh-alerts-back"><a href="/dashboard">← 返回大屏</a></p>
+</div>
+
+<script>
+function handleAlert(id, btn) {
+  fetch('/api/nursing/alerts/' + id + '/handle', { method: 'POST', credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        var card = document.getElementById('alert-' + id);
+        card.classList.add('handled');
+        btn.outerHTML = '<span class="nh-alert-badge badge-handled">已处理</span>';
+      }
+    });
+}
+</script>
+
+<style>
+.nh-alerts-page { max-width: 800px; margin: 0 auto; padding: 1.5rem; }
+.nh-alerts-header { margin-bottom: 1.5rem; }
+.nh-alerts-header h1 { margin: 0 0 0.25rem; font-size: 1.4rem; color: var(--nh-text); }
+.nh-alerts-summary { font-size: 0.88rem; color: var(--nh-text-dim); margin: 0; }
+
+.nh-alerts-group { margin-bottom: 1.5rem; }
+
+.nh-alerts-sev-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin: 0 0 0.6rem; font-size: 0.95rem; font-weight: 700;
+  padding: 0.4rem 0.6rem; border-radius: 6px;
+}
+.nh-alerts-sev-head[data-sev="danger"]  { color: var(--nh-danger);  background: #FEF0EF; }
+.nh-alerts-sev-head[data-sev="warning"] { color: var(--nh-warning); background: #FEF9ED; }
+.nh-alerts-sev-head[data-sev="info"]    { color: var(--nh-info);    background: #EEF3F9; }
+
+.nh-alerts-sev-dot { width: 8px; height: 8px; border-radius: 50%; }
+.nh-alerts-sev-head[data-sev="danger"] .nh-alerts-sev-dot  { background: var(--nh-danger); }
+.nh-alerts-sev-head[data-sev="warning"] .nh-alerts-sev-dot { background: var(--nh-warning); }
+.nh-alerts-sev-head[data-sev="info"] .nh-alerts-sev-dot    { background: var(--nh-info); }
+
+.nh-alert-card {
+  background: var(--nh-surface); border: 1px solid var(--nh-border);
+  border-radius: var(--nh-radius); padding: 0.85rem 1rem; margin-bottom: 0.5rem;
+  box-shadow: var(--nh-shadow);
+}
+.nh-alert-card.handled { opacity: 0.6; }
+
+.nh-alert-top {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem;
+}
+.nh-alert-name { font-weight: 700; color: var(--nh-text); font-size: 0.95rem; }
+.nh-alert-room { color: var(--nh-text-dim); font-size: 0.82rem; }
+.nh-alert-tag {
+  font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 4px;
+  background: var(--nh-primary-light); color: var(--nh-primary);
+}
+
+.nh-alert-content { margin: 0 0 0.25rem; font-size: 0.9rem; color: var(--nh-text); line-height: 1.5; }
+.nh-alert-time { font-size: 0.76rem; color: var(--nh-text-dim); }
+
+.nh-alert-handle-btn {
+  font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 4px;
+  background: var(--nh-primary); color: #fff; border: none; cursor: pointer;
+  font-weight: 600; margin-left: auto;
+}
+.nh-alert-handle-btn:hover { background: var(--nh-primary-hover); }
+
+.nh-alert-badge.badge-handled {
+  font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px;
+  background: #D5F5E3; color: #27AE60; font-weight: 600; margin-left: auto;
+}
+
+.nh-alerts-back { text-align: center; margin-top: 1.5rem; }
+.nh-alerts-back-top { margin: 0 0 0.5rem; }
+.nh-alerts-back-top a { color: var(--nh-text-dim); font-size: 0.85rem; text-decoration: none; }
+.nh-alerts-back-top a:hover { color: var(--nh-primary); }
+.nh-alerts-back a { color: var(--nh-text-dim); font-size: 0.88rem; }
+.nh-alerts-back-top { margin: 0 0 0.5rem; }
+.nh-alerts-back-top a { color: var(--nh-text-dim); font-size: 0.85rem; text-decoration: none; }
+.nh-alerts-back-top a:hover { color: var(--nh-primary); }
+</style>
+
+{% endblock %}

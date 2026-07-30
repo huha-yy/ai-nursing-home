@@ -7,7 +7,10 @@
 
   <div class="nh-dash-header">
     <h1>运营总览</h1>
-    <span class="nh-dash-date"></span>
+    <div class="nh-dash-header-right">
+      <span class="nh-dash-weather" id="weather-widget">--</span>
+      <span class="nh-dash-date"></span>
+    </div>
   </div>
 
   <div class="nh-dash-status" id="status-bar">
@@ -37,7 +40,7 @@
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
-      <div class="nh-kpi-val" id="kpi-alerts">--</div>
+      <a href="/alerts" class="nh-kpi-link"><div class="nh-kpi-val" id="kpi-alerts">--</div></a>
       <div class="nh-kpi-label">未处理告警</div>
       <div class="nh-kpi-trend" id="trend-alerts"></div>
     </div>
@@ -52,7 +55,10 @@
       </div>
     </div>
     <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">今日护理完成率</h3>
+      <h3 class="nh-dash-panel-title">
+        今日护理完成率
+        <a href="/work-orders" style="margin-left:0.5rem;font-size:0.85rem;font-weight:500">详情 →</a>
+      </h3>
       <div id="completion-chart" style="width:100%;height:280px"></div>
     </div>
     <div class="nh-dash-panel nh-chart-panel">
@@ -82,7 +88,11 @@
   </div>
 
   <div class="nh-dash-footer">
+    <button class="nh-dash-refresh-btn" onclick="refreshData(); countdown=30" title="立即刷新">↻ 刷新</button>
+    <span class="nh-dash-divider">|</span>
     <span id="refresh-countdown">30 秒后自动刷新</span>
+    <span class="nh-dash-divider">|</span>
+    <span id="last-update">--</span>
     <span class="nh-dash-divider">|</span>
     <span>杭州市第三社会福利院</span>
   </div>
@@ -93,6 +103,32 @@
 (function() {
   var completionChart = null;
   var buildingChart = null;
+  var woDetailOpen = false;
+
+  function toggleWorkOrderDetail() {
+    woDetailOpen = !woDetailOpen;
+    var el = document.getElementById('work-order-detail');
+    el.style.display = woDetailOpen ? 'block' : 'none';
+    var btn = document.getElementById('wo-toggle-btn');
+    btn.textContent = '详情 ' + (woDetailOpen ? '▴' : '▾');
+  }
+
+  function populateWorkOrderDetail(data) {
+    var items = data.work_order_details || [];
+    if (!items.length) return;
+    items.sort(function(a,b) {
+      var ra = a.total > 0 ? a.done / a.total : 1;
+      var rb = b.total > 0 ? b.done / b.total : 1;
+      return ra - rb;
+    });
+    var html = '';
+    items.forEach(function(w) {
+      var r = w.total > 0 ? Math.round(w.done / w.total * 100) : 100;
+      var cls = r >= 80 ? 'kpi-ok' : (r >= 50 ? 'kpi-warn' : 'kpi-danger');
+      html += '<tr><td>' + w.type + '</td><td>' + w.total + '</td><td>' + w.done + '</td><td><span class="nh-kpi-val ' + cls + '" style="font-size:1rem">' + r + '%</span></td></tr>';
+    });
+    document.getElementById('wo-tbody').innerHTML = html;
+  }
   var refreshTimer = null;
   var countdown = 30;
   var countdownEl = document.getElementById('refresh-countdown');
@@ -261,6 +297,25 @@
     tbody.innerHTML = html;
   }
 
+  function fetchWeather() {
+    var codes = {0:'☀️ 晴',1:'🌤️ 少云',2:'⛅ 多云',3:'☁️ 阴',45:'🌫️ 雾',48:'🌫️ 雾凇',
+      51:'🌧️ 小雨',53:'🌧️ 小雨',55:'🌧️ 中雨',61:'🌧️ 阵雨',63:'🌧️ 中雨',65:'🌧️ 大雨',
+      71:'❄️ 小雪',73:'❄️ 中雪',75:'❄️ 大雪',80:'🌦️ 阵雨',82:'🌦️ 暴雨',95:'⛈️ 雷暴',99:'⛈️ 大雷暴'};
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=30.25&longitude=120.17&current=temperature_2m,weather_code&timezone=Asia/Shanghai')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var t = Math.round(d.current.temperature_2m);
+        var w = codes[d.current.weather_code] || '--';
+        var adv = '';
+        if (t >= 38) adv = ' ⚠ 高温红色预警 · 加强防暑巡查';
+        else if (t >= 35) adv = ' ⚠ 高温橙色预警 · 注意老人防暑';
+        else if (t <= 0) adv = ' ⚠ 低温预警 · 注意老人保暖';
+        else if (t <= 5) adv = ' 天气转冷 · 检查供暖设备';
+        document.getElementById('weather-widget').textContent = t + '°C ' + w + adv;
+      })
+      .catch(function() { document.getElementById('weather-widget').textContent = '天气获取中…'; });
+  }
+
   function updateShiftHandover(data) {
     var h = new Date().getHours();
     var m = new Date().getMinutes();
@@ -338,9 +393,11 @@
         var alerts = s.pending_health_alerts;
         var inv = s.inventory_alerts;
         var focusCount = (data.focus_residents || []).length;
+        var hh = new Date().getHours();
+        var shiftLabel = hh >= 6 && hh < 14 ? '早班 · ' : (hh >= 14 && hh < 22 ? '晚班 · ' : '夜班 · ');
         if (alerts > 0) {
           st.className = 'nh-dash-status status-danger';
-          stText.textContent = alerts + ' 条未处理健康告警 · ' + focusCount + ' 位老人需关注';
+          stText.textContent = shiftLabel + alerts + ' 条未处理健康告警 · ' + focusCount + ' 位老人需关注';
           stBadge.textContent = '需立即处理';
           stBadge.className = 'nh-status-badge badge-danger';
         } else if (inv > 0 || focusCount > 0) {
@@ -348,12 +405,12 @@
           var parts = [];
           if (inv > 0) parts.push(inv + ' 项库存预警');
           if (focusCount > 0) parts.push(focusCount + ' 位老人需关注');
-          stText.textContent = parts.join(' · ');
+          stText.textContent = shiftLabel + parts.join(' · ');
           stBadge.textContent = '需关注';
           stBadge.className = 'nh-status-badge badge-warning';
         } else {
           st.className = 'nh-dash-status status-ok';
-          stText.textContent = '全院正常 · ' + s.total_residents + ' 位老人 · ' + s.on_duty_today + ' 人当班';
+          stText.textContent = shiftLabel + '全院正常 · ' + s.total_residents + ' 位老人 · ' + s.on_duty_today + ' 人当班';
           stBadge.textContent = '运行正常';
           stBadge.className = 'nh-status-badge badge-ok';
         }
@@ -367,6 +424,7 @@
         // Charts
         updateCompletionChart(data.completion_rate);
         updateShiftHandover(data);
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
         updateBuildingChart(data.building_distribution);
       })
       .catch(function(err) {
@@ -389,6 +447,7 @@
   }
 
   // -- Bootstrap --
+  fetchWeather();
   initCharts();
   updateDate();
   refreshData();

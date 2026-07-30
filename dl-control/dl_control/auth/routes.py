@@ -75,7 +75,8 @@ def make_router(
             ua_fingerprint=ua_fingerprint(request.headers.get("user-agent")),
         )
         resp = RedirectResponse(url="/admin", status_code=302)
-        set_session_cookie(resp, token=sessions.sign(sess.sid))
+        is_https = request.url.scheme == "https" or request.headers.get("X-Forwarded-Proto") == "https"
+        set_session_cookie(resp, token=sessions.sign(sess.sid), secure=is_https)
         return resp
 
     @r.post("/auth/nursing-login")
@@ -115,7 +116,8 @@ def make_router(
             username=result.username,
         )
         resp = RedirectResponse(url="/chat", status_code=302)
-        set_session_cookie(resp, token=sessions.sign(sess.sid))
+        is_https = request.url.scheme == "https" or request.headers.get("X-Forwarded-Proto") == "https"
+        set_session_cookie(resp, token=sessions.sign(sess.sid), secure=is_https)
         return resp
 
     @r.post("/logout", dependencies=[csrf])

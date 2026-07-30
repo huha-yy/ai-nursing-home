@@ -26,12 +26,12 @@ def ua_fingerprint(user_agent: str | None) -> str:
     return hashlib.sha256((user_agent or "").encode("utf-8")).hexdigest()[:32]
 
 
-def set_session_cookie(response: Response, *, token: str) -> None:
+def set_session_cookie(response: Response, *, token: str, secure: bool = True) -> None:
     response.set_cookie(
         COOKIE_NAME,
         token,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
         path="/",
     )

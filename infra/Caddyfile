@@ -4,7 +4,7 @@
     local_certs
 }
 
-{$CADDY_DOMAIN:localhost}:{$CADDY_HTTPS_PORT:8443}, localhost:{$CADDY_HTTPS_PORT:8443}, 192.168.10.247:{$CADDY_HTTPS_PORT:8443} {
+{$CADDY_DOMAIN:localhost}:{$CADDY_HTTPS_PORT:8443}, localhost:{$CADDY_HTTPS_PORT:8443}, 192.168.10.247:{$CADDY_HTTPS_PORT:8443}, hz-sanfu.eldcare.cn:{$CADDY_HTTPS_PORT:8443} {
     # TLS cert override (customer-provided certs in prod)
     import Caddyfile.tls
 

@@ -32,6 +32,7 @@ services:
       TZ: ${TIMEZONE:-Asia/Shanghai}
     ports:
       - "${CADDY_HTTPS_PORT:-9443}:${CADDY_HTTPS_PORT:-9443}"
+      - "443:${CADDY_HTTPS_PORT:-9443}"
       - "9080:9080"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

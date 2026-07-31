@@ -1,0 +1,16 @@
+[Unit]
+Description=DNSPod DDNS updater for eldcare.cn nursing home deployments
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/nursing-home/huha-project/ai-nursing-home/scripts/.env
+ExecStart=/home/daneenon/miniconda3/bin/python3 /home/nursing-home/huha-project/ai-nursing-home/scripts/ddns_update.py --daemon --interval 120
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

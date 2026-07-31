@@ -38,3 +38,4 @@ logs/
 docs/
 GBrain一线知识平台实施计划.md
 scripts/.env
+scripts/.ddns_state.json

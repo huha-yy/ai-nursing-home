@@ -37,3 +37,4 @@ logs/
 # Docs (not tracked in repo)
 docs/
 GBrain一线知识平台实施计划.md
+scripts/.env

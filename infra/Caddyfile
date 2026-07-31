@@ -5,8 +5,8 @@
 }
 
 {$CADDY_DOMAIN:localhost}:{$CADDY_HTTPS_PORT:8443}, localhost:{$CADDY_HTTPS_PORT:8443}, 192.168.10.247:{$CADDY_HTTPS_PORT:8443}, hz-sanfu.eldcare.cn:{$CADDY_HTTPS_PORT:8443} {
-    # TLS cert override (customer-provided certs in prod)
-    import Caddyfile.tls
+    # TLS: real Let's Encrypt certificate (issued via acme.sh + DNSPod API)
+    tls /data/caddy/fullchain.pem /data/caddy/privkey.pem
 
     # Bump upload limit for large requests (file uploads, content pipeline artifacts)
     request_body {

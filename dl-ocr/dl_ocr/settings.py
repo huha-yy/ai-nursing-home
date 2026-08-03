@@ -11,10 +11,10 @@ class Settings(BaseSettings, frozen=True):
     """All configuration via environment variables.  No defaults for secrets."""
 
     # --- Model ---
-    # HuggingFace model id for tencent/HunyuanOCR-1.5.
-    model_name: str = "tencent/HunyuanOCR"
-    # Directory where model files are cached (/models mounted from ocr_models volume).
-    model_dir: str = "/models"
+    # HuggingFace model id for baidu/Unlimited-OCR.
+    model_name: str = "baidu/Unlimited-OCR"
+    # Local directory where model files are stored.
+    model_dir: str = "/models/baidu--Unlimited-OCR"
 
     # --- Auth ---
     # Shared secret used to call dl-control's agent-verify endpoint.

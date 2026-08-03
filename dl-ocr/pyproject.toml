@@ -1,7 +1,7 @@
 [project]
 name = "dl-ocr"
 version = "0.0.0"
-description = "dato OCR service — PaddleOCR-VL-1.6 for nursing home document scanning"
+description = "dato OCR service — EasyOCR for nursing home document scanning"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

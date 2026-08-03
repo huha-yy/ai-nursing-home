@@ -352,7 +352,7 @@ services:
     volumes:
       - cognee_hf_models:/models
 
-  # ── dl-ocr: HunyuanOCR document scanning ────────────────────────
+  # ── dl-ocr: Baidu Unlimited-OCR document scanning ──────────────
   dl-ocr-model-download:
     image: python:3.12-slim
     container_name: dl-ocr-model-download
@@ -361,31 +361,51 @@ services:
       - python3
       - -c
       - |
-        import os, subprocess, sys
-        models = {"/models/models--tencent--HunyuanOCR": "tencent/HunyuanOCR"}
+        import os, sys, urllib.request, shutil
+
+        BASE = "https://hf-mirror.com/baidu/Unlimited-OCR/resolve/main"
+        MODEL_DIR = "/models/baidu--Unlimited-OCR"
+        os.makedirs(MODEL_DIR, exist_ok=True)
+
+        # Files to download (safetensors + minimal config)
+        FILES = [
+            "config.json",
+            "configuration_deepseek_v2.py",
+            "conversation.py",
+            "deepencoder.py",
+            "modeling_deepseekv2.py",
+            "modeling_unlimitedocr.py",
+            "model.safetensors.index.json",
+            "model-00001-of-000001.safetensors",
+        ]
+
         all_ok = True
-        for path, name in models.items():
-            if os.path.isdir(path):
-                size = sum(f.stat().st_size for f in __import__("pathlib").Path(path).rglob("*") if f.is_file())
-                print(f"  {name}: {size/(1024**3):.1f}GB OK", flush=True)
+        for f in FILES:
+            dest = os.path.join(MODEL_DIR, f)
+            if os.path.isfile(dest):
+                print(f"  {f}: OK", flush=True)
             else:
-                print(f"  {name}: MISSING", flush=True)
+                print(f"  {f}: MISSING", flush=True)
                 all_ok = False
+
         if all_ok:
-            print("All models present, exiting.", flush=True)
+            print("All files present, exiting.", flush=True)
             sys.exit(0)
-        print("Downloading missing models via huggingface_hub...", flush=True)
-        subprocess.run([sys.executable, "-m", "pip", "install", "huggingface_hub", "-q",
-            "-i", "https://mirrors.aliyun.com/pypi/simple"], check=True)
-        for path, name in models.items():
-            if not os.path.isdir(path):
-                print(f"Downloading {name}...", flush=True)
-                subprocess.run([sys.executable, "-m", "huggingface_hub", "snapshot_download",
-                    name, "--local-dir", path, "--resume-download"], check=True)
-                print(f"{name} done", flush=True)
-        print("All models ready.", flush=True)
+
+        print(f"Downloading {len(FILES)} files...", flush=True)
+        for f in FILES:
+            dest = os.path.join(MODEL_DIR, f)
+            if os.path.isfile(dest):
+                continue
+            url = f"{BASE}/{f}"
+            print(f"  {f} <- {url}", flush=True)
+            with urllib.request.urlopen(url, timeout=600) as resp:
+                with open(dest + ".tmp", "wb") as out:
+                    shutil.copyfileobj(resp, out, 1024*1024)
+            os.rename(dest + ".tmp", dest)
+            print(f"  {f}: done", flush=True)
+        print("All files ready.", flush=True)
     environment:
-      HF_HUB_ENABLE_HF_TRANSFER: "1"
       HF_ENDPOINT: https://hf-mirror.com
     volumes:
       - ocr_models:/models
@@ -400,8 +420,8 @@ services:
     expose:
       - "8080"
     environment:
-      DL_OCR_MODEL_NAME: tencent/HunyuanOCR
-      DL_OCR_MODEL_DIR: /models
+      DL_OCR_MODEL_NAME: baidu/Unlimited-OCR
+      DL_OCR_MODEL_DIR: /models/baidu--Unlimited-OCR
     tmpfs:
       - /tmp:exec
     volumes:

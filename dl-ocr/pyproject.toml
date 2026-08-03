@@ -1,0 +1,23 @@
+[project]
+name = "dl-ocr"
+version = "0.0.0"
+description = "dato OCR service — PaddleOCR-VL-1.6 for nursing home document scanning"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "httpx>=0.27",
+    "structlog>=24.4",
+    "paddlepaddle>=3.0.0",
+    "paddleocr>=2.10",
+    "pillow>=10.0",
+]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "B", "UP", "N", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

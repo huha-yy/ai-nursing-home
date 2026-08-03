@@ -98,7 +98,7 @@ clean-images:
 build: _ensure-control-secrets
 	DOCKER_BUILDKIT=0 $(COMPOSE) build \
 		dato-caddy dato-control-migrate dato-control \
-		dl-cognee dl-cognee-reranker dl-llm-local dl-llm-proxy dl-gbrain
+		dl-cognee dl-cognee-reranker dl-llm-local dl-llm-proxy dl-gbrain dl-ocr
 
 githooks-install:
 	git config core.hooksPath .githooks

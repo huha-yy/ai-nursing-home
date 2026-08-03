@@ -1,0 +1,1 @@
+# Models are loaded from Docker named volume, not baked into image.

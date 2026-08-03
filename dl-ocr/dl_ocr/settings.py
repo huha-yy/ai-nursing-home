@@ -11,8 +11,10 @@ class Settings(BaseSettings, frozen=True):
     """All configuration via environment variables.  No defaults for secrets."""
 
     # --- Model ---
-    # Directory where EasyOCR looks for cached model files.
-    easyocr_model_dir: str = "/models"
+    # HuggingFace model id for tencent/HunyuanOCR-1.5.
+    model_name: str = "tencent/HunyuanOCR"
+    # Directory where model files are cached (/models mounted from ocr_models volume).
+    model_dir: str = "/models"
 
     # --- Auth ---
     # Shared secret used to call dl-control's agent-verify endpoint.

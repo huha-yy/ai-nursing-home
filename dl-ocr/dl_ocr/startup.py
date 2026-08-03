@@ -1,4 +1,4 @@
-"""Warmup: load the EasyOCR model and mark the service ready."""
+"""Warmup: load the HunyuanOCR model and mark the service ready."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import logging
 import os
 from io import BytesIO
 
-import numpy as np
 from PIL import Image
 
 from fastapi import FastAPI
@@ -17,38 +16,54 @@ logger = logging.getLogger(__name__)
 
 
 class OcrModel:
-    """Wrapper around EasyOCR for text extraction."""
+    """Wrapper around tencent/HunyuanOCR-1.5 for text extraction.
 
-    def __init__(self, model_dir: str):
+    Loaded via ``transformers`` with ``trust_remote_code=True`` (the
+    HunYuanVL architecture is not yet in the main transformers branch)."""
+
+    def __init__(self, model_name: str, model_dir: str):
+        self.model_name = model_name
         self.model_dir = model_dir
         self._model = None
+        self._processor = None
 
     def _load(self):
-        """Lazy-load EasyOCR reader.  Models are cached in *model_dir*."""
+        """Lazy-load the HunyuanOCR model + processor from the cached volume."""
         if self._model is not None:
             return
 
-        # Point EasyOCR at the mounted model volume so it reads cached
-        # files without downloading.
+        # Point HF at the mounted model volume for offline cache reads.
         if model_dir := self.model_dir:
-            os.environ.setdefault("EASYOCR_MODULE_PATH", model_dir)
+            os.environ.setdefault("HF_HOME", model_dir)
 
         try:
-            import easyocr  # type: ignore[import-untyped]
+            import torch
+            from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
 
-            self._model = easyocr.Reader(
-                ["ch_sim", "en"],
-                gpu=False,               # CPU inference on Jetson
-                model_storage_directory=model_dir or None,
-                download_enabled=False,  # never download — use cached models
-                verbose=False,
+            logger.info("Loading HunyuanOCR from %s ...", self.model_name)
+            self._processor = AutoProcessor.from_pretrained(
+                self.model_name,
+                trust_remote_code=True,
+                cache_dir=model_dir or None,
+                local_files_only=bool(model_dir),
             )
-            logger.info("EasyOCR reader loaded (ch_sim + en)")
-        except ImportError:
-            logger.warning("easyocr not installed — OCR unavailable")
+            self._model = AutoModel.from_pretrained(
+                self.model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                cache_dir=model_dir or None,
+                local_files_only=bool(model_dir),
+            )
+            if torch.cuda.is_available():
+                self._model = self._model.cuda()
+            self._model.eval()
+            logger.info("HunyuanOCR loaded successfully (device=%s)",
+                "cuda" if torch.cuda.is_available() else "cpu")
+        except ImportError as exc:
+            logger.warning("transformers/torch not installed — OCR unavailable: %s", exc)
             self._model = None
         except Exception:
-            logger.exception("EasyOCR init failed")
+            logger.exception("HunyuanOCR init failed")
             self._model = None
 
     def predict(self, image_bytes: bytes) -> dict:
@@ -57,38 +72,46 @@ class OcrModel:
         if self._model is None:
             return {"text": "", "blocks": None}
 
-        # Decode image bytes to numpy array (RGB).
         try:
             img = Image.open(BytesIO(image_bytes)).convert("RGB")
-            arr = np.array(img)
         except Exception:
             return {"text": "", "blocks": None}
 
-        result = self._model.readtext(arr)
-        if not result:
+        # HunyuanOCR prompt for text extraction.
+        messages = [
+            {"role": "user", "content": [
+                {"type": "image", "image": img},
+                {"type": "text", "text": "请提取图片中所有文字，按阅读顺序输出。"},
+            ]}
+        ]
+        try:
+            prompt = self._processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = self._processor(
+                text=prompt, images=img, return_tensors="pt"
+            )
+            if self._model.device.type == "cuda":
+                inputs = {k: v.cuda() for k, v in inputs.items()}
+            import torch
+            with torch.no_grad():
+                outputs = self._model.generate(**inputs, max_new_tokens=2048)
+            text = self._processor.decode(outputs[0], skip_special_tokens=True)
+            return {"text": text.strip(), "blocks": None}
+        except Exception:
+            logger.exception("HunyuanOCR inference failed")
             return {"text": "", "blocks": None}
-
-        texts: list[str] = []
-        blocks: list[dict] = []
-        for bbox, text, conf in result:
-            if text.strip():
-                texts.append(text)
-                blocks.append({
-                    "text": text,
-                    "confidence": round(conf, 3),
-                    "bbox": [[int(c) for c in pt] for pt in bbox],
-                })
-
-        return {"text": "\n".join(texts), "blocks": blocks or None}
 
 
 async def warm_up(app: FastAPI, settings: Settings) -> None:
     """Load the OCR model and mark the service ready."""
-    logger.info("Loading EasyOCR models from %s ...", settings.easyocr_model_dir or "default")
-    app.state.ocr_model = OcrModel(model_dir=settings.easyocr_model_dir)
+    logger.info("Loading HunyuanOCR model from %s ...", settings.model_dir or "HuggingFace hub")
+    app.state.ocr_model = OcrModel(
+        model_name=settings.model_name,
+        model_dir=settings.model_dir,
+    )
     app.state.max_image_bytes = settings.max_image_bytes
 
-    # Trigger lazy load now so the first request is fast.
     try:
         app.state.ocr_model._load()
     except Exception:

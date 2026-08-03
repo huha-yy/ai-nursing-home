@@ -11,10 +11,8 @@ class Settings(BaseSettings, frozen=True):
     """All configuration via environment variables.  No defaults for secrets."""
 
     # --- Model ---
-    model_name: str = "PaddlePaddle/PaddleOCR-VL"
-    model_revision: str = "main"
-    # Directory where PaddleOCR looks for downloaded models.
-    paddleocr_home: str = "/models"
+    # Directory where EasyOCR looks for cached model files.
+    easyocr_model_dir: str = "/models"
 
     # --- Auth ---
     # Shared secret used to call dl-control's agent-verify endpoint.

@@ -352,7 +352,7 @@ services:
     volumes:
       - cognee_hf_models:/models
 
-  # ── dl-ocr: PaddleOCR-VL document scanning ──────────────────────
+  # ── dl-ocr: EasyOCR document scanning ──────────────────────────
   dl-ocr-model-download:
     image: python:3.12-slim
     container_name: dl-ocr-model-download
@@ -361,32 +361,42 @@ services:
       - python3
       - -c
       - |
-        import os, subprocess, sys
-        models = {"/models/PaddleOCR-VL": "PaddlePaddle/PaddleOCR-VL"}
-        all_ok = True
-        for path, name in models.items():
-            if os.path.isdir(path):
-                size = sum(f.stat().st_size for f in __import__("pathlib").Path(path).rglob("*") if f.is_file())
-                print(f"  {name}: {size/(1024**3):.1f}GB OK", flush=True)
-            else:
-                print(f"  {name}: MISSING", flush=True)
-                all_ok = False
-        if all_ok:
-            print("All models present, exiting.", flush=True)
+        import os, sys
+        # EasyOCR downloads models to ~/.EasyOCR/model/ on first use.
+        # Pre-download by importing easyocr and calling Reader() once.
+        model_dir = "/models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        # Check if models already exist
+        craft = os.path.join(model_dir, "craft_mlt_25k.pth")
+        zh = os.path.join(model_dir, "zh_sim_g2.pth")
+        en = os.path.join(model_dir, "english_g2.pth")
+        if os.path.isfile(craft) and os.path.isfile(zh) and os.path.isfile(en):
+            import pathlib
+            size = sum(f.stat().st_size for f in pathlib.Path(model_dir).rglob("*.pth"))
+            print(f"EasyOCR models present ({size/(1024**2):.0f}MB), exiting.", flush=True)
             sys.exit(0)
-        print("Downloading missing models via huggingface_hub...", flush=True)
-        subprocess.run([sys.executable, "-m", "pip", "install", "huggingface_hub", "-q",
+
+        print("Installing easyocr to pre-download models...", flush=True)
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "easyocr", "-q",
             "-i", "https://mirrors.aliyun.com/pypi/simple"], check=True)
-        for path, name in models.items():
-            if not os.path.isdir(path):
-                print(f"Downloading {name}...", flush=True)
-                subprocess.run([sys.executable, "-m", "huggingface_hub", "download",
-                    name, "--local-dir", path, "--resume-download"], check=True)
-                print(f"{name} done", flush=True)
-        print("All models ready.", flush=True)
+
+        print("Downloading EasyOCR models (ch_sim + en)...", flush=True)
+        import easyocr
+        reader = easyocr.Reader(
+            ["ch_sim", "en"],
+            gpu=False,
+            model_storage_directory=model_dir,
+            download_enabled=True,
+            verbose=False,
+        )
+        # Force model load by running a tiny inference.
+        import numpy as np
+        reader.readtext(np.zeros((32, 32, 3), dtype=np.uint8))
+        print("EasyOCR models downloaded successfully.", flush=True)
     environment:
-      HF_HUB_ENABLE_HF_TRANSFER: "1"
-      HF_ENDPOINT: https://hf-mirror.com
+      PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple
     volumes:
       - ocr_models:/models
 
@@ -400,8 +410,7 @@ services:
     expose:
       - "8080"
     environment:
-      DL_OCR_MODEL_NAME: PaddlePaddle/PaddleOCR-VL
-      DL_OCR_PADDLEOCR_HOME: /models
+      DL_OCR_EASYOCR_MODEL_DIR: /models
     tmpfs:
       - /tmp:exec
     volumes:

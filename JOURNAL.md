@@ -705,21 +705,76 @@ AI 养老院院长项目 MVP 首发客户为 **杭州市第三社会福利院**�
 
 ### 当前开发阶段
 
-开发阶段使用 `http://192.168.10.247:9080` 直接访问。以下为部署阶段待办：
+开发阶段使用 `https://hz-sanfu.eldcare.cn`（标准 HTTPS 443，真证书）。远程开发使用 SSH 直连 192.168.10.247。
 
 ### 部署待办（阶段二：产品化）
 
-| # | 事项 | 依赖 |
-|---|------|------|
-| 1 | 购买 `eldcare.cn` 域名 | — |
-| 2 | 在 DNS 服务商创建 API 凭据（最小权限，仅能改本设备记录） | 域名购买 |
-| 3 | 编写 DDNS 更新脚本（检测当前 IP → DNS API 更新 A 记录） | API 凭据 |
-| 4 | Let's Encrypt DNS-01 签发正式 HTTPS 证书（替换自签名） | DNS API |
-| 5 | Caddy 端口改 443 + 加载正式证书 | 证书就绪 |
-| 6 | 生成永久二维码贴纸 | 证书就绪 |
-| 7 | 写入 iptables 持久化规则（443/9080 放行） | — |
-| 8 | 整机和网络拓扑交付文档 | 以上全部 |
+| # | 事项 | 依赖 | 状态 |
+|---|------|------|:--:|
+| 1 | 购买 `eldcare.cn` 域名 | — | ✅ |
+| 2 | 在 DNS 服务商创建 API 凭据（最小权限，仅能改本设备记录） | 域名购买 | ✅ |
+| 3 | 编写 DDNS 更新脚本（检测当前 IP → DNS API 更新 A 记录） | API 凭据 | ✅ |
+| 4 | systemd 开机自启 | — | ✅ |
+| 5 | Let's Encrypt DNS-01 签发正式 HTTPS 证书（替换自签名） | DNS API | ✅ |
+| 6 | Caddy 端口改 443 + 加载正式证书 | 证书就绪 | ✅ |
+| 7 | 生成永久二维码 | 证书就绪 | ✅ |
+| 8 | 写入 iptables 持久化规则（443/9080 放行） | — | ✅ |
+| 9 | DNS 服务器固定地址（服务器重启 DNS 不丢失） | 部署时 |
 
 ### 相关文件
 
 - `docs/ip策略.md` — 完整网络部署方案（v1.1，已更新域名）
+- `scripts/ddns_update.py` — DDNS 更新脚本
+- `scripts/gen_qrcode.py` — 二维码生成
+- `scripts/ddns-updater.service` — systemd 服务
+
+---
+
+## 养老院项目：本期会话记录（2026-07-28 ~ 07-31）
+
+### 工作流调试与修复
+
+- 修复 `config_cache.py` 硬编码的旧项目 UUID，改为 precreated_id 缓存
+- 重构 `nursing_ops.py` 的 agent 解析，四级优先级（显式输入 > precreated 缓存 > workflow 默认 > 友好错误）
+- 修复 `dispatch.py` token 读取（去重 .env 中重复的 DL_INTERNAL_TOKEN，last-wins 语义）
+- 发现并修复 agent 容器缺少 DATABASE_URL 导致 handler 无法查 DB
+- 修复 agent 容器缺少 DL_INTERNAL_TOKEN 环境变量导致 dispatch 401
+- 修复 openclaw.json 缺少 models 配置段导致 "No API key found"
+- 修复 nursing-schedule handler：day.isoformat() 返回 string 但 DB 期望 date
+- 授予 dl_control_app 对 nursing 表的 INSERT/UPDATE/DELETE 权限
+- maxTokens 从 32768 改为 65536
+- 工作流 4 步全部调通（排班、物资、财务、周报）
+- 编写 60 个单元测试 + 13 个集成测试
+
+### Dashboard 修复
+
+- 种子数据日期固定导致当前日期无数据 → 查询改为 `_eff_date()` 兜底（CURRENT_DATE 无数据时自动降级）
+- Seed SQL 末尾添加数据填充块（唯一索引 + ON CONFLICT DO NOTHING）
+- 仪表板全面恢复：完成率、当日在岗、排班、菜单
+
+### 工单页面重设计
+
+- 内联 CSS 卡片布局：统计格、进度条、过滤标签、行内状态徽章
+- 数据源增加 staff_name、note 字段
+
+### 周报页面 /reports
+
+- API: `/api/nursing/report` 提取工作流结果，展开 OpenClaw 容器并提取 JSON
+- 前端渲染：4 步可展开，排班/物资用卡片网格，财务用 markdown 渲染，院长用分区卡片 + 重点关注列表
+- 多 payload 拼接（LLM 使用 tool 时会分拆到多个 payload）
+
+### 手机访问与域名
+
+- 开放 9080 HTTP 端口（经 iptables DOCKER-USER），解决 Docker + UFW 矛盾
+- 修复 Cookie `Secure=True` 导致 HTTP 登录失败
+- 购买域名 `eldcare.cn`（DNSPod）
+- 编写 DDNS 更新脚本 `scripts/ddns_update.py`（python3，Tencent Cloud SDK）
+- systemd 开机自启 `ddns-updater.service`
+- Let's Encrypt DNS-01 + acme.sh 签发真实证书（`hz-sanfu.eldcare.cn`）
+- Caddy 配置 443 端口映射 + 加载真证书
+- 二维码生成脚本 `scripts/gen_qrcode.py`
+
+### 待办（后续会话）
+
+- 养老院现场部署时：DNS 服务器地址固化、iptables 持久化、新服务器重置 API 凭据
+- 社会福利中心适配：Agent 架构需从"楼栋负责制"改为"网格化 + 分区制"

@@ -36,10 +36,10 @@ class OcrModel:
 
         try:
             import torch
-            from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
+            from transformers import AutoModel, AutoTokenizer  # type: ignore[import-untyped]
 
-            logger.info("Loading %s ...", self.model_name)
-            self._processor = AutoProcessor.from_pretrained(
+            logger.info("Loading Unlimited-OCR from %s ...", model_dir or self.model_name)
+            self._tokenizer = AutoTokenizer.from_pretrained(
                 self.model_dir or self.model_name,
                 trust_remote_code=True,
             )
@@ -65,32 +65,29 @@ class OcrModel:
         if self._model is None:
             return {"text": "", "blocks": None}
 
+        import tempfile, os
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         try:
             img = Image.open(BytesIO(image_bytes)).convert("RGB")
-        except Exception:
-            return {"text": "", "blocks": None}
+            img.save(tmp.name)
+            tmp.close()
 
-        try:
-            messages = [
-                {"role": "user", "content": [
-                    {"type": "image", "image": img},
-                    {"type": "text", "text": "请提取图片中所有文字。"},
-                ]}
-            ]
-            prompt = self._processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
+            # Unlimited-OCR uses the infer() method with <image> token
+            prompt = "<image>\n请提取图片中所有文字，按阅读顺序输出。"
+            text = self._model.infer(
+                tokenizer=self._tokenizer,
+                prompt=prompt,
+                image_file=tmp.name,
+                max_length=4096,
+                temperature=0.0,
             )
-            inputs = self._processor(text=prompt, images=img, return_tensors="pt")
-            if self._model.device.type == "cuda":
-                inputs = {k: v.cuda() for k, v in inputs.items()}
-            import torch
-            with torch.no_grad():
-                outputs = self._model.generate(**inputs, max_new_tokens=2048)
-            text = self._processor.decode(outputs[0], skip_special_tokens=True)
-            return {"text": text.strip(), "blocks": None}
+            return {"text": text.strip() if text else "", "blocks": None}
         except Exception:
             logger.exception("Inference failed")
             return {"text": "", "blocks": None}
+        finally:
+            try: os.unlink(tmp.name)
+            except OSError: pass
 
 
 async def warm_up(app: FastAPI, settings: Settings) -> None:

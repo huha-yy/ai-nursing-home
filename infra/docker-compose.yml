@@ -422,6 +422,7 @@ services:
     environment:
       DL_OCR_MODEL_NAME: baidu/Unlimited-OCR
       DL_OCR_MODEL_DIR: /models/baidu--Unlimited-OCR
+      HF_MODULES_CACHE: /tmp/hf-modules
     tmpfs:
       - /tmp:exec
     volumes:

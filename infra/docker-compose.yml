@@ -35,6 +35,7 @@ services:
       - "${CADDY_HTTPS_PORT:-9443}:${CADDY_HTTPS_PORT:-9443}"
       - "443:${CADDY_HTTPS_PORT:-9443}"
       - "9080:9080"
+      - "9081:9081"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./Caddyfile.tls:/etc/caddy/Caddyfile.tls:ro
@@ -420,9 +421,8 @@ services:
     expose:
       - "8080"
     environment:
-      DL_OCR_MODEL_NAME: baidu/Unlimited-OCR
-      DL_OCR_MODEL_DIR: /models/baidu--Unlimited-OCR
-      HF_MODULES_CACHE: /tmp/hf-modules
+      DL_OCR_MODEL_DIR: /models
+      HOME: /tmp
     tmpfs:
       - /tmp:exec
     volumes:

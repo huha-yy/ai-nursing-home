@@ -60,3 +60,12 @@
         }
     }
 }
+
+# nursing-erp: 养老院业务管理系统（开发环境）
+:9081 {
+    handle {
+        reverse_proxy 172.19.0.1:8765 {
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+}

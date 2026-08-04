@@ -1,4 +1,4 @@
-"""Warmup: load the Baidu Unlimited-OCR model and mark the service ready."""
+"""Warmup: load EasyOCR and mark the service ready."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 import os
 from io import BytesIO
 
+import numpy as np
 from PIL import Image
 
 from fastapi import FastAPI
@@ -16,90 +17,65 @@ logger = logging.getLogger(__name__)
 
 
 class OcrModel:
-    """Wrapper around baidu/Unlimited-OCR for text extraction.
+    """Wrapper around EasyOCR for text extraction (Chinese + English)."""
 
-    Based on DeepSeek-V2 architecture with custom UnlimitedOCR head.
-    Loaded via ``transformers`` with ``trust_remote_code=True``."""
-
-    def __init__(self, model_name: str, model_dir: str):
-        self.model_name = model_name
+    def __init__(self, model_dir: str):
         self.model_dir = model_dir
         self._model = None
-        self._processor = None
 
     def _load(self):
         if self._model is not None:
             return
-
-        if model_dir := self.model_dir:
-            os.environ.setdefault("HF_HOME", os.path.dirname(model_dir))
-
         try:
-            import torch
-            from transformers import AutoModel, AutoTokenizer  # type: ignore[import-untyped]
-
-            logger.info("Loading Unlimited-OCR from %s ...", model_dir or self.model_name)
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self.model_dir or self.model_name,
-                trust_remote_code=True,
+            import easyocr
+            os.environ.setdefault("HOME", "/tmp")
+            self._model = easyocr.Reader(
+                ["ch_sim", "en"],
+                gpu=False,
+                model_storage_directory="/tmp/.EasyOCR",
+                download_enabled=True,
+                verbose=False,
             )
-            self._model = AutoModel.from_pretrained(
-                self.model_dir or self.model_name,
-                trust_remote_code=True,
-                torch_dtype=torch.bfloat16,
-            )
-            if torch.cuda.is_available():
-                self._model = self._model.cuda()
-            self._model.eval()
-            logger.info("Unlimited-OCR loaded (device=%s)",
-                "cuda" if torch.cuda.is_available() else "cpu")
-        except ImportError as exc:
-            logger.warning("transformers not installed: %s", exc)
-            self._model = None
-        except Exception:
-            logger.exception("Unlimited-OCR init failed")
+            logger.info("EasyOCR loaded (ch_sim + en)")
+        except ImportError:
+            logger.warning("easyocr not installed")
             self._model = None
 
     def predict(self, image_bytes: bytes) -> dict:
         self._load()
         if self._model is None:
             return {"text": "", "blocks": None}
-
-        import tempfile, os
-        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         try:
             img = Image.open(BytesIO(image_bytes)).convert("RGB")
-            img.save(tmp.name)
-            tmp.close()
-
-            # Unlimited-OCR uses the infer() method with <image> token
-            prompt = "<image>\n请提取图片中所有文字，按阅读顺序输出。"
-            text = self._model.infer(
-                tokenizer=self._tokenizer,
-                prompt=prompt,
-                image_file=tmp.name,
-                max_length=4096,
-                temperature=0.0,
-            )
-            return {"text": text.strip() if text else "", "blocks": None}
+            arr = np.array(img)
         except Exception:
-            logger.exception("Inference failed")
             return {"text": "", "blocks": None}
-        finally:
-            try: os.unlink(tmp.name)
-            except OSError: pass
+
+        result = self._model.readtext(arr)
+        if not result:
+            return {"text": "", "blocks": None}
+
+        texts = []
+        blocks = []
+        for bbox, text, conf in result:
+            if text.strip():
+                texts.append(text)
+                blocks.append({
+                    "text": text,
+                    "confidence": round(conf, 3),
+                    "bbox": [[int(c) for c in pt] for pt in bbox],
+                })
+        return {"text": "\n".join(texts), "blocks": blocks or None}
 
 
 async def warm_up(app: FastAPI, settings: Settings) -> None:
-    logger.info("Loading Unlimited-OCR from %s ...", settings.model_dir or settings.model_name)
-    app.state.ocr_model = OcrModel(
-        model_name=settings.model_name,
-        model_dir=settings.model_dir,
-    )
+    logger.info("Loading EasyOCR from %s ...", settings.model_dir or "/tmp")
+    app.state.ocr_model = OcrModel(model_dir=settings.model_dir)
     app.state.max_image_bytes = settings.max_image_bytes
     try:
         app.state.ocr_model._load()
+        app.state.ready = True
+        logger.info("dl-ocr ready")
     except Exception:
-        logger.exception("OCR model failed to load")
-    app.state.ready = True
-    logger.info("dl-ocr ready")
+        logger.exception("EasyOCR failed to load")
+        app.state.ready = False

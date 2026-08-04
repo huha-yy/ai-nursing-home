@@ -10,15 +10,11 @@ dependencies = [
     "pydantic-settings>=2.6",
     "httpx>=0.27",
     "structlog>=24.4",
-    "transformers>=4.45,<4.50",
-    "accelerate>=0.30",
+    "easyocr>=1.7",
     "pillow>=10.0",
-    "einops>=0.8",
+    "opencv-python-headless>=4.8",
     "torchvision>=0.18",
-    "addict>=2.4",
-    "matplotlib>=3.8",
-    "requests>=2.31",
-    "easydict>=1.13",
+    "torch>=2.5",
 ]
 
 [tool.ruff]

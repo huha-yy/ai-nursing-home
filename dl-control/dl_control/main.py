@@ -553,7 +553,25 @@ async def build_app() -> FastAPI:
         file_type = body.get("filetype", "")
 
         if file_b64 and file_type.startswith("image/"):
-            return JSONResponse({"reply": "图片上传功能已就绪，但当前 DeepSeek V4 模型暂不支持图片识别。后续切换到支持 Vision 的模型后即可使用。"}, 200)
+            # Extract text via dl-ocr, then feed to LLM as context.
+            ocr_text = ""
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as ocr_client:
+                    ocr_resp = await ocr_client.post(
+                        "http://dl-ocr:8080/v1/ocr",
+                        json={"image": file_b64},
+                    )
+                    if ocr_resp.status_code == 200:
+                        ocr_data = ocr_resp.json()
+                        ocr_text = ocr_data.get("text", "").strip()
+            except Exception:
+                pass  # OCR unavailable — fall through to text-only processing
+
+            if ocr_text:
+                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}\n\n用户问题：{message or '请根据以上内容回答'}"
+            else:
+                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or '请描述你看到的图片内容'}"
+            file_b64 = ""  # consumed — don't process again below
 
         if file_b64 and not file_type.startswith("image/"):
             try:

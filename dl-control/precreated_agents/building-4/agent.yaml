@@ -3,6 +3,7 @@ display_name: "4号楼"
 tier: tier0
 admin_only: false
 skill_list:
+  - nursing-erp-query
   - nursing-work-order
   - logistics-query
   - meal-query

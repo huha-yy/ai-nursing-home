@@ -74,6 +74,14 @@ API 地址通过环境变量 `NURSING_ERP_URL` 获取，默认为 `http://nursin
 |------|------|------|
 | 查异常 | `GET /api/incidents/` | `?severity=danger&handled=false` |
 
+### 写入操作
+
+| 操作 | 端点 | 请求体 |
+|------|------|------|
+| 写护理日志 | `POST /api/nursing-logs/` | `{resident_id, category, detail, staff_name, log_date?}` |
+| 写健康记录 | `POST /api/health-records/` | `{resident_id, blood_pressure?, blood_sugar?, heart_rate?, ...}` |
+| 上报异常 | `POST /api/incidents/` | `{resident_id, category, severity?, description?}` |
+
 ### 点餐送餐
 
 | 操作 | 端点 | 参数 |
@@ -102,13 +110,39 @@ for item in data.get('items', data):
 "
 ```
 
-### 写入类操作（护理日志）
+### 写入类操作
 
-目前 nursing-erp API 提供只读查询。写入操作通过 Django Admin 完成。
+```bash
+python3 -c "
+import httpx, os
+url = os.environ.get('NURSING_ERP_URL', 'http://nursing-erp:8080')
+r = httpx.Client(base_url=url, timeout=10)
+resp = r.post('/api/nursing-logs/', json={
+    'resident_id': 1,
+    'category': 'vital_signs',
+    'detail': '血压 135/85，正常',
+    'staff_name': '李芳',
+})
+print(resp.json())
+"
+```
 
-如需写入护理日志/异常上报等数据，提示用户当前可以通过以下方式：
-1. Web Admin: `http://hz-sanfu.eldcare.cn:9081/admin/`
-2. 告知用户需要开发写入 API 端点
+### 异常上报
+
+```bash
+python3 -c "
+import httpx, os
+url = os.environ.get('NURSING_ERP_URL', 'http://nursing-erp:8080')
+r = httpx.Client(base_url=url, timeout=10)
+resp = r.post('/api/incidents/', json={
+    'resident_id': 1,
+    'category': 'fall',
+    'severity': 'danger',
+    'description': '老人在走廊摔倒',
+})
+print(resp.json())
+"
+```
 
 ---
 

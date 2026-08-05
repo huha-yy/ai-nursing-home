@@ -193,3 +193,48 @@ def search_meal_finance(month=None):
     r = _client().get("/api/meal-finance/", params=params)
     r.raise_for_status()
     _print_json(r.json())
+
+
+# ---- 写入操作 ----
+
+def create_nursing_log(resident_id: int, category: str, detail: str = "",
+                       staff_name: str = "", log_date: str = None):
+    """创建护理日志。"""
+    payload = {"resident_id": resident_id, "category": category,
+               "detail": detail, "staff_name": staff_name}
+    if log_date:
+        payload["log_date"] = log_date
+    r = _client().post("/api/nursing-logs/", json=payload)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def create_health_record(resident_id: int, blood_pressure: str = "",
+                         blood_sugar: float = None, heart_rate: int = None,
+                         weight: float = None, temperature: float = None,
+                         note: str = ""):
+    """创建健康记录。"""
+    payload = {"resident_id": resident_id, "blood_pressure": blood_pressure,
+               "note": note}
+    if blood_sugar is not None:
+        payload["blood_sugar"] = blood_sugar
+    if heart_rate is not None:
+        payload["heart_rate"] = heart_rate
+    if weight is not None:
+        payload["weight"] = weight
+    if temperature is not None:
+        payload["temperature"] = temperature
+    r = _client().post("/api/health-records/", json=payload)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def create_incident(resident_id: int, category: str, severity: str = "info",
+                    description: str = ""):
+    """上报异常。"""
+    r = _client().post("/api/incidents/", json={
+        "resident_id": resident_id, "category": category,
+        "severity": severity, "description": description,
+    })
+    r.raise_for_status()
+    _print_json(r.json())

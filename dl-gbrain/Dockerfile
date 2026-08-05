@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /app/bin/gbrain /usr/local/bin/gbrain
 COPY --from=builder /app/entrypoint.sh /entrypoint.sh
+COPY --from=builder /app/admin/dist /app/admin/dist
 COPY brain-repo/ /brain-repo/
 
 RUN useradd --uid 1000 --create-home appuser && \

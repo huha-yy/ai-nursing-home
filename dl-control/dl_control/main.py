@@ -481,23 +481,23 @@ async def build_app() -> FastAPI:
         matched_skill = None
         SKILL_QUERIES = [
             (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
-             f"SELECT staff_name, shift, date, building FROM nursing_schedules WHERE date = ({_eff_date('nursing_schedules')}) ORDER BY shift, staff_name LIMIT 20"),
+             f"API:/api/schedules/?date={datetime.now().strftime('%Y-%m-%d')}"),
             (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
-             f"SELECT type, COUNT(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done FROM nursing_work_orders WHERE date = ({_eff_date('nursing_work_orders')}) GROUP BY type"),
+             "API:/api/incidents/"),
             (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"], "logistics-inventory",
              "API:/api/inventory/"),
             (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"], "resident-query",
-             "SELECT name, building, floor, room, age, diagnosis, care_level FROM nursing_residents ORDER BY building, room LIMIT 15"),
+             "API:/api/residents/"),
             (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
-             f"SELECT meal_type, menu FROM nursing_meals WHERE date = ({_eff_date('nursing_meals')}) ORDER BY CASE meal_type WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'dinner' THEN 3 END"),
+             f"API:/api/meal-plans/?date={datetime.now().strftime('%Y-%m-%d')}"),
             (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
              "SELECT title, date, time, location FROM nursing_activities WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
             (["费用", "结算", "缴费", "账单"], "finance-query",
-             "SELECT r.name, f.month, f.amount, CASE WHEN f.paid THEN '已结清' ELSE '未结清' END as status FROM nursing_finances f JOIN nursing_residents r ON f.resident_id = r.id ORDER BY f.month DESC LIMIT 10"),
+             "API:/api/meal-finance/"),
             (["预警", "告警", "重点关注", "异常"], "alert-query",
-             "SELECT r.name, a.content, a.category, a.severity, a.created_at FROM nursing_health_alerts a JOIN nursing_residents r ON a.resident_id = r.id WHERE a.handled = false ORDER BY a.created_at DESC LIMIT 10"),
+             "API:/api/incidents/?handled=false"),
             (["员工", "谁负责", "人员", "值班人员"], "staff-query",
-             "SELECT name, role, dept, building, floor FROM nursing_users WHERE role != 'resident' ORDER BY building, floor LIMIT 20"),
+             "API:/api/employees/"),
         ]
         for keywords, skill_name, sql in SKILL_QUERIES:
             if any(kw in message for kw in keywords):
@@ -710,30 +710,27 @@ async def build_app() -> FastAPI:
 
     @app.get("/api/nursing/alerts")
     async def nursing_alerts():
-        """Return pending (unhandled) health alerts for the dashboard."""
-        async with db.conn(user_id=None, role="system") as conn:
-            rows = await conn.execute(
-                "SELECT id, resident_id, content, category, severity, "
-                "created_at, handled "
-                "FROM nursing_health_alerts "
-                "WHERE handled = FALSE "
-                "ORDER BY created_at DESC "
-                "LIMIT 50"
-            )
-            alerts = []
-            for row in await rows.fetchall():
-                alerts.append(
-                    {
-                        "id": row[0],
-                        "resident_id": row[1],
-                        "content": row[2],
-                        "category": row[3],
-                        "severity": row[4],
-                        "created_at": str(row[5]),
-                        "handled": row[6],
-                    }
-                )
-        return {"alerts": alerts}
+        """Return pending (unhandled) health alerts from nursing-erp."""
+        try:
+            import httpx as _hx_a
+            _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+            async with _hx_a.AsyncClient(timeout=10.0) as _cli:
+                _r = await _cli.get(f"{_erp}/api/incidents/?handled=false")
+                if _r.status_code == 200:
+                    data = _r.json()
+                    items = data.get("items", data)
+                    return [
+                        {"id": i["id"], "resident_id": i.get("resident_id", 0),
+                         "content": i.get("description", ""),
+                         "category": i.get("category_display", i.get("category", "")),
+                         "severity": i.get("severity", ""),
+                         "created_at": i.get("created_at", ""),
+                         "handled": False}
+                        for i in items[:50]
+                    ]
+        except Exception:
+            pass
+        return []
 
     @app.get("/alerts", response_class=HTMLResponse)
     async def nursing_alerts_page(request: _Request):

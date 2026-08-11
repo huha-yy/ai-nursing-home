@@ -127,38 +127,59 @@ var LABEL = '{{ role_label }}';
 
   // Simple markdown-to-HTML for AI responses
   function simpleMarkdown(text) {
-    var html = text;
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/^### (.+)/gm, '<h4>$1</h4>');
-    html = html.replace(/^## (.+)/gm, '<h3>$1</h3>');
-    html = html.replace(/^- (.+)/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-    html = html.replace(/\|(.+)\|/g, function(m) {
+    // 1. Block elements — mark them with placeholders
+    text = text.replace(/^### (.+)/gm, '<!--h4-->$1<!--/h4-->');
+    text = text.replace(/^## (.+)/gm, '<!--h3-->$1<!--/h3-->');
+    text = text.replace(/^- (.+)/gm, '<!--li-->$1<!--/li-->');
+    text = text.replace(/(?:<!--li-->.*<!--\/li-->\n?)+/g, '<!--ul-->$&<!--/ul-->');
+    text = text.replace(/---+/g, '<!--hr-->');
+    // Tables: mark rows, then wrap
+    text = text.replace(/\|(.+)\|/g, function(m) {
       if (m.indexOf('---') >= 0) return '';
       var cells = m.split('|').filter(function(c) { return c.trim(); });
       if (cells.length === 0) return '';
-      var isHeader = !cells[0].match(/^[\s:=-]+$/);
-      var tag = isHeader ? 'th' : 'td';
-      return '<tr>' + cells.map(function(c) { return '<' + tag + '>' + c.trim() + '</' + tag + '>'; }).join('') + '</tr>';
+      var tag = cells[0].match(/^[\s:=-]+$/) ? 'th' : 'td';
+      return '<!--tr--><'+tag+'>' + cells.map(function(c) { return c.trim(); }).join('</'+tag+'><'+tag+'>') + '</'+tag+'>';
     });
-    html = html.replace(/(<tr>.*<\/tr>\n?)+/g, '<table class="ocr-table">$&</table>');
-    html = html.replace(/---+/g, '<hr>');
-    // Collapse 3+ newlines to 2, then 2 newlines to paragraph break
-    html = html.replace(/\n{3,}/g, '\n\n');
-    html = html.replace(/\n{2,}/g, '</p><p>');
-    html = '<p>' + html + '</p>';
-    html = html.replace(/\n/g, '<br>');
-    // Cleanup: remove <br> inside block elements where it adds unwanted spacing
-    html = html.replace(/<(ul|ol|table|h[1-4]|hr)\b[^>]*>(\s*<br>\s*)+/g, '<$1>');
-    html = html.replace(/(\s*<br>\s*)+<\/(ul|ol|table)>/g, '</$2>');
-    html = html.replace(/<\/li>(\s*<br>\s*)+/g, '</li>');
-    html = html.replace(/<p>\s*<table>/g, '<table>');
-    html = html.replace(/<\/table>\s*<\/p>/g, '</table>');
-    html = html.replace(/<p>\s*<ul>/g, '<ul>');
-    html = html.replace(/<\/ul>\s*<\/p>/g, '</ul>');
-    html = html.replace(/<p>\s*<h([34])>/g, '<h$1>');
-    html = html.replace(/<\/h([34])>\s*<\/p>/g, '</h$1>');
-    return html;
+    text = text.replace(/((?:<!--tr-->.*\n?)+)/g, '<!--table-->$1<!--/table-->');
+
+    // 2. Collapse whitespace, then convert remaining double-newlines to paragraph breaks
+    text = text.replace(/\n{3,}/g, '\n\n');
+    text = text.replace(/\n\n/g, '<!--/p--><!--p-->');
+    text = '<!--p-->' + text + '<!--/p-->';
+
+    // 3. Convert leftover single newlines to <br> (only within <p> blocks)
+    text = text.replace(/\n/g, '<br>');
+
+    // 4. Resolve all placeholders to real HTML tags
+    var map = {
+      '<!--p-->': '<p>', '<!--/p-->': '</p>',
+      '<!--h4-->': '<h4>', '<!--/h4-->': '</h4>',
+      '<!--h3-->': '<h3>', '<!--/h3-->': '</h3>',
+      '<!--li-->': '<li>', '<!--/li-->': '</li>',
+      '<!--ul-->': '<ul>', '<!--/ul-->': '</ul>',
+      '<!--table-->': '<table class="ocr-table">', '<!--/table-->': '</table>',
+      '<!--tr-->': '<tr>', '<!--hr-->': '<hr>',
+    };
+    Object.keys(map).forEach(function(k) {
+      text = text.replace(new RegExp(k.replace(/[-\/]/g, '\\$&'), 'g'), map[k]);
+    });
+
+    // 5. Cleanup: empty <p>, empty <li>, <p> around block elements
+    text = text.replace(/<p>\s*<br>\s*<\/p>/g, '');
+    text = text.replace(/<p>\s*(<(?:ul|table|h[34]|hr))/g, '$1');
+    text = text.replace(/(<\/(?:ul|table|h[34])>)\s*<\/p>/g, '$1');
+    text = text.replace(/<p>\s*<\/p>/g, '');
+    text = text.replace(/<li>\s*<br>\s*<\/li>/g, '');
+    text = text.replace(/<\/li>\s*<br>/g, '</li>');
+    text = text.replace(/<br>\s*<table/g, '<table');
+    text = text.replace(/<\/table>\s*<br>/g, '</table>');
+    text = text.replace(/<\/ul>\s*<br>/g, '</ul>');
+    text = text.replace(/<br>\s*<(?:ul|table)/g, function(m) { return m.replace('<br>', ''); });
+    text = text.replace(/<tr>(\s*<br>\s*)+/g, '<tr>');
+    text = text.replace(/(\s*<br>\s*)+<\/tr>/g, '</tr>');
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return text;
   }
 
   function addMessage(text, isUser) {

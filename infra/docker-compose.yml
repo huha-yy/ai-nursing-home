@@ -183,6 +183,7 @@ services:
       DL_CONTROL_LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
       DL_OCR_URL: ${DL_OCR_URL:-http://dl-ocr-unlimited:8080}
       DL_OCR_API_TOKEN: ${DL_OCR_API_TOKEN:-}
+      NURSING_ERP_URL: ${NURSING_ERP_URL:-http://nursing-erp:8080}
       # P13c pilot SMTP (optional — workflows that send email need these).
       DL_CONTROL_SMTP_HOST: ${DL_CONTROL_SMTP_HOST:-}
       DL_CONTROL_SMTP_PORT: ${DL_CONTROL_SMTP_PORT:-587}

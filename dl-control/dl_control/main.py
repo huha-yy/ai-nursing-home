@@ -485,7 +485,7 @@ async def build_app() -> FastAPI:
             (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
              f"SELECT type, COUNT(*) as total, SUM(CASE WHEN completed THEN 1 ELSE 0 END) as done FROM nursing_work_orders WHERE date = ({_eff_date('nursing_work_orders')}) GROUP BY type"),
             (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"], "logistics-inventory",
-             "SELECT item_name, quantity, unit, safety_stock, CASE WHEN quantity < safety_stock THEN '预警' ELSE '正常' END as status FROM nursing_inventory ORDER BY item_name"),
+             "API:/api/inventory/"),
             (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"], "resident-query",
              "SELECT name, building, floor, room, age, diagnosis, care_level FROM nursing_residents ORDER BY building, room LIMIT 15"),
             (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
@@ -503,11 +503,23 @@ async def build_app() -> FastAPI:
             if any(kw in message for kw in keywords):
                 matched_skill = skill_name
                 try:
-                    async with db.conn(user_id=None, role="system") as conn:
-                        cur = await conn.execute(sql)
-                        rows = await cur.fetchall()
-                        cols = [d[0] for d in cur.description]
-                        skill_result = [dict(zip(cols, r)) for r in rows][:15]
+                    if sql.startswith("API:"):
+                        # Query nursing-erp API instead of database
+                        import httpx as _hx
+                        _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                        _path = sql[4:]  # strip "API:"
+                        async with _hx.AsyncClient(timeout=10.0) as _cli:
+                            _resp = await _cli.get(f"{_erp}{_path}")
+                            if _resp.status_code == 200:
+                                skill_result = _resp.json().get("items", _resp.json())[:15]
+                            else:
+                                skill_result = None
+                    else:
+                        async with db.conn(user_id=None, role="system") as conn:
+                            cur = await conn.execute(sql)
+                            rows = await cur.fetchall()
+                            cols = [d[0] for d in cur.description]
+                            skill_result = [dict(zip(cols, r)) for r in rows][:15]
                 except Exception as _e:
                     import logging
                     logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
@@ -828,10 +840,16 @@ async def build_app() -> FastAPI:
             )).fetchone()
             on_duty_today = row[0] if row else 0
 
-            row = await (await conn.execute(
-                "SELECT count(*) FROM nursing_inventory WHERE quantity < safety_stock"
-            )).fetchone()
-            inventory_alerts = row[0] if row else 0
+            inventory_alerts = 0
+            try:
+                import httpx as _httpx
+                async with _httpx.AsyncClient(timeout=10.0) as _c:
+                    _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                    _r = await _c.get(f"{_erp_url}/api/inventory/low-stock/")
+                    if _r.status_code == 200:
+                        inventory_alerts = len(_r.json())
+            except Exception:
+                pass  # ERP unavailable — show 0 alerts
 
             row = await (await conn.execute(
                 "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
@@ -850,10 +868,7 @@ async def build_app() -> FastAPI:
             )).fetchone()
             on_duty_yesterday = row[0] if row else 0
 
-            row = await (await conn.execute(
-                "SELECT count(*) FROM nursing_inventory WHERE quantity < safety_stock"
-            )).fetchone()
-            inventory_alerts_yesterday = row[0] if row else inventory_alerts  # same snapshot
+            inventory_alerts_yesterday = inventory_alerts  # ERP provides live data; yesterday = today snapshot
 
             row = await (await conn.execute(
                 "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
@@ -874,16 +889,21 @@ async def build_app() -> FastAPI:
                 for r in frows
             ]
 
-            # -- Low stock items --
-            lrows = await (await conn.execute(
-                "SELECT item_name, quantity, safety_stock, unit "
-                "FROM nursing_inventory WHERE quantity < safety_stock "
-                "ORDER BY (quantity::float / NULLIF(safety_stock, 0)) ASC"
-            )).fetchall()
-            low_stock_items = [
-                {"item": r[0], "quantity": r[1], "safety": r[2], "unit": r[3]}
-                for r in lrows
-            ]
+            # -- Low stock items from nursing-erp --
+            low_stock_items = []
+            try:
+                import httpx as _httpx2
+                async with _httpx2.AsyncClient(timeout=10.0) as _c2:
+                    _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                    _r = await _c2.get(f"{_erp_url}/api/inventory/low-stock/")
+                    if _r.status_code == 200:
+                        low_stock_items = [
+                            {"item": i["name"], "quantity": i["quantity"],
+                             "safety": i["safety_stock"], "unit": i["unit"]}
+                            for i in _r.json()
+                        ]
+            except Exception:
+                pass  # ERP unavailable — empty list
 
             # -- Schedule today --
             srows = await (await conn.execute(

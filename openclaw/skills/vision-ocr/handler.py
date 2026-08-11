@@ -14,12 +14,13 @@ import httpx
 
 DL_INTERNAL_TOKEN = os.environ["DL_INTERNAL_TOKEN"]
 DL_OCR_URL = os.environ.get("DL_OCR_URL", "http://dl-ocr:8080")
+DL_OCR_API_TOKEN = os.environ.get("DL_OCR_API_TOKEN", DL_INTERNAL_TOKEN)
 
 
 def _client():
     return httpx.Client(
         base_url=DL_OCR_URL,
-        headers={"Authorization": f"Bearer {DL_INTERNAL_TOKEN}"},
+        headers={"Authorization": f"Bearer {DL_OCR_API_TOKEN}"},
         timeout=httpx.Timeout(5.0, read=60.0),
     )
 

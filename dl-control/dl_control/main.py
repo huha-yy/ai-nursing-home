@@ -422,6 +422,7 @@ async def build_app() -> FastAPI:
             raw_body = await request.body()
             body = json.loads(raw_body.decode("utf-8", errors="replace"))
         message = body.get("message", "").strip()
+        original_message = message  # preserve for chat history before OCR overrides it
         image_b64 = body.get("image", "")  # optional base64 image for vision
         chat_id = body.get("chat_id", "").strip()
         if not message and not image_b64:
@@ -439,6 +440,7 @@ async def build_app() -> FastAPI:
         file_b64 = body.get("file", "") or image_b64
         file_name = body.get("filename", "")
         file_type = body.get("filetype", "")
+        had_attachment = bool(file_b64)  # remember before OCR consumes it
 
         if file_b64 and file_type.startswith("image/"):
             ocr_text = ""
@@ -555,12 +557,15 @@ async def build_app() -> FastAPI:
             # Save to Redis before returning
             try:
                 history = await _get_chat_msgs(chat_id)
-                history.append({"role": "user", "content": message})
+                user_entry = {"role": "user", "content": original_message}
+                if had_attachment:
+                    user_entry["attachment"] = {"filename": file_name, "filetype": file_type}
+                history.append(user_entry)
                 history.append({"role": "assistant", "content": agent_reply})
                 await _save_chat_msgs(chat_id, history[-40:])
                 chats = await _get_user_chats(sess.user_id)
                 for c in chats:
-                    if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
+                    if c["id"] == chat_id and c.get("title") in ("新对话", original_message[:20]):
                         c["title"] = message[:20]
                         await _save_user_chats(sess.user_id, chats)
                         break

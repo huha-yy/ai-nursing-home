@@ -228,6 +228,12 @@ async def build_app() -> FastAPI:
             f"(SELECT MAX(date) FROM {table}))"
         )
 
+    def _erp_items(data) -> list:
+        """Extract items from ERP API response (paginated dict or plain list)."""
+        if isinstance(data, dict):
+            return data.get("items", [])
+        return data if isinstance(data, list) else []
+
     def _extract_step_summary(step_key: str, output) -> dict | None:
         """Extract key fields from a workflow step's raw output (OpenClaw JSON
         or plain LLM response). Returns a small dict for the report UI."""
@@ -511,7 +517,7 @@ async def build_app() -> FastAPI:
                         async with _hx.AsyncClient(timeout=10.0) as _cli:
                             _resp = await _cli.get(f"{_erp}{_path}")
                             if _resp.status_code == 200:
-                                skill_result = _resp.json().get("items", _resp.json())[:15]
+                                skill_result = _erp_items(_resp.json())[:15]
                             else:
                                 skill_result = None
                     else:
@@ -718,7 +724,7 @@ async def build_app() -> FastAPI:
                 _r = await _cli.get(f"{_erp}/api/incidents/?handled=false")
                 if _r.status_code == 200:
                     data = _r.json()
-                    items = data.get("items", data)
+                    items = _erp_items(data)
                     return [
                         {"id": i["id"], "resident_id": i.get("resident_id", 0),
                          "content": i.get("description", ""),
@@ -755,7 +761,7 @@ async def build_app() -> FastAPI:
                 _r = await _cli2.get(f"{_erp}/api/incidents/")
                 if _r.status_code == 200:
                     data = _r.json()
-                    items = data.get("items", data)
+                    items = _erp_items(data)
                     severity_order = {"danger": 1, "warning": 2, "info": 3}
                     items.sort(key=lambda x: severity_order.get(x.get("severity", ""), 9))
                     alerts = [{
@@ -852,7 +858,7 @@ async def build_app() -> FastAPI:
                     _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c.get(f"{_erp_url}/api/inventory/low-stock/")
                     if _r.status_code == 200:
-                        inventory_alerts = len(_r.json())
+                        inventory_alerts = len(_erp_items(_r.json()))
             except Exception:
                 pass  # ERP unavailable — show 0 alerts
 
@@ -864,7 +870,7 @@ async def build_app() -> FastAPI:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c3.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
-                        pending_health_alerts = len(_r.json())
+                        pending_health_alerts = len(_erp_items(_r.json()))
             except Exception:
                 pass
 
@@ -892,7 +898,7 @@ async def build_app() -> FastAPI:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c4.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
-                        items = _r.json()
+                        items = _erp_items(_r.json())
                         sev_order = {"danger": 1, "warning": 2, "info": 3}
                         items.sort(key=lambda x: sev_order.get(x.get("severity", ""), 9))
                         focus_residents = [
@@ -916,7 +922,7 @@ async def build_app() -> FastAPI:
                         low_stock_items = [
                             {"item": i["name"], "quantity": i["quantity"],
                              "safety": i["safety_stock"], "unit": i["unit"]}
-                            for i in _r.json()
+                            for i in _erp_items(_r.json())
                         ]
             except Exception:
                 pass  # ERP unavailable — empty list

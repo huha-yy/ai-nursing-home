@@ -551,6 +551,8 @@ async def build_app() -> FastAPI:
         file_b64 = body.get("file", "") or image_b64  # compat with old 'image' field
         file_name = body.get("filename", "")
         file_type = body.get("filetype", "")
+        _log.info("chat file: has_file=%s type=%s name=%s len=%d",
+                  bool(file_b64), file_type, file_name, len(file_b64 or ""))
 
         if file_b64 and file_type.startswith("image/"):
             # Extract text via dl-ocr (Baidu Unlimited), then feed to LLM as context.

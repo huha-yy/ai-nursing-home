@@ -746,20 +746,30 @@ async def build_app() -> FastAPI:
             "building": getattr(sess, "building", None) or "",
             "floor": getattr(sess, "floor", None) or "",
         }
-        async with db.conn(user_id=None, role="system") as conn:
-            cur = await conn.execute(
-                "SELECT a.id, r.name, r.room, a.content, a.category, a.severity, a.created_at, a.handled "
-                "FROM nursing_health_alerts a "
-                "JOIN nursing_residents r ON a.resident_id = r.id "
-                "ORDER BY CASE a.severity WHEN 'danger' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END, a.created_at DESC"
-            )
-            rows = await cur.fetchall()
-        alerts = [{
-            "id": r[0], "name": r[1], "room": r[2], "content": r[3],
-            "category": r[4], "severity": r[5],
-            "created_at": r[6].strftime("%m月%d日 %H:%M:%S") if r[6] else "",
-            "handled": r[7],
-        } for r in rows]
+        # Fetch alerts from nursing-erp API
+        alerts = []
+        try:
+            import httpx as _hx2
+            _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+            async with _hx2.AsyncClient(timeout=10.0) as _cli2:
+                _r = await _cli2.get(f"{_erp}/api/incidents/")
+                if _r.status_code == 200:
+                    data = _r.json()
+                    items = data.get("items", data)
+                    severity_order = {"danger": 1, "warning": 2, "info": 3}
+                    items.sort(key=lambda x: severity_order.get(x.get("severity", ""), 9))
+                    alerts = [{
+                        "id": i["id"],
+                        "name": i.get("resident_name", ""),
+                        "room": i.get("building", "") + i.get("room", "").replace(i.get("building", ""), "") if i.get("building") else "",
+                        "content": i.get("description", ""),
+                        "category": i.get("category_display", i.get("category", "")),
+                        "severity": i.get("severity", ""),
+                        "created_at": i.get("created_at", "")[:19] if i.get("created_at") else "",
+                        "handled": i.get("handled", False),
+                    } for i in items]
+        except Exception:
+            pass
         return TEMPLATES.TemplateResponse(request, "nursing/alerts.html", {
             "active": "alerts",
             "nursing_user": nursing_user,
@@ -774,9 +784,9 @@ async def build_app() -> FastAPI:
         sess = await sessions.load(sid) if sid else None
         if sess is None or sess.role not in _NURSING_ROLES:
             return JSONResponse({"error": "unauthorized"}, 401)
-        async with db.conn(user_id=None, role="system") as conn:
-            await conn.execute(
-                "UPDATE nursing_health_alerts SET handled = true WHERE id = %s", (alert_id,)
+        # Mark as handled in nursing-erp — no equivalent write endpoint yet,
+        # so just acknowledge. The ERP Admin can mark incidents as handled.
+        return JSONResponse({"status": "ok", "message": "请在 ERP 管理后台标记为已处理"}, 200)
             )
         return JSONResponse({"ok": True})
 
@@ -848,10 +858,15 @@ async def build_app() -> FastAPI:
             except Exception:
                 pass  # ERP unavailable — show 0 alerts
 
-            row = await (await conn.execute(
-                "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
-            )).fetchone()
-            pending_health_alerts = row[0] if row else 0
+            # Health alerts from nursing-erp
+            pending_health_alerts = 0
+            try:
+                import httpx as _hx3
+                async with _hx3.AsyncClient(timeout=10.0) as _c3:
+                    _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                    _r = await _c3.get(f"{_erp}/api/incidents/?handled=false")
+                    if _r.status_code == 200:
+                        pending_health_alerts = len(_r.json())
 
             row = await (await conn.execute(
                 "SELECT count(*) FROM nursing_complaints WHERE status = 'pending'"
@@ -867,22 +882,28 @@ async def build_app() -> FastAPI:
 
             inventory_alerts_yesterday = inventory_alerts  # ERP provides live data; yesterday = today snapshot
 
-            row = await (await conn.execute(
-                "SELECT count(*) FROM nursing_health_alerts WHERE handled = FALSE"
-            )).fetchone()
-            pending_health_alerts_yesterday = row[0] if row else pending_health_alerts
+            pending_health_alerts_yesterday = pending_health_alerts  # same as above
 
-            # -- Focus residents (from unhandled health alerts) --
-            frows = await (await conn.execute(
-                "SELECT r.name, r.room, a.content, a.severity "
-                "FROM nursing_health_alerts a "
-                "JOIN nursing_residents r ON a.resident_id = r.id "
-                "WHERE a.handled = FALSE "
-                "ORDER BY CASE a.severity WHEN 'danger' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END "
-                "LIMIT 5"
-            )).fetchall()
-            focus_residents = [
-                {"name": r[0], "room": r[1], "reason": r[2], "severity": r[3]}
+            # -- Focus residents (from unhandled incidents via ERP) --
+            focus_residents = []
+            try:
+                import httpx as _hx4
+                async with _hx4.AsyncClient(timeout=10.0) as _c4:
+                    _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                    _r = await _c4.get(f"{_erp}/api/incidents/?handled=false")
+                    if _r.status_code == 200:
+                        items = _r.json()
+                        sev_order = {"danger": 1, "warning": 2, "info": 3}
+                        items.sort(key=lambda x: sev_order.get(x.get("severity", ""), 9))
+                        focus_residents = [
+                            {"name": i.get("resident_name", ""),
+                             "room": i.get("building", "") + (i.get("room","")[:3] if i.get("room") else ""),
+                             "reason": i.get("description", ""),
+                             "severity": i.get("severity", "")}
+                            for i in items[:5]
+                        ]
+            except Exception:
+                pass
                 for r in frows
             ]
 

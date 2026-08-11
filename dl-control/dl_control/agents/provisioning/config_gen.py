@@ -179,6 +179,7 @@ def render_env_file(
     cognee_internal_token: str = "",  # P5: fresh token minted at provision time
     gbrain_env_lines: str = "",  # P9: carried forward from existing .env
     comfyui_url: str = "",  # P10: ComfyUI remote URL (e.g. http://192.168.10.70:8188)
+    dl_ocr_url: str = "",  # P10: dl-ocr remote URL (e.g. http://192.168.10.247:18080)
     # Nursing context (Task 3) — injected into agent containers for role-based access.
     nursing_role: str = "",
     nursing_dept: str = "",
@@ -215,6 +216,10 @@ def render_env_file(
         result += gbrain_env_lines
     if comfyui_url:
         result += f"COMFYUI_URL={_sh_single_quote(comfyui_url)}\n"
+    if dl_ocr_url:
+        result += f"DL_OCR_URL={_sh_single_quote(dl_ocr_url)}\n"
+    else:
+        result += "DL_OCR_URL='http://192.168.10.247:18080'\n"
     # Nursing context env vars (Task 3) — injected for role-based agent access.
     result += f"NURSING_ROLE={_sh_single_quote(nursing_role)}\n"
     result += f"NURSING_DEPT={_sh_single_quote(nursing_dept)}\n"

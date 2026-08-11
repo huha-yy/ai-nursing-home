@@ -3,6 +3,7 @@ display_name: "总务科"
 tier: tier0
 admin_only: false
 skill_list:
+  - vision-ocr
   - nursing-erp-query
   - logistics-inventory
   - logistics-query

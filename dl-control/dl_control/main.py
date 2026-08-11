@@ -409,6 +409,7 @@ async def build_app() -> FastAPI:
     @app.post("/api/nursing/chat")
     async def nursing_chat_post(request: _Request):
         import httpx, json, time, logging, shlex
+        logging.getLogger("nursing.chat").warning(">>>> CHAT POST RECEIVED <<<<")
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
@@ -433,6 +434,45 @@ async def build_app() -> FastAPI:
             chats = await _get_user_chats(sess.user_id)
             chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
             await _save_user_chats(sess.user_id, chats)
+
+        # ── File handling: OCR images before skill detection ──
+        file_b64 = body.get("file", "") or image_b64
+        file_name = body.get("filename", "")
+        file_type = body.get("filetype", "")
+
+        if file_b64 and file_type.startswith("image/"):
+            ocr_text = ""
+            try:
+                ocr_url = os.environ.get("DL_OCR_URL", "http://dl-ocr:8080")
+                ocr_token = os.environ.get("DL_OCR_API_TOKEN", os.environ.get("DL_INTERNAL_API_KEY", ""))
+                headers = {}
+                if ocr_token:
+                    headers["Authorization"] = f"Bearer {ocr_token}"
+                async with httpx.AsyncClient(timeout=60.0) as ocr_client:
+                    ocr_resp = await ocr_client.post(
+                        f"{ocr_url}/v1/ocr",
+                        json={"image": file_b64},
+                        headers=headers,
+                    )
+                    if ocr_resp.status_code == 200:
+                        ocr_data = ocr_resp.json()
+                        ocr_text = ocr_data.get("text", "").strip()
+            except Exception:
+                pass
+
+            if ocr_text:
+                # Clean OCR text: collapse whitespace, remove noise
+                import re as _re
+                ocr_text = _re.sub(r'\n{3,}', '\n\n', ocr_text)  # max 2 consecutive newlines
+                ocr_text = _re.sub(r' {2,}', ' ', ocr_text)       # collapse multiple spaces
+                ocr_text = ocr_text.strip()
+                user_question = message or ""
+                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}"
+                if user_question:
+                    message += f"\n\n用户问题：{user_question}"
+            else:
+                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
+            file_b64 = ""
 
         # ── Skill intent detection (run first) ────────────────────
         skill_result = None
@@ -547,39 +587,6 @@ async def build_app() -> FastAPI:
         history = await _get_chat_msgs(chat_id)
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(history[-20:])
-        # File upload: distinguish images from other files
-        file_b64 = body.get("file", "") or image_b64  # compat with old 'image' field
-        file_name = body.get("filename", "")
-        file_type = body.get("filetype", "")
-        _log.info("chat file: has_file=%s type=%s name=%s len=%d",
-                  bool(file_b64), file_type, file_name, len(file_b64 or ""))
-
-        if file_b64 and file_type.startswith("image/"):
-            # Extract text via dl-ocr (Baidu Unlimited), then feed to LLM as context.
-            ocr_text = ""
-            try:
-                ocr_url = os.environ.get("DL_OCR_URL", "http://dl-ocr:8080")
-                ocr_token = os.environ.get("DL_OCR_API_TOKEN", os.environ.get("DL_INTERNAL_API_KEY", ""))
-                headers = {}
-                if ocr_token:
-                    headers["Authorization"] = f"Bearer {ocr_token}"
-                async with httpx.AsyncClient(timeout=60.0) as ocr_client:
-                    ocr_resp = await ocr_client.post(
-                        f"{ocr_url}/v1/ocr",
-                        json={"image": file_b64},
-                        headers=headers,
-                    )
-                    if ocr_resp.status_code == 200:
-                        ocr_data = ocr_resp.json()
-                        ocr_text = ocr_data.get("text", "").strip()
-            except Exception:
-                pass  # OCR unavailable — fall through to text-only processing
-
-            if ocr_text:
-                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}\n\n用户问题：{message or '请根据以上内容回答'}"
-            else:
-                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or '请描述你看到的图片内容'}"
-            file_b64 = ""  # consumed — don't process again below
 
         if file_b64 and not file_type.startswith("image/"):
             try:

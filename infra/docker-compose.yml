@@ -181,6 +181,8 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DL_CONTROL_LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://dl-llm-proxy:8080/v1}
       DL_CONTROL_LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      DL_OCR_URL: ${DL_OCR_URL:-http://dl-ocr-unlimited:8080}
+      DL_OCR_API_TOKEN: ${DL_OCR_API_TOKEN:-}
       # P13c pilot SMTP (optional — workflows that send email need these).
       DL_CONTROL_SMTP_HOST: ${DL_CONTROL_SMTP_HOST:-}
       DL_CONTROL_SMTP_PORT: ${DL_CONTROL_SMTP_PORT:-587}

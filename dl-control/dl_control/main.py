@@ -553,13 +553,19 @@ async def build_app() -> FastAPI:
         file_type = body.get("filetype", "")
 
         if file_b64 and file_type.startswith("image/"):
-            # Extract text via dl-ocr, then feed to LLM as context.
+            # Extract text via dl-ocr (Baidu Unlimited), then feed to LLM as context.
             ocr_text = ""
             try:
+                ocr_url = os.environ.get("DL_OCR_URL", "http://dl-ocr:8080")
+                ocr_token = os.environ.get("DL_OCR_API_TOKEN", os.environ.get("DL_INTERNAL_API_KEY", ""))
+                headers = {}
+                if ocr_token:
+                    headers["Authorization"] = f"Bearer {ocr_token}"
                 async with httpx.AsyncClient(timeout=60.0) as ocr_client:
                     ocr_resp = await ocr_client.post(
-                        "http://dl-ocr:8080/v1/ocr",
+                        f"{ocr_url}/v1/ocr",
                         json={"image": file_b64},
+                        headers=headers,
                     )
                     if ocr_resp.status_code == 200:
                         ocr_data = ocr_resp.json()

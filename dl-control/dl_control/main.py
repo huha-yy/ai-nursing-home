@@ -787,8 +787,6 @@ async def build_app() -> FastAPI:
         # Mark as handled in nursing-erp — no equivalent write endpoint yet,
         # so just acknowledge. The ERP Admin can mark incidents as handled.
         return JSONResponse({"status": "ok", "message": "请在 ERP 管理后台标记为已处理"}, 200)
-            )
-        return JSONResponse({"ok": True})
 
     @app.get("/work-orders", response_class=HTMLResponse)
     async def nursing_work_orders_page(request: _Request):
@@ -867,6 +865,8 @@ async def build_app() -> FastAPI:
                     _r = await _c3.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
                         pending_health_alerts = len(_r.json())
+            except Exception:
+                pass
 
             row = await (await conn.execute(
                 "SELECT count(*) FROM nursing_complaints WHERE status = 'pending'"
@@ -904,8 +904,6 @@ async def build_app() -> FastAPI:
                         ]
             except Exception:
                 pass
-                for r in frows
-            ]
 
             # -- Low stock items from nursing-erp --
             low_stock_items = []

@@ -102,8 +102,10 @@ var LABEL = '{{ role_label }}';
         var reader = new FileReader();
         reader.onload = function(ev) {
           var b64 = ev.target.result.split(',')[1];
-          setAttachment(b64, 'image.png', 'image/png',
-            '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">');
+          resizeImage(b64, 1500, function(b64r) {
+            setAttachment(b64r, 'image.jpg', 'image/jpeg',
+              '<img src="data:image/jpeg;base64,' + b64r + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">');
+          });
         };
         reader.readAsDataURL(blob);
         return;
@@ -112,6 +114,22 @@ var LABEL = '{{ role_label }}';
   });
 
   function setAttachment(b64, name, type, previewHtml) {
+
+  // Resize large images on the client before upload
+  function resizeImage(b64, maxDim, callback) {
+    var img = new Image();
+    img.onload = function() {
+      if (img.width <= maxDim && img.height <= maxDim) { callback(b64); return; }
+      var ratio = maxDim / Math.max(img.width, img.height);
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width * ratio);
+      c.height = Math.round(img.height * ratio);
+      var ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      callback(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+    };
+    img.src = 'data:image/jpeg;base64,' + b64;
+  }
     pendingAttachment = { base64: b64, filename: name, type: type, previewHtml: previewHtml };
     var preview = document.getElementById('img-preview');
     preview.innerHTML = previewHtml +
@@ -321,11 +339,15 @@ var LABEL = '{{ role_label }}';
     var reader = new FileReader();
     reader.onload = function(ev) {
       var b64 = isImage ? ev.target.result.split(',')[1] : btoa(ev.target.result);
-      var previewHtml = isImage
-        ? '<img src="' + ev.target.result + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">'
-        : '<div style="display:inline-block;background:#fff3e0;padding:8px 12px;border-radius:8px;margin:4px">📄 </div>';
-      setAttachment(b64, f.name, f.type, previewHtml);
-    };
+      if (isImage) {
+        resizeImage(b64, 1500, function(b64r) {
+          setAttachment(b64r, f.name || 'image.jpg', 'image/jpeg',
+            '<img src="data:image/jpeg;base64,' + b64r + '" style="max-width:200px;max-height:150px;border-radius:8px;margin:4px">');
+        });
+      } else {
+        setAttachment(b64, f.name, f.type,
+          '<div style="display:inline-block;background:#fff3e0;padding:8px 12px;border-radius:8px;margin:4px">📄 </div>');
+      }
     if (isImage) reader.readAsDataURL(f);
     else reader.readAsBinaryString(f);
   }

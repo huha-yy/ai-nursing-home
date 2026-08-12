@@ -36,3 +36,4 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=10 \
   CMD curl -fsS http://localhost:8080/api/health || exit 1
 CMD ["uvicorn", "dl_control.main:app", "--host", "0.0.0.0", "--port", "8080", \
      "--proxy-headers", "--forwarded-allow-ips=*"]
+RUN pip install Pillow

@@ -348,6 +348,7 @@ var LABEL = '{{ role_label }}';
         setAttachment(b64, f.name, f.type,
           '<div style="display:inline-block;background:#fff3e0;padding:8px 12px;border-radius:8px;margin:4px">📄 </div>');
       }
+    };
     if (isImage) reader.readAsDataURL(f);
     else reader.readAsBinaryString(f);
   }

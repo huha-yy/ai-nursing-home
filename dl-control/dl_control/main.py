@@ -415,6 +415,7 @@ async def build_app() -> FastAPI:
     @app.post("/api/nursing/chat")
     async def nursing_chat_post(request: _Request):
         import httpx, json, time, logging, shlex
+        from datetime import datetime
         logging.getLogger("nursing.chat").warning(">>>> CHAT POST RECEIVED <<<<")
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
@@ -591,9 +592,8 @@ async def build_app() -> FastAPI:
             return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)
-        from datetime import datetime
-        today = datetime.now().strftime("%Y年%m月%d日 %A")
-        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today}。当前用户：{sess.name}，角色：{sess.role}"]
+        today_str = datetime.now().strftime("%Y年%m月%d日 %A")
+        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
         if sess.dept: context_parts.append(f"科室：{sess.dept}")
         if sess.building: context_parts.append(f"楼栋：{sess.building}")
         if sess.floor: context_parts.append(f"楼层：{sess.floor}")

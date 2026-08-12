@@ -850,7 +850,7 @@ body.login-page::after {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 360px;
+  max-height: 300px;
   overflow-y: auto;
   padding-right: 4px;
 }

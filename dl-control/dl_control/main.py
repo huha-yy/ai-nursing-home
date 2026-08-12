@@ -467,10 +467,26 @@ async def build_app() -> FastAPI:
                 headers = {}
                 if ocr_token:
                     headers["Authorization"] = f"Bearer {ocr_token}"
-                async with httpx.AsyncClient(timeout=180.0) as ocr_client:
+                # Resize large images to avoid OCR timeout
+                _ocr_image = file_b64
+                if len(file_b64) > 300000:  # ~225KB raw — likely high-res
+                    try:
+                        from PIL import Image as _PILImage
+                        import io as _io
+                        _raw = _b64.b64decode(file_b64)
+                        _img = _PILImage.open(_io.BytesIO(_raw))
+                        if max(_img.size) > 1500:
+                            _ratio = 1500 / max(_img.size)
+                            _img = _img.resize((int(_img.size[0]*_ratio), int(_img.size[1]*_ratio)), _PILImage.LANCZOS)
+                            _buf = _io.BytesIO()
+                            _img.save(_buf, 'JPEG', quality=75)
+                            _ocr_image = _b64.b64encode(_buf.getvalue()).decode()
+                    except Exception:
+                        pass  # keep original if resize fails
+                async with httpx.AsyncClient(timeout=300.0) as ocr_client:
                     ocr_resp = await ocr_client.post(
                         f"{ocr_url}/v1/ocr",
-                        json={"image": file_b64},
+                        json={"image": _ocr_image},
                         headers=headers,
                     )
                     if ocr_resp.status_code == 200:

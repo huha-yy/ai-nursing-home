@@ -502,7 +502,7 @@ async def build_app() -> FastAPI:
                 ocr_text = _re.sub(r' {2,}', ' ', ocr_text)
                 ocr_text = ocr_text.strip()
                 user_question = message or ""
-                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}"
+                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:6000]}"
                 if user_question:
                     message += f"\n\n用户问题：{user_question}"
             else:

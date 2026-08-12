@@ -482,19 +482,15 @@ async def build_app() -> FastAPI:
             if ocr_text:
                 # Clean OCR text: collapse whitespace, remove noise
                 import re as _re
-                ocr_text = _re.sub(r'\n{3,}', '\n\n', ocr_text)  # max 2 consecutive newlines
-                ocr_text = _re.sub(r' {2,}', ' ', ocr_text)       # collapse multiple spaces
+                ocr_text = _re.sub(r'\n{3,}', '\n\n', ocr_text)
+                ocr_text = _re.sub(r' {2,}', ' ', ocr_text)
                 ocr_text = ocr_text.strip()
                 user_question = message or ""
                 message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}"
-                if saved_image_path:
-                    message += f"\n[图片路径: {saved_image_path}]"
                 if user_question:
                     message += f"\n\n用户问题：{user_question}"
             else:
                 message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
-                if saved_image_path:
-                    message += f"\n[图片路径: {saved_image_path}]"
                 message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
             file_b64 = ""
 

@@ -447,10 +447,21 @@ async def build_app() -> FastAPI:
         file_name = body.get("filename", "")
         file_type = body.get("filetype", "")
         had_attachment = bool(file_b64)  # remember before OCR consumes it
+        saved_image_path = ""
 
         if file_b64 and file_type.startswith("image/"):
             ocr_text = ""
             try:
+                # Save image to disk before OCR
+                import base64 as _b64
+                _img_dir = "/data/uploads/ocr"
+                os.makedirs(_img_dir, exist_ok=True)
+                _img_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_name or 'image.png'}"
+                _img_path = os.path.join(_img_dir, _img_name)
+                with open(_img_path, "wb") as _f:
+                    _f.write(_b64.b64decode(file_b64))
+                saved_image_path = _img_path
+
                 ocr_url = os.environ.get("DL_OCR_URL", "http://dl-ocr:8080")
                 ocr_token = os.environ.get("DL_OCR_API_TOKEN", os.environ.get("DL_INTERNAL_API_KEY", ""))
                 headers = {}
@@ -476,9 +487,14 @@ async def build_app() -> FastAPI:
                 ocr_text = ocr_text.strip()
                 user_question = message or ""
                 message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:2000]}"
+                if saved_image_path:
+                    message += f"\n[图片路径: {saved_image_path}]"
                 if user_question:
                     message += f"\n\n用户问题：{user_question}"
             else:
+                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
+                if saved_image_path:
+                    message += f"\n[图片路径: {saved_image_path}]"
                 message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
             file_b64 = ""
 

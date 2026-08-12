@@ -416,7 +416,6 @@ async def build_app() -> FastAPI:
     async def nursing_chat_post(request: _Request):
         import httpx, json, time, logging, shlex
         from datetime import datetime
-        logging.getLogger("nursing.chat").warning(">>>> CHAT POST RECEIVED <<<<")
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None

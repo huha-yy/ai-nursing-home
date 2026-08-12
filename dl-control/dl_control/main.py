@@ -467,7 +467,7 @@ async def build_app() -> FastAPI:
                 headers = {}
                 if ocr_token:
                     headers["Authorization"] = f"Bearer {ocr_token}"
-                async with httpx.AsyncClient(timeout=60.0) as ocr_client:
+                async with httpx.AsyncClient(timeout=180.0) as ocr_client:
                     ocr_resp = await ocr_client.post(
                         f"{ocr_url}/v1/ocr",
                         json={"image": file_b64},

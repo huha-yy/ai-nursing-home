@@ -454,7 +454,7 @@ async def build_app() -> FastAPI:
             try:
                 # Save image to disk before OCR
                 import base64 as _b64
-                _img_dir = "/data/uploads/ocr"
+                _img_dir = "/tmp/ocr_uploads"
                 os.makedirs(_img_dir, exist_ok=True)
                 _img_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_name or 'image.png'}"
                 _img_path = os.path.join(_img_dir, _img_name)

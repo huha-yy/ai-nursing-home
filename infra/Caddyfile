@@ -56,7 +56,8 @@
 :9080 {
     handle {
         reverse_proxy dato-control:8080 {
-            header_up X-Forwarded-Proto http
+            header_up -X-Forwarded-Proto
+            header_up X-Forwarded-Proto https
         }
     }
 }

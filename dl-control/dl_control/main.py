@@ -16,6 +16,7 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from redis.asyncio import Redis
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request as _Request
@@ -46,6 +47,16 @@ TEMPLATES = Jinja2Templates(
     directory=str(PACKAGE_DIR / "templates"),
     context_processors=[_i18n_context],
 )
+
+
+class _NursingWorkflowStart(BaseModel):
+    """Request body for triggering the multi-agent nursing ops workflow."""
+
+    building: str = "3号楼"
+    nursing_agent_id: str | None = None
+    logistics_agent_id: str | None = None
+    general_agent_id: str | None = None
+    director_agent_id: str | None = None
 
 
 async def build_app() -> FastAPI:
@@ -510,6 +521,34 @@ async def build_app() -> FastAPI:
                 message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
             file_b64 = ""
 
+        # ── Weekly report workflow trigger (before skill intent) ──
+        if any(kw in message for kw in ("报表", "周报", "运营报表")):
+            from dl_control.workflows import runs as _wfruns
+            from dl_control.workflows.wake import publish_wake as _wfpw
+
+            try:
+                _run_input = {"building": getattr(sess, "building", None) or "3号楼"}
+                async with db.conn(user_id=None, role="system") as _wconn:
+                    await _wfruns.start_run(
+                        _wconn,
+                        workflow_id="nursing.ops",
+                        trigger="manual",
+                        run_input=_run_input,
+                        actor_user_id=None,  # nursing users use text IDs (u001…), not UUIDs,
+                    )
+                await _wfpw(redis, reason="nursing_workflow_chat")
+                return JSONResponse({
+                    "reply": "已启动本周运营报表生成，正在协调护理科、总务科、财务科等 AI 助手协作。请稍后到顶部「周报」页面查看结果。",
+                    "chat_id": chat_id,
+                }, 200)
+            except _wfruns.DuplicateActiveRunError:
+                return JSONResponse({
+                    "reply": "本周运营报表正在生成中，请稍后到顶部「周报」页面查看结果。",
+                    "chat_id": chat_id,
+                }, 200)
+            except Exception as _we:
+                logging.getLogger(__name__).warning(f"workflow trigger failed: {_we}")
+
         # ── Skill intent detection (run first) ────────────────────
         skill_result = None
         matched_skill = None
@@ -545,7 +584,7 @@ async def build_app() -> FastAPI:
                         async with _hx.AsyncClient(timeout=10.0) as _cli:
                             _resp = await _cli.get(f"{_erp}{_path}")
                             if _resp.status_code == 200:
-                                skill_result = _erp_items(_resp.json())[:15]
+                                skill_result = _erp_items(_resp.json())[:50]
                             else:
                                 skill_result = None
                     else:
@@ -553,7 +592,7 @@ async def build_app() -> FastAPI:
                             cur = await conn.execute(sql)
                             rows = await cur.fetchall()
                             cols = [d[0] for d in cur.description]
-                            skill_result = [dict(zip(cols, r)) for r in rows][:15]
+                            skill_result = [dict(zip(cols, r)) for r in rows][:50]
                 except Exception as _e:
                     import logging
                     logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
@@ -589,7 +628,7 @@ async def build_app() -> FastAPI:
                         # Inject skill data into message for Agent
                         agent_msg = message
                         if skill_result is not None:
-                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:2000]}\n\n用户问题：{message}\n请根据以上真实数据回答，不要编造。"
+                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]}\n\n用户问题：{message}\n请根据以上真实数据回答，不要编造。"
                         async with httpx.AsyncClient(timeout=60.0) as client:
                             resp = await client.post(
                                 f"http://dato-agent-{agent_id}:18790/dato/chat",
@@ -620,14 +659,14 @@ async def build_app() -> FastAPI:
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)
         today_str = datetime.now().strftime("%Y年%m月%d日 %A")
-        context_parts = [f"你是杭州市第三社会福利院（市三福院）的AI养老院院长助手。福利院位于杭州上城区皋亭山风景区，占地169亩，设1752张床位，26栋居住楼，约350名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
+        context_parts = [f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
         if sess.dept: context_parts.append(f"科室：{sess.dept}")
         if sess.building: context_parts.append(f"楼栋：{sess.building}")
         if sess.floor: context_parts.append(f"楼层：{sess.floor}")
         context_parts.append("请用中文简洁回答用户的问题。")
         system_prompt = "。".join(context_parts)
         if skill_result is not None:
-            data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:3000]
+            data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
             system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
         api_key = s.deepseek_api_key.get_secret_value()
         if not api_key:
@@ -1014,15 +1053,6 @@ async def build_app() -> FastAPI:
         }
 
     # -- Nursing workflow trigger (Task 9) --
-    from pydantic import BaseModel as _NursingWfBaseModel
-
-    class _NursingWorkflowStart(_NursingWfBaseModel):
-        building: str = "3号楼"
-        nursing_agent_id: str | None = None
-        logistics_agent_id: str | None = None
-        general_agent_id: str | None = None
-        director_agent_id: str | None = None
-
     @app.post("/api/nursing/workflow/start")
     async def nursing_workflow_start(request: _Request, body: _NursingWorkflowStart):
         """Trigger the multi-agent nursing ops workflow.
@@ -1053,7 +1083,7 @@ async def build_app() -> FastAPI:
                     workflow_id="nursing.ops",
                     trigger="manual",
                     run_input=run_input,
-                    actor_user_id=sess.user_id,
+                    actor_user_id=None,  # nursing users use text IDs (u001…), not UUIDs,
                 )
         except _wfruns.UnknownWorkflowError:
             raise HTTPException(status_code=404, detail="nursing.ops workflow not found") from None

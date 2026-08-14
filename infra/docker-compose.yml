@@ -155,7 +155,7 @@ services:
       dockerfile: dl-control/Dockerfile
     image: dato-control:latest
     container_name: dato-control
-    command: ["uvicorn", "dl_control.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+    command: ["uvicorn", "dl_control.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--proxy-headers"]
     restart: unless-stopped
     user: "1000:1000"
     cap_drop:

@@ -24,6 +24,7 @@
 | 07-09 下一阶段 | 🅰 内容填充 🔵 同步脚本 | 📋 待实施 |
 | [07-08 GBrain 引入计划](#anchor-gbrain) | GBrain 作为一线人员知识平台，6 周实施计划 | 📋 待实施 |
 | [07-28 养老院第二家客户](#anchor-nursing-home2) | 杭州市社会福利中心调研问卷（88 问） | 📋 |
+| [08-13 nursing-erp OCR 完成](#anchor-ocr) | 菜单OCR+点餐OCR+LLM纠错+跨页+断电恢复 | ✅ |
 | [待办汇总](#anchor-todo) | 🔲 未来工作 | 🔲 |
 
 ---
@@ -778,3 +779,91 @@ AI 养老院院长项目 MVP 首发客户为 **杭州市第三社会福利院**�
 
 - 养老院现场部署时：DNS 服务器地址固化、iptables 持久化、新服务器重置 API 凭据
 - 社会福利中心适配：Agent 架构需从"楼栋负责制"改为"网格化 + 分区制"
+---
+
+## <a id="anchor-ocr"></a>nursing-erp OCR 功能完成 + 断电恢复（2026-08-13）
+
+### 一、两个项目现状
+
+**nursing-erp**（养老院业务系统，独立仓库 `github.com/huha-yy/nursing-erp`）：
+- Django 6 + django-unfold + django-ninja，SQLite（开发）/ PostgreSQL（生产）
+- 独立部署目录 `/home/nursing-home/huha-project/nursing-erp/`
+- 开发服务器：`cd nursing-erp && DEBUG=true ALLOWED_HOSTS="*" .venv/bin/python manage.py runserver 0.0.0.0:8765`（手动启动，断电不自启）
+
+**ai-nursing-home**（AI 系统，`github.com/huha-yy/ai-nursing-home`）：
+- Docker Compose 部署，10+ 容器（dato-control/postgres/redis/cognee/llm-proxy/gbrain/15个agent/ocr等）
+- 断电自动恢复（`restart: unless-stopped`）
+
+### 二、OCR 功能（本次核心，全部完成）
+
+两个 OCR 场景 + LLM 双引擎：
+
+| 页面 | 地址 | 用途 | 落库 |
+|------|------|------|------|
+| 菜单 OCR | `/menu-ocr/` | 食堂拍周菜单 | WeekMenu |
+| 点餐 OCR | `/meal-order-ocr/` | 选老人+拍点餐单 | MealOrder |
+
+**核心架构：OCR 看图识字 + LLM 理解纠错**
+```
+拍照 → Baidu OCR 提取文字 → DeepSeek LLM 结构化+纠错 → 匹配菜品库 → 落库
+```
+
+关键文件（nursing-erp）：
+- `nursing_erp/llm.py` — DeepSeek 调用封装（重试2次+90s超时）
+- `meals/api.py` — `_ocr_extract_multi`（跨页）、`_llm_structure`（mode=menu/order）、`_dish_match`（整词匹配）、`_parse_order_item`（括号特殊要求）
+- `templates/menu_ocr.html`、`templates/meal_order_ocr.html` — 前端
+
+能力清单：
+- ✅ LLM 结构化（识别星期/餐次层级，不再逐行手动标注）
+- ✅ LLM 纠错（清蒸鲈渔→清蒸鲈鱼，对齐菜品库93道菜）
+- ✅ 特殊要求识别（少盐/不吃(外出)，点餐OCR）
+- ✅ 跨页合并（多张图标注【第N页】，LLM自动合并）
+- ✅ 前端图片压缩（Canvas 1600px，避免大图OCR超时）
+- ✅ 整词匹配算法（`_dish_match`，拒绝单字重叠误匹配）
+
+测试文档：`docs/OCR/测试菜单.md`、`docs/OCR/测试老人点餐单.md`
+
+### 三、AI/ERP 数据对接（Mock → 真实数据）
+
+ai-nursing-home 的 Dashboard 和 Chat 技能查询，已从 Mock 表切换到 nursing-erp API：
+
+| 查询类型 | 之前 | 现在 |
+|------|------|------|
+| 库存预警 | nursing_inventory Mock表 | GET /api/inventory/low-stock/ |
+| 排班 | nursing_schedules Mock表 | GET /api/schedules/ |
+| 老人 | nursing_residents Mock表 | GET /api/residents/ |
+| 菜单 | nursing_meals Mock表 | GET /api/meal-plans/ |
+| 异常 | nursing_health_alerts Mock表 | GET /api/incidents/ |
+| 员工 | nursing_users Mock表 | GET /api/employees/ |
+
+关键实现：`main.py` 里 SKILL_QUERIES 用 `API:/path` 前缀标识走 API，`_erp_items()` 解析分页响应。环境变量 `NURSING_ERP_URL`。
+
+### 四、断电恢复（2026-08-13）
+
+服务器意外断电，排查修复：
+
+1. **Docker 服务** — 自动恢复（restart policy），无需处理
+2. **nursing-erp 开发服务器** — 手动 runserver 不自启，需重启
+3. **Clash 代理**（`127.0.0.1:7890`）— 断电后没启动，导致外网（DeepSeek/unsplash）全断
+   - 修复：`systemctl --user start clash`
+   - 持久化：`sudo loginctl enable-linger daneenon`（user 服务无登录自启）
+4. **防火墙 iptables** — 断电后 DOCKER-USER 规则丢失，HTTPS 443/9443 端口被拦
+   - 修复：放行 443/9443/9080/9081 + `netfilter-persistent save`
+5. **登录背景图** — 引用外部 unsplash，服务器外网断则空白
+   - 修复：下载到本地 `static/login-bg.jpg`，改本地引用
+
+### 五、关键技术点/踩坑
+
+- **DeepSeek API key** 触发 GitHub secret scanning（sk-开头），已移到 `.env`（gitignore），settings.py 用 `os.environ.setdefault` 读
+- **OCR 大图超时**：手机照片 4000px+ 会导致 OCR 超时，前端必须 Canvas 压缩
+- **LLM 偶发抖动**：DeepSeek 偶尔超时导致结构化返回空，已加重试
+- **Django unfold 嵌套 `<style>` 标签**：误加导致主 CSS 全失效（图标白色/Toast白色），已修
+- **容器 read_only**：pip 装包会丢，Pillow 等需进 Dockerfile
+
+### 六、待办（后续会话）
+
+- [ ] nursing-erp 生产部署（Docker 化，PostgreSQL + Gunicorn）
+- [ ] 菜单 OCR 未匹配菜名的人工处理流程（前端目前只红色标出，不能直接添加菜品库）
+- [ ] 老人点餐 OCR 的"不吃/外出"特殊要求的落库细节完善
+- [ ] 养老院现场部署（DNS固化、iptables持久化、重置API凭据）
+- [ ] 社会福利中心适配（网格化+分区制 Agent 架构）

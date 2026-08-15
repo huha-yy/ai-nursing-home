@@ -111,6 +111,22 @@ function simpleMd(t){
   return s;
 }
 
+function fmtTs(ts){
+  if(!ts) return {date:'', time:''};
+  var m = String(ts).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  if(m) return {date: m[1], time: m[2]};
+  return {date: String(ts).slice(0,10), time:''};
+}
+function durMin(a,b){
+  if(!a || !b) return '';
+  var ta=new Date(String(a).replace(' ','T')), tb=new Date(String(b).replace(' ','T'));
+  if(isNaN(ta) || isNaN(tb)) return '';
+  var m=Math.round((tb-ta)/60000);
+  if(m<1) return '不到 1 分钟';
+  if(m<60) return m+' 分钟';
+  return Math.floor(m/60)+' 小时 '+(m%60)+' 分钟';
+}
+
 (async function(){
   var el = document.getElementById('rp-body');
   try {
@@ -130,12 +146,14 @@ function simpleMd(t){
     data.runs.forEach(function(run){
       var sc = run.status === 'succeeded' ? 'ok' : (run.status === 'failed' ? 'fail' : 'run');
       var st = run.status === 'succeeded' ? '已完成' : (run.status === 'failed' ? '失败' : run.status);
+      var cts = fmtTs(run.created_at), fts = fmtTs(run.finished_at);
+      var dur = run.status === 'succeeded' ? durMin(run.created_at, run.finished_at) : '';
       html += '<div class="nh-rp-run">';
       html += '<div class="nh-rp-run-head">';
-      html += '<span class="nh-rp-run-id">#' + run.id.slice(0,8) + '</span>';
+      html += '<span class="nh-rp-run-id">' + (cts.date || '本期') + '</span>';
       html += '<span class="nh-rp-run-status ' + sc + '">' + st + '</span>';
       html += '</div>';
-      html += '<div class="nh-rp-run-time">' + (run.created_at||'') + ' → ' + (run.finished_at||'进行中') + '</div>';
+      html += '<div class="nh-rp-run-time">' + (cts.time || '') + ' ~ ' + (fts.time || '进行中') + (dur ? ' · 用时 ' + dur : '') + '</div>';
       html += '<div class="nh-rp-steps" style="margin-top:.7rem">';
       var keys = Object.keys(run.steps).sort();
       keys.forEach(function(k,i){

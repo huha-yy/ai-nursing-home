@@ -20,6 +20,9 @@
   .nh-msg-ai h3, .nh-msg-ai h4 { margin: 10px 0 4px 0; }
   .nh-msg-ai hr { margin: 8px 0; }
   .nh-msg-user img { max-width: 240px; max-height: 200px; border-radius: 8px; display: block; margin-bottom: 4px; }
+  /* 快捷查询按钮 */
+  .quick-q { display: block; width: 100%; text-align: left; padding: 6px 10px; margin: 3px 0; border: 1px solid #f0e8db; border-radius: 6px; background: #fff; color: #4a3728; font-size: 13px; cursor: pointer; transition: all .15s; }
+  .quick-q:hover { background: #fdf6ec; border-color: #E67E22; color: #E67E22; }
 </style>
 
 {% set label_map = {
@@ -48,15 +51,37 @@
     </div>
 
     {% if role == 'director' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 全院在院老人总数<br>· 今日排班情况<br>· 库存预警物资<br>· 未处理健康告警<br>· 本日护理完成率</p></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3>
+      <button class="quick-q" onclick="quickAsk('全院在院老人总数')">全院在院老人总数</button>
+      <button class="quick-q" onclick="quickAsk('今日排班情况')">今日排班情况</button>
+      <button class="quick-q" onclick="quickAsk('库存预警物资')">库存预警物资</button>
+      <button class="quick-q" onclick="quickAsk('未处理健康告警')">未处理健康告警</button>
+      <button class="quick-q" onclick="quickAsk('本日护理完成率')">本日护理完成率</button>
+    </div>
     {% elif role == 'nursing_dept' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 今日排班表<br>· 工单完成率<br>· 某楼栋当班人员</p></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3>
+      <button class="quick-q" onclick="quickAsk('今日排班表')">今日排班表</button>
+      <button class="quick-q" onclick="quickAsk('工单完成率')">工单完成率</button>
+      <button class="quick-q" onclick="quickAsk('某楼栋当班人员')">某楼栋当班人员</button>
+    </div>
     {% elif role == 'logistics_dept' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 库存盘点<br>· 低于安全线的物资<br>· 采购建议</p></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3>
+      <button class="quick-q" onclick="quickAsk('库存盘点')">库存盘点</button>
+      <button class="quick-q" onclick="quickAsk('低于安全线的物资')">低于安全线的物资</button>
+      <button class="quick-q" onclick="quickAsk('采购建议')">采购建议</button>
+    </div>
     {% elif role in ('building', 'floor') %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 本楼老人情况<br>· 今天谁当班<br>· 本日菜单和活动</p></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3>
+      <button class="quick-q" onclick="quickAsk('本楼老人情况')">本楼老人情况</button>
+      <button class="quick-q" onclick="quickAsk('今天谁当班')">今天谁当班</button>
+      <button class="quick-q" onclick="quickAsk('本日菜单和活动')">本日菜单和活动</button>
+    </div>
     {% else %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3><p style="font-size:0.84rem;color:var(--nh-text-dim);margin:0.3rem 0">在聊天中问我：<br>· 今日菜单<br>· 活动安排<br>· 院内通知</p></div>
+    <div class="nh-sidebar-section"><h3>快捷查询</h3>
+      <button class="quick-q" onclick="quickAsk('今日菜单')">今日菜单</button>
+      <button class="quick-q" onclick="quickAsk('活动安排')">活动安排</button>
+      <button class="quick-q" onclick="quickAsk('院内通知')">院内通知</button>
+    </div>
     {% endif %}
 
     <div class="nh-sidebar-footer">杭州市社会福利中心<br>AI 养老院院长 v0.1</div>
@@ -334,6 +359,15 @@ var LABEL = '{{ role_label }}';
 
   loadChatList();
 })();
+
+// 快捷查询：点击直接发送给 AI
+function quickAsk(text){
+  var ta = document.getElementById('chat-input');
+  if(!ta) return;
+  ta.value = text;
+  var btn = document.getElementById('chat-send');
+  if(btn) btn.click();  // 触发 sendMsg
+}
 </script>
 
 {% endblock %}

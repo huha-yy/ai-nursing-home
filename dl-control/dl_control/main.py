@@ -272,6 +272,11 @@ async def build_app() -> FastAPI:
                             parts.append(t)
                 text = "\n".join(parts) if parts else None
 
+        # 报告类步骤（院长/总务/财务）的输出本身就是 Markdown 周报，直接展示，
+        # 不再尝试解析结构化 JSON（否则会得到空的或英文 key 的字段）。
+        if step_key in ("director-report-step", "logistics-step", "finance-step") and text:
+            return {"text": text[:8000]}
+
         # Try to extract JSON from the unwrapped text (LLM often wraps JSON in ```json blocks)
         if text and isinstance(text, str):
             # Look for ```json ... ``` block first
@@ -1144,7 +1149,7 @@ async def build_app() -> FastAPI:
             "floor": getattr(sess, "floor", None) or "",
         }
         return TEMPLATES.TemplateResponse(request, "nursing/reports.html", {
-            "active": "dashboard",
+            "active": "reports",
             "nursing_user": nursing_user,
             "csrf_token": sess.csrf_token,
         })

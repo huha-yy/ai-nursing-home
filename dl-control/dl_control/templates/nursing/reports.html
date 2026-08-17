@@ -192,8 +192,8 @@ function durMin(a,b){
             // ── 财务科：render markdown report ──
             html += '<div class="nh-rp-md">' + simpleMd(sum['text']) + '</div>';
           } else if (sum['text']) {
-            // ── Fallback: plain text block ──
-            html += '<pre class="nh-rp-txt">' + esc(sum['text']) + '</pre>';
+            // ── Markdown 周报（院长/总务/财务）──
+            html += '<div class="nh-rp-md">' + simpleMd(sum['text']) + '</div>';
           } else {
             // ── 排班 / 物资 / generic: card grid with CN labels ──
             var cnLabels = {
@@ -218,10 +218,6 @@ function durMin(a,b){
             });
             html += '</div>';
           }
-        }
-        if (s.raw) {
-          html += '<details style="margin-top:.4rem"><summary style="font-size:.78rem;color:#6B5A45;cursor:pointer">原始数据</summary>';
-          html += '<pre>' + JSON.stringify(s.raw, null, 2).slice(0,2000) + '</pre></details>';
         }
         html += '</div></div>';
       });

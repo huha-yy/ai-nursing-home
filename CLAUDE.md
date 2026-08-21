@@ -16,7 +16,7 @@ The platform is powered by [OpenClaw](https://github.com/openclaw) (v2026.4.8) a
 
 1. **Multi-agent operations** — 10 specialized agents (director, nursing, logistics, 6 buildings, general assistant) each with role-specific skills and nursing UI access.
 2. **Core features** — auto schedule generation, inventory tracking with alerts, health signal monitoring, ops dashboard, multi-agent weekly report workflow.
-3. **All on-premise** — local LLM, data stays local, no cloud dependencies (uses DeepSeek via proxy).
+3. **All on-premise** — data stays local; vendor LLM is Moonshot/Kimi (`kimi-k2.6`) via its OpenAI-compatible API (was DeepSeek until 2026-08).
 
 ## Agent Architecture
 
@@ -363,42 +363,76 @@ Three modules:
 
 **CRITICAL — read before first `make init` on a new environment.**
 
-### DEEPSEEK_API_KEY setup order
+### LLM_API_KEY setup order (vendor LLM — Moonshot/Kimi)
 
-`DEEPSEEK_API_KEY` is baked into **three** places at first boot. If you start with a
-placeholder and replace it later, stale copies survive in two of the three — the chat
-UI will keep returning 401 until all three are fixed.
+`LLM_API_KEY` is baked into **four** places. If you start with a placeholder and
+replace it later, stale copies survive — the chat UI will keep failing until all
+are fixed. (Legacy var `DEEPSEEK_API_KEY` is still honored as a fallback by
+dl-control settings and setup-llm.sh.)
 
 | # | Location | Populated when | Refresh method |
 |---|----------|---------------|----------------|
-| 1 | `infra/.env` | manual / `scripts/init` | edit file + recreate container |
-| 2 | Agent `config/.env` (×10) | reconciler at bootstrap | `sed` + restart, or delete agents + reconcile |
-| 3 | Agent `auth-profiles.json` (×10) | first agent boot (`setup-deepseek.sh`) | delete `/home/node/.openclaw/.deepseek-configured` marker + restart agent |
-| 4 | `dato-control` container env | container creation | `docker compose up -d --force-recreate dato-control` |
+| 1 | `infra/.env` (`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`) | manual / `scripts/init` | edit file + recreate container |
+| 2 | Agent `config/.env` (×N: `LLM_*` **and** `OPENAI_API_KEY`/`OPENAI_BASE_URL`) | provisioning (`config_gen.render_env_file`) | edit file + restart agent |
+| 3 | Agent `models.json` + `auth-profiles.json` + `openclaw.json` providers (first boot via `setup-llm.sh`) | first agent boot | edit files, or delete `.llm-configured` marker + restart agent |
+| 4 | `dato-control` container env | container creation | `docker compose ... up -d --force-recreate --build dato-control` |
+
+**Auth mechanism (do not rename the provider id):** agents use openclaw's
+built-in `openai` provider id; the vendor (Moonshot) is selected purely via
+`baseUrl`. Three facts verified against the openclaw `/app/dist` bundles
+(`model-auth-markers-*.js`):
+
+1. The `models.json` apiKey **env marker must be a recognized name** —
+   `OPENAI_API_KEY` ✓ (builtin provider env var), `DEEPSEEK_API_KEY` ✓ (legacy
+   whitelist), **`LLM_API_KEY` ✗** (silently resolves to null → "No API key
+   found for provider openai"). That is why agent `config/.env` exports the key
+   under BOTH `LLM_API_KEY` (dl-control reads it) and `OPENAI_API_KEY`
+   (openclaw resolves it).
+2. `auth-profiles.json` must be the **modern store format**
+   `{version: 1, profiles: {"openai:default": {type, provider, apiKey, baseUrl}}}` —
+   the flat `{provider: {...}}` shape is rejected by
+   `coercePersistedAuthProfileStore`.
+3. `openclaw.json` `models.providers` **merges over** the agent's
+   `models.json` (`"mode": "merge"`) — a stale deepseek-era block there
+   (baseUrl `api.deepseek.com` + raw key) silently overrides the Moonshot
+   config and produces DeepSeek-flavored 401/402 errors. `setup-llm.sh`
+   migrates it, but hand-edited agents can drift.
+
+**Model notes:** `kimi-k2.6` is a reasoning model — only `temperature=1` is
+accepted (never send a custom temperature), and `max_tokens` must budget for
+reasoning tokens (dl-control chat uses 2000).
 
 **Correct order for a new environment:**
 
-1. **Edit `infra/.env`** — set `DEEPSEEK_API_KEY=sk-your-real-key` **before anything else**
+1. **Edit `infra/.env`** — set `LLM_API_KEY=sk-your-real-key` **before anything else**
 2. `make init` — this generates secrets, builds/loads images, creates agents, bootstraps admin
 3. Verify: `curl` the `/api/nursing/chat` endpoint
 
-If you already started with a placeholder key (sites 1, 2, 3, and 4 all contain stale
-values), run:
+If you already started with a placeholder key (all four sites stale):
 
 ```bash
-# 1. Update infra/.env with real key
-# 2. Update agent config/.env files
+# 1. Update infra/.env with the real key (LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
+# 2. Update agent config/.env files (both variable names — see auth notes above)
 for d in $AGENT_ROOT/*/; do
-  sed -i "s|DEEPSEEK_API_KEY='.*'|DEEPSEEK_API_KEY='sk-real-key'|" "$d/config/.env"
+  sed -i -e "s|^LLM_API_KEY=.*|LLM_API_KEY='sk-real-key'|" \
+         -e "s|^OPENAI_API_KEY=.*|OPENAI_API_KEY='sk-real-key'|" "$d/config/.env"
 done
-# 3. Delete auth cache marker and restart agents
+# 3. Delete config marker and restart agents (setup-llm.sh rewrites models.json)
 for CID in $(docker ps -q --filter "name=dato-agent"); do
-  docker exec $CID rm -f /home/node/.openclaw/.deepseek-configured
+  docker exec $CID rm -f /home/node/.openclaw/.llm-configured
 done
 docker restart $(docker ps --format '{{.Names}}' | grep dato-agent)
 # 4. Recreate control container
-docker compose ... up -d --force-recreate dato-control
+docker compose --project-name dato --project-directory infra --env-file infra/.env \
+  up -d --force-recreate --build dato-control
 ```
+
+**Known pitfall — duplicate `DL_INTERNAL_TOKEN` lines:** repeated provisioning
+passes append another `DL_INTERNAL_TOKEN=` line to agent `config/.env`. Shell
+sourcing lets the LAST line win (what the agent receiver uses), but
+`dl_control/main.py` reads the FIRST line → agent routing 401s and chat falls
+back to the direct LLM call. Dedupe to exactly one line (keep the last) if the
+agent path returns `invalid token`.
 
 ### Nursing users UUID compatibility
 

@@ -259,7 +259,7 @@ compose_down_for_wipe() {
   set_env_file "$tmp_env" "DL_COGNEE_ADMIN_TOKEN" "wipe-cognee-token"
   set_env_file "$tmp_env" "DL_COGNEE_PG_PASSWORD" "wipe-cognee-pg"
   set_env_file "$tmp_env" "DL_OTA_WATCHER_APP_PASSWORD" "wipe-ota-pass"
-  set_env_file "$tmp_env" "DEEPSEEK_API_KEY" "wipe-deepseek-key"
+  set_env_file "$tmp_env" "LLM_API_KEY" "wipe-llm-key"
   set_env_file "$tmp_env" "DATO_OTA_LICENCE_KEY_HOST_PATH" "/dev/null"
   set_env_file "$tmp_env" "DATO_OTA_DEVICE_SECRET_HOST_PATH" "/dev/null"
   local rc=0
@@ -449,7 +449,7 @@ handle_env_file_for_wipe() {
     return 0
   fi
 
-  local whitelist="CADDY_DOMAIN CADDY_ACME_EMAIL CADDY_HTTPS_PORT TIMEZONE DATO_DATA_ROOT DATO_LLM_DEVICE DEEPSEEK_API_KEY LOCAL_LLM_BASE_URL LOCAL_LLM_API_KEY DL_EGRESS_DNS_EXTRA_DENY DL_EGRESS_DNS_DISABLE COMPOSE_PROFILES"
+  local whitelist="CADDY_DOMAIN CADDY_ACME_EMAIL CADDY_HTTPS_PORT TIMEZONE DATO_DATA_ROOT DATO_LLM_DEVICE LLM_API_KEY LLM_BASE_URL LLM_MODEL LOCAL_LLM_BASE_URL LOCAL_LLM_API_KEY DL_EGRESS_DNS_EXTRA_DENY DL_EGRESS_DNS_DISABLE COMPOSE_PROFILES"
   local tmp_env saved_key value
   tmp_env="$(mktemp)"
   cp "$ENV_EXAMPLE" "$tmp_env"
@@ -644,25 +644,25 @@ DEWLIC
 preflight_phase_b() {
   local mode="$1"
 
-  local deepseek
-  deepseek="${DEEPSEEK_API_KEY:-}"
-  if [[ -z "$deepseek" ]] || looks_placeholder "$deepseek"; then
+  local llm_key
+  llm_key="${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}"
+  if [[ -z "$llm_key" ]] || looks_placeholder "$llm_key"; then
     if [[ -t 0 ]]; then
       # Interactive operator install: prompt for the vendor LLM key instead of
       # aborting. Re-ask until a non-empty, non-placeholder value is entered.
       local entered=""
       while [[ -z "$entered" ]] || looks_placeholder "$entered"; do
-        read -rsp "Enter DEEPSEEK_API_KEY (vendor LLM key): " entered </dev/tty
+        read -rsp "Enter LLM_API_KEY (vendor LLM key): " entered </dev/tty
         printf '\n' >&2
       done
-      set_env "DEEPSEEK_API_KEY" "$entered"
-      export DEEPSEEK_API_KEY="$entered"
-      deepseek="$entered"
-      log "DEEPSEEK_API_KEY captured"
+      set_env "LLM_API_KEY" "$entered"
+      export LLM_API_KEY="$entered"
+      llm_key="$entered"
+      log "LLM_API_KEY captured"
     else
       # Non-interactive (CI/automation): fail closed — never run prod on a
       # missing/placeholder vendor credential.
-      die "DEEPSEEK_API_KEY is missing or still a placeholder; set DEEPSEEK_API_KEY=<your-key> in infra/.env"
+      die "LLM_API_KEY is missing or still a placeholder; set LLM_API_KEY=<your-key> in infra/.env"
     fi
   fi
 

@@ -120,8 +120,8 @@ RUN chown -R node:node /opt/openclaw/scripts/ /opt/openclaw/configs/ /opt/opencl
 COPY openclaw/receiver/dato_task_receiver.py /usr/local/bin/dato_task_receiver.py
 
 # Pre-configure OpenClaw for DeepSeek (runs on first agent boot)
-COPY openclaw/entrypoint/setup-deepseek.sh /usr/local/bin/setup-deepseek.sh
-RUN chmod +x /usr/local/bin/setup-deepseek.sh
+COPY openclaw/entrypoint/setup-llm.sh /usr/local/bin/setup-llm.sh
+RUN chmod +x /usr/local/bin/setup-llm.sh
 
 USER node
 ENTRYPOINT ["docker-entrypoint-wrapper.sh"]

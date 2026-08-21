@@ -39,7 +39,7 @@ verify_install_bundle
 # ── §7.2 step 6: mutation boundary — ensure infra/.env exists ─────────
 ensure_env_file
 
-# NOTE: DEEPSEEK_API_KEY is intentionally NOT auto-seeded here. This dev repo
+# NOTE: LLM_API_KEY is intentionally NOT auto-seeded here. This dev repo
 # leaves it empty; the generated prod repo prompts for it at `make build` and
 # fails closed if absent. Auto-seeding a dummy would let production silently
 # run on an unusable vendor credential.

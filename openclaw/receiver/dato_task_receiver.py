@@ -202,9 +202,9 @@ def _run_agent(message: str, session_id: str) -> dict:
     try:
         proc = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=TASK_TIMEOUT,
-            env={**os.environ, "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
-                 "OPENAI_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
-                 "OPENAI_BASE_URL": "https://api.deepseek.com"}
+            env={**os.environ,
+                 "OPENAI_API_KEY": os.environ.get("LLM_API_KEY") or os.environ.get("DEEPSEEK_API_KEY", ""),
+                 "OPENAI_BASE_URL": os.environ.get("LLM_BASE_URL") or "https://api.deepseek.com"}
         )
         # Try to extract JSON from combined stdout+stderr (embedded agent output)
         combined = (proc.stdout or "") + (proc.stderr or "")

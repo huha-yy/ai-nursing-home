@@ -47,8 +47,10 @@ def _agent_context(row: dict, *, default_model: str = "qwen3.5:9b") -> dict:
         provider = "local"
         model_id = model.get("model") or default_model
     else:
-        provider = model.get("provider") or "deepseek"
-        model_id = model.get("model") or "deepseek-v4-pro"
+        # "openai" is openclaw's built-in OpenAI-compatible provider id — the
+        # vendor (Moonshot) is selected purely via baseUrl/LLM_BASE_URL.
+        provider = model.get("provider") or "openai"
+        model_id = model.get("model") or "kimi-k2.6"
     return {
         "id": row["id"],
         "display_name": row["display_name"],
@@ -167,7 +169,9 @@ sh_single_quote = _sh_single_quote
 def render_env_file(
     *,
     openclaw_token: str,
-    deepseek_api_key: str,
+    llm_api_key: str,
+    llm_base_url: str = "https://api.moonshot.cn/v1",
+    llm_model: str = "kimi-k2.6",
     pexels_api_key: str = "",
     tavily_api_key: str = "",
     xiaomi_mimo_api_key: str = "",
@@ -193,7 +197,14 @@ def render_env_file(
     P5: dl-cognee vars from carry-forward or a freshly-minted token."""
     result = (
         f"OPENCLAW_TOKEN={_sh_single_quote(openclaw_token)}\n"
-        f"DEEPSEEK_API_KEY={_sh_single_quote(deepseek_api_key)}\n"
+        f"LLM_API_KEY={_sh_single_quote(llm_api_key)}\n"
+        f"LLM_BASE_URL={_sh_single_quote(llm_base_url)}\n"
+        f"LLM_MODEL={_sh_single_quote(llm_model)}\n"
+        # openclaw resolves the builtin `openai` provider from OPENAI_API_KEY,
+        # and its models.json env-marker whitelist accepts OPENAI_API_KEY but
+        # NOT LLM_API_KEY — export the same key under the recognized name.
+        f"OPENAI_API_KEY={_sh_single_quote(llm_api_key)}\n"
+        f"OPENAI_BASE_URL={_sh_single_quote(llm_base_url)}\n"
         "TZ=Asia/Shanghai\n"
         + feishu_env_lines
         + tier1_env_lines

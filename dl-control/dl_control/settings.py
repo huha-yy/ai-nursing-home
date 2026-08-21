@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     agents_root: str = "/data/agents"
     host_agents_root: str = "/data/agents"
     openclaw_image: str = "dato-openclaw:2026.4.8"
-    deepseek_api_key: SecretStr
+    # Vendor LLM (OpenAI-compatible) — Moonshot/Kimi since 2026-08; was DeepSeek.
+    llm_api_key: SecretStr
+    llm_base_url: str = "https://api.moonshot.cn/v1"
+    llm_model: str = "kimi-k2.6"
     pexels_api_key: SecretStr | None = None
     tavily_api_key: SecretStr | None = None
     templates_root: str = "/app/templates"
@@ -111,11 +114,11 @@ class Settings(BaseSettings):
             raise ValueError("workflow runner intervals must be > 0")
         return v
 
-    @field_validator("deepseek_api_key")
+    @field_validator("llm_api_key")
     @classmethod
-    def _check_deepseek(cls, v: SecretStr) -> SecretStr:
+    def _check_llm_api_key(cls, v: SecretStr) -> SecretStr:
         if not v.get_secret_value():
-            raise ValueError("DEEPSEEK_API_KEY must be non-empty")
+            raise ValueError("LLM_API_KEY must be non-empty")
         return v
 
     @field_validator("host_agents_root")
@@ -175,10 +178,13 @@ def load_settings() -> Settings:
         ("DATO_OPENCLAW_IMAGE", "openclaw_image"),
         ("DL_CONTROL_TEMPLATES_ROOT", "templates_root"),
         ("DL_CONTROL_FEISHU_BASE_URL", "feishu_validate_base_url"),
+        ("LLM_BASE_URL", "llm_base_url"),
+        ("LLM_MODEL", "llm_model"),
     ):
         if v := os.environ.get(env_name):
             raw[field] = v
-    raw["deepseek_api_key"] = os.environ["DEEPSEEK_API_KEY"]
+    # LLM_API_KEY is the current var; DEEPSEEK_API_KEY kept as legacy fallback.
+    raw["llm_api_key"] = os.environ.get("LLM_API_KEY") or os.environ["DEEPSEEK_API_KEY"]
     if "host_agents_root" not in raw and "agents_root" in raw:
         raw["host_agents_root"] = raw["agents_root"]
     # P4 Tier 1 isolation.

@@ -88,7 +88,7 @@ class ProvisioningConfig:
     host_agents_root: str
     templates_root: str
     openclaw_image: str
-    deepseek_api_key: str
+    llm_api_key: str
     site_host: str
     pexels_api_key: str | None = None
     tavily_api_key: str | None = None
@@ -114,7 +114,7 @@ class ProvisioningConfig:
             host_agents_root=s.host_agents_root,
             templates_root=s.templates_root,
             openclaw_image=s.openclaw_image,
-            deepseek_api_key=s.deepseek_api_key.get_secret_value(),
+            llm_api_key=s.llm_api_key.get_secret_value(),
             site_host=s.site_host,
             pexels_api_key=s.pexels_api_key.get_secret_value() if s.pexels_api_key else None,
             tavily_api_key=s.tavily_api_key.get_secret_value() if s.tavily_api_key else None,
@@ -265,7 +265,7 @@ def _generate_config_set(
         config_dir / ".env",
         config_gen.render_env_file(
             openclaw_token=token,
-            deepseek_api_key=cfg.deepseek_api_key,
+            llm_api_key=cfg.llm_api_key,
             pexels_api_key=cfg.pexels_api_key if cfg.pexels_api_key else "",
             tavily_api_key=cfg.tavily_api_key if cfg.tavily_api_key else "",
             xiaomi_mimo_api_key=cfg.xiaomi_mimo_api_key if cfg.xiaomi_mimo_api_key else "",

@@ -28,6 +28,7 @@
 | [08-20 OpenClaw 升级评估](#anchor-openclaw-upgrade) | 4.8→7.1，handler 未修复，验证清单 | 📋 |
 | [08-21 公网访问架构](#anchor-public-access) | admin/chat.eldcare.cn + frpc 隧道（08-15 上线） | ✅ |
 | [08-21 ERP API 认证加固](#anchor-erp-api-auth) | /api/ 匿名裸奔 → API key + session 双认证 | ✅ |
+| [08-21 DeepSeek→Moonshot 切换](#anchor-moonshot) | 全栈换 kimi-k2.6 + openclaw 鉴权三坑 | ✅ |
 | [待办汇总](#anchor-todo) | 🔲 未来工作 | 🔲 |
 
 ---
@@ -1079,3 +1080,47 @@ summary 三额、1号楼 percent-encode 头 scope=6 张、settle/unsettle 往返
 - dl-control 财务技能接 /api/billing/（ERP 侧 API 已就绪，另起小活）
 - 旧 /api/meal-finance/generate/ 硬编码 15 与价目分叉——可改读 FeeRule
 - 点餐重复数据治理（张国栋 171 条）
+
+---
+
+## <a id="anchor-moonshot"></a>2026-08-21 · AI 栈 DeepSeek → Moonshot/Kimi 切换（15 agent 全量）
+
+动机：DeepSeek 余额耗尽，chat.eldcare.cn 对话不可用。全栈换 Moonshot
+（`https://api.moonshot.cn/v1`，模型 `kimi-k2.6`——注意 API id 是 kimi-k2.6 不是 kimi-2.6）。
+
+改动面：infra/.env 新增 `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`（DEEPSEEK_API_KEY 留作
+legacy fallback）；dl-control settings/main/provisioning 全部 provider 中立化
+（非 agent 角色直连 LLM 的调用不再写死 deepseek）；compose 传 LLM_*；模板/setup 脚本
+setup-deepseek.sh→setup-llm.sh；receiver 注入 OPENAI_API_KEY/OPENAI_BASE_URL；
+installer/文档同步。70 tests 绿，新增行 ruff 干净。E2E：b1_liu（楼长）与
+wang_jianguo（院长）经 https://chat.eldcare.cn:8443 对话均正常。
+
+### openclaw 鉴权三坑（逆向 /app/dist 得出，CLAUDE.md 部署清单已固化）
+1. **env marker 白名单**：models.json 的 apiKey 环境标记必须是 openclaw 认识的名字
+   （`OPENAI_API_KEY`/`DEEPSEEK_API_KEY` ✓，`LLM_API_KEY` ✗ 静默解析为 null →
+   "No API key found for provider openai"）。所以 agent config/.env 同一 key 双写
+   `LLM_API_KEY`（dl-control 读）+ `OPENAI_API_KEY`（openclaw 解析）。
+2. **auth-profiles.json 只认新版 store 格式** `{version,1,profiles}`；扁平整Shape被
+   coercePersistedAuthProfileStore 直接拒收。
+3. **openclaw.json `models.providers` 以 merge 压过 agent models.json**：4 个最早期
+   agent（院长/护理科/总务科/通用助手）残留 deepseek-era providers 块（baseUrl
+   api.deepseek.com + 明文 key），把 Moonshot 配置整个盖掉——表现为 DeepSeek 风味
+   401/402（"insufficient balance" 实为 DeepSeek 402）。setup-llm.sh 现已顺带迁移该块。
+
+### 顺带修掉的老 bug：DL_INTERNAL_TOKEN 重复行
+历次重复 provisioning 给 6 个楼栋 agent 的 config/.env 追加至多 4 行
+DL_INTERNAL_TOKEN：source 后最后一行生效（receiver 认），而 main.py 读第一行 →
+agent 路由 401 静默回落直连 LLM。已全量去重（保留最后一行）。
+
+### 排障方法论（值得复用）
+- 对比凭证**一律 sha256 指纹**（且注意 `cut`/管道带尾换行 vs python strip 的预像差异，
+  本次差点被"两个不同的 key"假象带偏——其实是同一 key 的 hash 预像差一个 `\n`）。
+- docker exec 新起 shell 不继承 entrypoint 环境，验进程真实 env 要读
+  `/proc/<pid>/environ`。
+- 错误文案能指路：`insufficient balance`/`Authentication Fails, Your api key` 是
+  DeepSeek 的话术——出现即说明请求其实打到了 deepseek baseUrl。
+
+### 现场遗留文件
+agent 目录留有 `*.bak-pre-moonshot`（pass2 前）与 `*.bak-pass3*`（pass3/3b）备份；
+旧 DeepSeek 明文 key 仍在备份与 infra/.env 的 DEEPSEEK_API_KEY 行（rollback 用，
+换 key 时记得一并处理）。

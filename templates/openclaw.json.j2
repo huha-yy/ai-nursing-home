@@ -9,12 +9,12 @@
     "mode": "merge",
     "providers": {
 {% if agent.tier == "tier0" or agent.tier == "tier1" %}
-      "deepseek": {
-        "baseUrl": "https://api.deepseek.com/v1",
-        "apiKey": "${DEEPSEEK_API_KEY}",
+      "openai": {
+        "baseUrl": "https://api.moonshot.cn/v1",
+        "apiKey": "${OPENAI_API_KEY}",
         "api": "openai-completions",
         "models": [
-          { "id": "deepseek-v4-pro", "name": "deepseek-v4-pro", "contextWindow": 131072, "maxTokens": 65536 }
+          { "id": "kimi-k2.6", "name": "Kimi K2.6", "contextWindow": 131072, "maxTokens": 8192 }
         ]
       }
 {% endif %}

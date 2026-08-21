@@ -718,9 +718,10 @@ async def build_app() -> FastAPI:
         if skill_result is not None:
             data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
             system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
-        api_key = s.deepseek_api_key.get_secret_value()
+        api_key = s.llm_api_key.get_secret_value()
         if not api_key:
-            return JSONResponse({"reply": "DeepSeek API Key 未配置，请在 infra/.env 中设置 DEEPSEEK_API_KEY"}, 200)
+            reply = "LLM API Key 未配置，请在 infra/.env 中设置 LLM_API_KEY"
+            return JSONResponse({"reply": reply}, 200)
 
         # Load conversation history
         history = await _get_chat_msgs(chat_id)
@@ -759,18 +760,19 @@ async def build_app() -> FastAPI:
         messages.append(user_msg)
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            # kimi-k2.6 only accepts temperature=1 — never send a custom temperature here.
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    "https://api.deepseek.com/chat/completions",
+                    f"{s.llm_base_url.rstrip('/')}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "deepseek-v4-flash",
+                        "model": s.llm_model,
                         "messages": messages,
-                        "max_tokens": 800,
-                        "temperature": 0.7,
+                        # Reasoning model — the budget must cover reasoning tokens too.
+                        "max_tokens": 2000,
                     },
                 )
                 resp.raise_for_status()

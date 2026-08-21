@@ -178,6 +178,10 @@ services:
       # set. `scripts/init` is the single enforcement point: it prompts the
       # operator for the real key (read </dev/tty) when empty/placeholder, or
       # fails fast in a non-interactive install. No dummy seed.
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.moonshot.cn/v1}
+      LLM_MODEL: ${LLM_MODEL:-kimi-k2.6}
+      # Legacy fallback for stacks provisioned before the Moonshot switch.
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DL_CONTROL_LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://dl-llm-proxy:8080/v1}
       DL_CONTROL_LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}

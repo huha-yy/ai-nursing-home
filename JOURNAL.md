@@ -1044,6 +1044,7 @@ httpx 对非 ASCII 头值直接 `UnicodeEncodeError`；raw UTF-8 字节上线路
 low_stock 已带头。若后续要把 dashboard 全量切到 ERP，需一并补楼栋语义。
 
 ### 遗留（人工）
-- nursing-erp 11 条刘主任歧义行挂空（重名两人：id=7 一号楼 / id=11 五号楼，
-  均护理科）：2 护理等级变更 + 4 任务 + 1 维修 + 2 巡检 + 1 审批 + 1 改餐，
-  全是种子演示数据。admin 手工定向挂 FK 后幂等重跑 `backfill_staff_fk` 即可。
+- ~~nursing-erp 11 条刘主任歧义行挂空~~ → **已解决（08-21 同日）**：用户定夺全挂
+  1号楼刘主任（id=7；上下文证据：张国栋住 1号楼、任务执行人均 1号楼、无一条指向
+  5号楼）。备份 `backups/db-before-liu-zhuren-fix-20260821.sqlite3` 后定向 update 11 条，
+  幂等重跑 `backfill_staff_fk` 清零——74/74 全挂接，0 歧义 0 无匹配。

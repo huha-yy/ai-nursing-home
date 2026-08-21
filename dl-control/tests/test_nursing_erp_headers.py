@@ -45,10 +45,11 @@ def test_erp_headers_key_only(monkeypatch):
 
 
 def test_erp_headers_building_sess_gets_header(monkeypatch):
-    """楼长会话（building=3号楼）→ 附 X-Building，ERP 侧只见本楼"""
+    """楼长会话（building=3号楼）→ 附 X-Building，percent-encode 后纯 ASCII"""
     monkeypatch.setenv("NURSING_ERP_API_KEY", "sk-test")
     headers = _erp_headers(_Sess("3号楼"))
-    assert headers == {"X-API-Key": "sk-test", "X-Building": "3号楼"}
+    assert headers == {"X-API-Key": "sk-test", "X-Building": "3%E5%8F%B7%E6%A5%BC"}
+    assert all(v.isascii() for v in headers.values())  # httpx 只收 ASCII 头值
 
 
 def test_erp_headers_management_no_building(monkeypatch):

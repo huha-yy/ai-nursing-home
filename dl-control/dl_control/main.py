@@ -9,6 +9,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote
 
 import structlog
 from dl_shared.rate_limit import RateLimitMiddleware
@@ -70,12 +71,14 @@ def _erp_headers(sess=None) -> dict:
     X-API-Key：ERP 自 2026-08-21 起强制机器调用认证。
     X-Building：可选楼栋范围（阶段一第二批）——楼长会话带本楼名，
     ERP 只返回该楼数据；无楼栋会话（管理层 u001-u006）不发头 → 全院。
+    楼栋名是中文，HTTP 头只可靠传 ASCII：percent-encode（quote）后发送，
+    ERP 侧 unquote 还原（httpx 对非 ASCII 头值直接 UnicodeEncodeError）。
     """
     key = os.environ.get("NURSING_ERP_API_KEY", "")
     headers = {"X-API-Key": key} if key else {}
     building = ((getattr(sess, "building", "") or "") if sess else "").strip()
     if building:
-        headers["X-Building"] = building
+        headers["X-Building"] = quote(building)
     return headers
 
 

@@ -7,6 +7,7 @@ import fcntl
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import structlog
@@ -25,6 +26,7 @@ from starlette.responses import RedirectResponse as StarletteRedirect
 from dl_control import i18n
 from dl_control.auth import routes as auth_routes
 from dl_control.auth.errors import MustRotatePasswordError
+from dl_control.auth.middleware import COOKIE_NAME as _NURSING_COOKIE
 from dl_control.auth.middleware import require_password_rotated
 from dl_control.auth.sessions import SessionStore
 from dl_control.db import Database
@@ -57,6 +59,66 @@ class _NursingWorkflowStart(BaseModel):
     logistics_agent_id: str | None = None
     general_agent_id: str | None = None
     director_agent_id: str | None = None
+
+
+# ── nursing-erp 调用辅助（模块级，便于单测）────────────────────────
+
+
+def _erp_headers(sess=None) -> dict:
+    """nursing-erp /api/ 调用头。
+
+    X-API-Key：ERP 自 2026-08-21 起强制机器调用认证。
+    X-Building：可选楼栋范围（阶段一第二批）——楼长会话带本楼名，
+    ERP 只返回该楼数据；无楼栋会话（管理层 u001-u006）不发头 → 全院。
+    """
+    key = os.environ.get("NURSING_ERP_API_KEY", "")
+    headers = {"X-API-Key": key} if key else {}
+    building = ((getattr(sess, "building", "") or "") if sess else "").strip()
+    if building:
+        headers["X-Building"] = building
+    return headers
+
+
+def _week_start() -> str:
+    """本周周一日期 YYYY-MM-DD（ERP 周菜单的 week_start 键）。"""
+    today = datetime.now().date()
+    return (today - timedelta(days=today.weekday())).isoformat()
+
+
+def _skill_queries() -> list:
+    """意图关键词 → 预取查询映射（每次调用重建，日期保持新鲜）。
+
+    meal-query 2026-08-21 修复：原先指向不存在的 /api/meal-plans/
+    （自上线起静默 404），改为本周周菜单。
+    """
+    return [
+        (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
+         "API:/api/schedules/?date=" + datetime.now().strftime("%Y-%m-%d")),
+        (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
+         "API:/api/incidents/"),
+        (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"],
+         "logistics-inventory", "API:/api/inventory/"),
+        (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"],
+         "resident-query", "API:/api/residents/"),
+        (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
+         f"API:/api/week-menu/?week_start={_week_start()}"),
+        (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
+         "SELECT title, date, time, location FROM nursing_activities "
+         "WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
+        (["费用", "结算", "缴费", "账单"], "finance-query",
+         "API:/api/meal-finance/"),
+        (["预警", "告警", "重点关注", "异常"], "alert-query",
+         "API:/api/incidents/?handled=false"),
+        (["员工", "谁负责", "人员", "值班人员"], "staff-query",
+         "API:/api/employees/"),
+    ]
+
+
+async def _load_nursing_sess(request: _Request, sessions: SessionStore):
+    """从 cookie 载入 nursing 会话；缺失/失效返回 None。角色校验留在调用处。"""
+    raw = request.cookies.get(_NURSING_COOKIE, "")
+    sid = sessions.unsign(raw) if raw else None
+    return await sessions.load(sid) if sid else None
 
 
 async def build_app() -> FastAPI:
@@ -238,11 +300,6 @@ async def build_app() -> FastAPI:
             f"COALESCE((SELECT date FROM {table} WHERE date = CURRENT_DATE LIMIT 1), "
             f"(SELECT MAX(date) FROM {table}))"
         )
-
-    def _erp_headers() -> dict:
-        """Auth headers for nursing-erp /api/ calls (ERP enforces X-API-Key since 2026-08-21)."""
-        key = os.environ.get("NURSING_ERP_API_KEY", "")
-        return {"X-API-Key": key} if key else {}
 
     def _erp_items(data) -> list:
         """Extract items from ERP API response (paginated dict or plain list)."""
@@ -562,27 +619,7 @@ async def build_app() -> FastAPI:
         # ── Skill intent detection (run first) ────────────────────
         skill_result = None
         matched_skill = None
-        SKILL_QUERIES = [
-            (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
-             f"API:/api/schedules/?date={datetime.now().strftime('%Y-%m-%d')}"),
-            (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
-             "API:/api/incidents/"),
-            (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"], "logistics-inventory",
-             "API:/api/inventory/"),
-            (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"], "resident-query",
-             "API:/api/residents/"),
-            (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
-             f"API:/api/meal-plans/?date={datetime.now().strftime('%Y-%m-%d')}"),
-            (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
-             "SELECT title, date, time, location FROM nursing_activities WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
-            (["费用", "结算", "缴费", "账单"], "finance-query",
-             "API:/api/meal-finance/"),
-            (["预警", "告警", "重点关注", "异常"], "alert-query",
-             "API:/api/incidents/?handled=false"),
-            (["员工", "谁负责", "人员", "值班人员"], "staff-query",
-             "API:/api/employees/"),
-        ]
-        for keywords, skill_name, sql in SKILL_QUERIES:
+        for keywords, skill_name, sql in _skill_queries():
             if any(kw in message for kw in keywords):
                 matched_skill = skill_name
                 try:
@@ -591,7 +628,7 @@ async def build_app() -> FastAPI:
                         import httpx as _hx
                         _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                         _path = sql[4:]  # strip "API:"
-                        async with _hx.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli:
+                        async with _hx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli:
                             _resp = await _cli.get(f"{_erp}{_path}")
                             if _resp.status_code == 200:
                                 skill_result = _erp_items(_resp.json())[:50]
@@ -791,12 +828,19 @@ async def build_app() -> FastAPI:
         )
 
     @app.get("/api/nursing/alerts")
-    async def nursing_alerts():
-        """Return pending (unhandled) health alerts from nursing-erp."""
+    async def nursing_alerts(request: _Request):
+        """Return pending (unhandled) health alerts from nursing-erp.
+
+        2026-08-21 加固：原先无鉴权且经公网代理暴露（ERP 老人 PII 可被
+        匿名拉取）。现在要求 nursing 会话，并按会话楼栋过滤 ERP 数据。
+        """
+        sess = await _load_nursing_sess(request, sessions)
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
         try:
             import httpx as _hx_a
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-            async with _hx_a.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli:
+            async with _hx_a.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli:
                 _r = await _cli.get(f"{_erp}/api/incidents/?handled=false")
                 if _r.status_code == 200:
                     data = _r.json()
@@ -833,7 +877,7 @@ async def build_app() -> FastAPI:
         try:
             import httpx as _hx2
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-            async with _hx2.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli2:
+            async with _hx2.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli2:
                 _r = await _cli2.get(f"{_erp}/api/incidents/")
                 if _r.status_code == 200:
                     data = _r.json()
@@ -907,8 +951,16 @@ async def build_app() -> FastAPI:
         })
 
     @app.get("/api/nursing/dashboard")
-    async def nursing_dashboard_api():
-        """Aggregated operational dashboard data for the nursing home."""
+    async def nursing_dashboard_api(request: _Request):
+        """Aggregated operational dashboard data for the nursing home.
+
+        2026-08-21 加固：原先无鉴权且经公网代理暴露。现在要求 nursing
+        会话（dashboard.html 同源 fetch 带 cookie，登录用户不受影响），
+        ERP 调用并按会话楼栋过滤。
+        """
+        sess = await _load_nursing_sess(request, sessions)
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
         async with db.conn(user_id=None, role="system") as conn:
             # -- Effective date helpers: fall back to latest available data
             #    when the seed has no rows for CURRENT_DATE (fresh deploy / drift).
@@ -930,7 +982,7 @@ async def build_app() -> FastAPI:
             inventory_alerts = 0
             try:
                 import httpx as _httpx
-                async with _httpx.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c:
+                async with _httpx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _c:
                     _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c.get(f"{_erp_url}/api/inventory/low-stock/")
                     if _r.status_code == 200:
@@ -942,7 +994,7 @@ async def build_app() -> FastAPI:
             pending_health_alerts = 0
             try:
                 import httpx as _hx3
-                async with _hx3.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c3:
+                async with _hx3.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _c3:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c3.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
@@ -970,7 +1022,7 @@ async def build_app() -> FastAPI:
             focus_residents = []
             try:
                 import httpx as _hx4
-                async with _hx4.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c4:
+                async with _hx4.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _c4:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c4.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
@@ -991,7 +1043,7 @@ async def build_app() -> FastAPI:
             low_stock_items = []
             try:
                 import httpx as _httpx2
-                async with _httpx2.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c2:
+                async with _httpx2.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _c2:
                     _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c2.get(f"{_erp_url}/api/inventory/low-stock/")
                     if _r.status_code == 200:

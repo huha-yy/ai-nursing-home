@@ -1124,3 +1124,12 @@ agent 路由 401 静默回落直连 LLM。已全量去重（保留最后一行�
 agent 目录留有 `*.bak-pre-moonshot`（pass2 前）与 `*.bak-pass3*`（pass3/3b）备份；
 旧 DeepSeek 明文 key 仍在备份与 infra/.env 的 DEEPSEEK_API_KEY 行（rollback 用，
 换 key 时记得一并处理）。
+
+### 后续计划：切换本地 qwen3.6 27b（用户已拍板要做，时间未定）
+流程与本次同构——改 `LLM_*` 三变量 + 按 CLAUDE.md 四站点矩阵走，完整手册已写进
+CLAUDE.md「Vendor switch runbook」一节。与云 API 的差异三点：① 27b 显存
+（dl-llm-local 现配 12g/4cpu/qwen3.5:9b，需上调且 COMPOSE_PROFILES 含
+local-llm）；② j2 模板 baseUrl 写死 moonshot，要改 `${OPENAI_BASE_URL}`
+（**唯一代码点**）；③ models.json reasoning/maxTokens 按模型实调。仓库已有半套
+本地管线：dl-llm-local(ollama) + dl-llm-proxy(限流鉴权) + provisioning tier1
+分流，属"升级现有管线"而非新接。

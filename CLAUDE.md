@@ -434,6 +434,37 @@ sourcing lets the LAST line win (what the agent receiver uses), but
 back to the direct LLM call. Dedupe to exactly one line (keep the last) if the
 agent path returns `invalid token`.
 
+### Vendor switch runbook（换 LLM 供应商；已定计划：Moonshot → 本地 qwen3.6 27b）
+
+整个栈只认 `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` 三个变量（dl-control
+settings、agent `.env`、setup-llm.sh、receiver 全部跟随）——换供应商是**配置
+改动，不是代码改动**。按上面"四站点矩阵"自上而下改，每步改完重启对应进程：
+
+1. `infra/.env` 三个值：走本地限流代理时 `LLM_BASE_URL=http://dl-llm-proxy:8080/v1`
+   （直连 ollama 则 `http://dl-llm-local:11434/v1`）、`LLM_API_KEY=<DL_INTERNAL_API_KEY>`
+   （代理鉴权）、`LLM_MODEL=qwen3.6:27b`（ollama tag 名，以实际拉取的为准）
+2. agent `config/.env` ×15：`LLM_*` 与 `OPENAI_*` **两套同名值都要改**（openclaw
+   的 env-marker 白名单只认 `OPENAI_API_KEY` 这个名字——见上文鉴权三坑第 1 条）
+3. agent `models.json`/`openclaw.json`：删 `.llm-configured` marker + `docker
+   restart`，setup-llm.sh 会按新 env 重写（含 auth-profiles 与 baseUrl）
+4. `docker compose ... up -d --force-recreate dato-control`（第 4 站点）
+5. 验证：chat.eldcare.cn 楼长（b1_liu）+ 院长（wang_jianguo）各发一句
+
+本地模型与云 API 的差异（切换时额外注意）：
+
+- **资源**：`dl-llm-local` 现配 `mem_limit 12g`/`cpus 4`/默认 `qwen3.5:9b`——27b
+  哪怕 q4 量化也要 20GB+ 级显存，先确认 GPU 够，再调大 `DL_LLM_LOCAL_MEM`/
+  `DL_LLM_LOCAL_CPUS`，并确认 `COMPOSE_PROFILES` 含 `local-llm`（否则服务不起）；
+  模型名同步改 `DL_LLM_LOCAL_MODEL`
+- **唯一代码点**：`templates/openclaw.json.j2` 的 `providers.baseUrl` 目前写死
+  `https://api.moonshot.cn/v1`——切换时改成 `"${OPENAI_BASE_URL}"`
+  （`render_env_file` 已导出该变量，openclaw 加载时插值），顺手提交
+- **模型参数**：models.json 的 `reasoning`/`maxTokens` 按 qwen 实际行为调；
+  kimi 的 temperature=1 限制是它自己的怪癖，qwen 无此限制（`main.py` 直连调用
+  本就不传 temperature，无需改）
+- 排障口径不变：错误文案能指路（若报 DeepSeek/Moonshot 话术 = baseUrl 没切干净），
+  凭证比对用 sha256 指纹，进程真实 env 读 `/proc/<pid>/environ`
+
 ### Nursing users UUID compatibility
 
 The `nursing_users` table uses text-based IDs (`u001`, `u002`, …) but the `users` and

@@ -1002,3 +1002,48 @@ ERP 经 `admin.eldcare.cn:8443` 暴露公网后，`/api/` 无认证意味着老�
 - 多设备同账号并发不受影响（Django session 每设备独立，互不踢下线）
 - `openclaw/skills/` 的 handler 改动按 CLAUDE.md 规则需要 docker cp 进 agent 容器才生效——
   本次因 agent 未直连 ERP，无需操作
+
+## <a id="anchor-erp-building-scope"></a>nursing-erp 楼栋权限贯通：X-Building 头 + 路由加固（2026-08-21）
+
+背景：nursing-erp 阶段一第二批（隐患 #2 staff FK、#3 API 楼栋过滤）的 AI 侧配套。
+ERP 侧改动见 nursing-erp 仓库（commit 846d083 / ffa1c9a / f4649e8）。
+
+### dl-control 改动（commit 4c95e7a + 6ff75b7）
+- `_erp_headers` / `_skill_queries` / `_week_start` 从 create_app 闭包提升到模块级（可单测），
+  新增 sess 参数：**楼长会话（building 非空）自动附 X-Building，管理层不发头 → 全院**；
+  7 个 ERP 调用点（chat 预取、alerts×2、dashboard×4）全部传 sess
+- **堵两个无鉴权路由**：GET /api/nursing/alerts 与 /api/nursing/dashboard 原先公网匿名可读
+  ERP PII，现经 `_load_nursing_sess` 校验 nursing cookie，匿名 401（dashboard.html 同源
+  fetch 带 cookie，登录用户不受影响）
+- **修 meal-query 404**：技能预取原先指向不存在的 `/api/meal-plans/`（自上线静默 404），
+  改为 `/api/week-menu/?week_start=本周一`
+- 新增 `tests/test_nursing_erp_headers.py`（7 项），全套 70 passed + 10 skipped
+
+### 踩坑：中文 HTTP 头（联调抓出的真 bug）
+httpx 对非 ASCII 头值直接 `UnicodeEncodeError`；raw UTF-8 字节上线路径经 WSGI latin-1
+解码成乱码（fail-loud 400 恰好暴露）。**契约：dl-control 侧 `quote()` percent-encode 发送
+（纯 ASCII，过 Caddy/frp 隧道可靠），ERP 侧 `unquote()` 还原**（不含 % 的值原样，
+进程内测试直传中文兼容）。两侧各加了契约钉测试。
+教训：单测只构造 headers dict 没真发请求，编码问题只有联调暴露——涉及线上协议的
+改动必须有真网验证。
+
+### 验证结果（2026-08-21，全绿）
+| 检查 | 结果 |
+|---|---|
+| 匿名 GET chat…/api/nursing/dashboard 与 /alerts | 401 ✅（原先 200 泄露 PII） |
+| key + X-Building:7号楼（未知名） | 400 fail-loud ✅ |
+| key + X-Building:1号楼 → /api/residents/ | 200 仅 6 位 1号楼老人 ✅ |
+| /api/beds/occupancy/ 带头 | 仅 1号楼，覆盖 ?building= 语义 ✅ |
+| b1_liu（1号楼长）dashboard | focus_residents 2 条全 1号楼、预警 2 ✅ |
+| wang_jianguo（院长）dashboard | focus_residents 5 条跨 4 栋楼、预警 8 ✅ |
+| /api/week-menu/?week_start=周一 | 200，21 条 ✅（meal-query 修复） |
+
+注意：dashboard 的 building_distribution/schedule_today/completion_rate 等仍来自
+一体机本地 Postgres（nursing_residents 等种子表），**未按楼栋过滤**——属旧 MVP 数据
+路径，不在本次隐患 #3 范围；ERP 来源的 focus_residents/pending_health_alerts/
+low_stock 已带头。若后续要把 dashboard 全量切到 ERP，需一并补楼栋语义。
+
+### 遗留（人工）
+- nursing-erp 11 条刘主任歧义行挂空（重名两人：id=7 一号楼 / id=11 五号楼，
+  均护理科）：2 护理等级变更 + 4 任务 + 1 维修 + 2 巡检 + 1 审批 + 1 改餐，
+  全是种子演示数据。admin 手工定向挂 FK 后幂等重跑 `backfill_staff_fk` 即可。

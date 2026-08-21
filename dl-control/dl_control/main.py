@@ -239,6 +239,11 @@ async def build_app() -> FastAPI:
             f"(SELECT MAX(date) FROM {table}))"
         )
 
+    def _erp_headers() -> dict:
+        """Auth headers for nursing-erp /api/ calls (ERP enforces X-API-Key since 2026-08-21)."""
+        key = os.environ.get("NURSING_ERP_API_KEY", "")
+        return {"X-API-Key": key} if key else {}
+
     def _erp_items(data) -> list:
         """Extract items from ERP API response (paginated dict or plain list)."""
         if isinstance(data, dict):
@@ -586,7 +591,7 @@ async def build_app() -> FastAPI:
                         import httpx as _hx
                         _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                         _path = sql[4:]  # strip "API:"
-                        async with _hx.AsyncClient(timeout=10.0) as _cli:
+                        async with _hx.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli:
                             _resp = await _cli.get(f"{_erp}{_path}")
                             if _resp.status_code == 200:
                                 skill_result = _erp_items(_resp.json())[:50]
@@ -791,7 +796,7 @@ async def build_app() -> FastAPI:
         try:
             import httpx as _hx_a
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-            async with _hx_a.AsyncClient(timeout=10.0) as _cli:
+            async with _hx_a.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli:
                 _r = await _cli.get(f"{_erp}/api/incidents/?handled=false")
                 if _r.status_code == 200:
                     data = _r.json()
@@ -828,7 +833,7 @@ async def build_app() -> FastAPI:
         try:
             import httpx as _hx2
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-            async with _hx2.AsyncClient(timeout=10.0) as _cli2:
+            async with _hx2.AsyncClient(timeout=10.0, headers=_erp_headers()) as _cli2:
                 _r = await _cli2.get(f"{_erp}/api/incidents/")
                 if _r.status_code == 200:
                     data = _r.json()
@@ -925,7 +930,7 @@ async def build_app() -> FastAPI:
             inventory_alerts = 0
             try:
                 import httpx as _httpx
-                async with _httpx.AsyncClient(timeout=10.0) as _c:
+                async with _httpx.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c:
                     _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c.get(f"{_erp_url}/api/inventory/low-stock/")
                     if _r.status_code == 200:
@@ -937,7 +942,7 @@ async def build_app() -> FastAPI:
             pending_health_alerts = 0
             try:
                 import httpx as _hx3
-                async with _hx3.AsyncClient(timeout=10.0) as _c3:
+                async with _hx3.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c3:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c3.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
@@ -965,7 +970,7 @@ async def build_app() -> FastAPI:
             focus_residents = []
             try:
                 import httpx as _hx4
-                async with _hx4.AsyncClient(timeout=10.0) as _c4:
+                async with _hx4.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c4:
                     _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c4.get(f"{_erp}/api/incidents/?handled=false")
                     if _r.status_code == 200:
@@ -986,7 +991,7 @@ async def build_app() -> FastAPI:
             low_stock_items = []
             try:
                 import httpx as _httpx2
-                async with _httpx2.AsyncClient(timeout=10.0) as _c2:
+                async with _httpx2.AsyncClient(timeout=10.0, headers=_erp_headers()) as _c2:
                     _erp_url = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
                     _r = await _c2.get(f"{_erp_url}/api/inventory/low-stock/")
                     if _r.status_code == 200:

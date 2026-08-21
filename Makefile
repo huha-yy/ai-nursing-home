@@ -1,5 +1,7 @@
 SHELL := /bin/bash
-COMPOSE := docker compose --project-name nursing --project-directory infra --env-file infra/.env
+# 项目名必须与 scripts/lib/appliance-common.sh 和已运行容器的 label 一致（dato）。
+# 2026-08-21 修正：曾误改为 nursing，与实际栈（project=dato）冲突，make up/ps/logs 全部失明。
+COMPOSE := docker compose --project-name dato --project-directory infra --env-file infra/.env
 
 unexport PROD_URL
 

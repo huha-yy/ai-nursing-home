@@ -25,6 +25,9 @@
 | [07-08 GBrain 引入计划](#anchor-gbrain) | GBrain 作为一线人员知识平台，6 周实施计划 | 📋 待实施 |
 | [07-28 养老院第二家客户](#anchor-nursing-home2) | 杭州市社会福利中心调研问卷（88 问） | 📋 |
 | [08-13 nursing-erp OCR 完成](#anchor-ocr) | 菜单OCR+点餐OCR+LLM纠错+跨页+断电恢复 | ✅ |
+| [08-20 OpenClaw 升级评估](#anchor-openclaw-upgrade) | 4.8→7.1，handler 未修复，验证清单 | 📋 |
+| [08-21 公网访问架构](#anchor-public-access) | admin/chat.eldcare.cn + frpc 隧道（08-15 上线） | ✅ |
+| [08-21 ERP API 认证加固](#anchor-erp-api-auth) | /api/ 匿名裸奔 → API key + session 双认证 | ✅ |
 | [待办汇总](#anchor-todo) | 🔲 未来工作 | 🔲 |
 
 ---
@@ -867,3 +870,135 @@ ai-nursing-home 的 Dashboard 和 Chat 技能查询，已从 Mock 表切换到 n
 - [ ] 老人点餐 OCR 的"不吃/外出"特殊要求的落库细节完善
 - [ ] 养老院现场部署（DNS固化、iptables持久化、重置API凭据）
 - [ ] 社会福利中心适配（网格化+分区制 Agent 架构）
+
+---
+
+## <a id="anchor-openclaw-upgrade"></a>OpenClaw 镜像升级评估（2026-08-20）
+
+### 当前状态
+
+| 项 | 值 |
+|---|---|
+| 基础镜像 | `ghcr.io/openclaw/openclaw:2026.4.8` |
+| 自有镜像 tag | `dato-openclaw:2026.4.8`（规范：`dato-openclaw:<上游版本>[-patch<N>]`） |
+| 镜像大小 | ~14.3GB（torch + 飞书 TS 源码完整重建） |
+| 计划升级目标 | **2026.7.1** |
+| 决策 | 📋 待实施（需先做 7.1 验证测试） |
+
+### 镜像内容
+- 中国镜像加速：阿里云 apt/npm/pip + hf-mirror
+- 工具：Playwright MCP、markitdown、ffmpeg、whisper、nano-pdf、python-pptx
+- 飞书补丁：`feishu-reply-dispatcher.ts`（537 行）、`feishu-bot.ts`（1308 行）
+- 自定义技能 ~20 个（admin-mgmt/cognee/workflow/nursing 系列/ppt-master 等）
+- ComfyUI MCP server、任务接收 sidecar、DeepSeek 预配置
+
+### 核心坑（handler.py 技能不注册）
+- **OpenClaw v2026.4.8 不把 Python `handler.py` 技能注册为 agent 可见的 callable tool**
+- **已调研 2026.7.1 release notes（357KB 全文）：无修复证据**（两条 handler 条目 = Gateway 审批 #79861、ACP 事件诊断 #100558，均无关）
+- **当前规避方案**：所有 agent 走 `process` 工具 `python3 -c "from handler import ..."` 调用
+- 涉及技能：admin-mgmt、cognee、workflow、nursing-schedule、meal-query 等
+
+### 升级前验证清单（待办）
+- [ ] 拉 `openclaw:2026.7.1` 容器跑 handler 注册验证测试（不改生产镜像、可回滚）
+- [ ] 按 PROVENANCE.md 补丁协调流程：diff 新旧 extension → 重打飞书补丁 → 更新 PROVENANCE.md
+- [ ] 验证 `openclaw.json` schema 兼容 + 端到端生成测试
+- [ ] 升级后跑飞书集成冒烟测试（P3）
+
+### 相关文件
+- `openclaw/Dockerfile`、`openclaw/PROVENANCE.md`（补丁协调/回滚流程）
+- `CLAUDE.md` line 29/58（handler 不可调用，agent 需用 process 工具）
+
+---
+
+## <a id="anchor-public-access"></a>公网访问架构：新域名 + frpc 隧道（2026-08-21 记录，08-15 上线）
+
+### 背景
+院内一体机（192.168.10.247）需要从院外公网访问 ERP 后台和 AI Chat。原域名 `hz-sanfu.eldcare.cn` 的 A 记录指向内网 IP，**仅院内局域网可用**。2026-08-15 起 frpc 隧道上线，经腾讯云服务器中转，提供公网 HTTPS 入口。
+
+### 访问入口
+
+| 服务 | 公网地址（院外/院内通用） | 院内直连（不走云） |
+|---|---|---|
+| nursing-erp 后台 | `https://admin.eldcare.cn:8443/admin/` | `http://hz-sanfu.eldcare.cn:9081/admin/` |
+| AI Chat（dato-control） | `https://chat.eldcare.cn:8443/chat` | `http://hz-sanfu.eldcare.cn:9080/` |
+
+### 链路架构
+
+```
+用户浏览器 → 腾讯云 43.137.7.133（frps :7000，:8443 按 Host 域名分流）
+  ├─ admin.eldcare.cn → 远端 19081 → frpc 隧道 → 本机 Caddy :9081 → nursing-erp runserver :8765
+  └─ chat.eldcare.cn  → 远端 19080 → frpc 隧道 → 本机 Caddy :9080 → dato-control :8080
+```
+
+### 关键配置位置
+
+| 配置 | 位置 |
+|---|---|
+| frpc 客户端 | `/etc/frp/frpc.toml`，systemd `frpc.service`（开机自启） |
+| frp 代理映射 | `ai-chat`：127.0.0.1:9080→远端 19080；`erp`：127.0.0.1:9081→远端 19081 |
+| DNS 记录 | `chat`/`admin` → 43.137.7.133（手工设置）；`hz-sanfu` → 192.168.10.247（`ddns-updater.service` 仍在更新） |
+| nursing-erp 域名白名单 | `nursing-erp/.env`：`ALLOWED_HOSTS=admin.eldcare.cn,...`、`CSRF_TRUSTED_ORIGINS=https://admin.eldcare.cn:8443` |
+| dato-control 站点域名 | `infra/.env`：`DL_CONTROL_SITE_HOST=chat.eldcare.cn` |
+
+### 踩坑/注意
+- **直接访问 frp 远端端口（如 `http://chat.eldcare.cn:19081`）返回 502，不是有效入口**——必须走 `:8443` 域名分流
+- 云端分流配置在腾讯云服务器上，**不在本仓库**；frps token 见 `/etc/frp/frpc.toml`
+- `infra/Caddyfile` 主站块与 `infra/.env` 的 `CADDY_DOMAIN` 仍写 `hz-sanfu.eldcare.cn`——`:9080`/`:9081` 站点块不匹配 Host 所以公网链路不受影响，但重构时注意
+- nursing-erp 是**宿主机进程**（`manage.py runserver 0.0.0.0:8765`，非容器）——它挂了公网 ERP 就 502
+
+### 运维命令
+- 看隧道状态：`systemctl status frpc`
+- 重启隧道：`sudo systemctl restart frpc`
+- 2026-08-21 已验证：两个公网 URL 均正常响应（admin 登录页可渲染）
+
+---
+
+## <a id="anchor-erp-api-auth"></a>nursing-erp /api/ 认证加固（2026-08-21）
+
+### 背景（P0）
+ERP 经 `admin.eldcare.cn:8443` 暴露公网后，`/api/` 无认证意味着老人 PII（姓名/身份证/健康数据）
+可被任何互联网用户读取、护理记录可被伪造、OCR 端点可被盗刷 DeepSeek 配额。
+实测：`curl https://admin.eldcare.cn:8443/api/residents/` 匿名返回全部老人数据。
+
+### 方案：API key（机器）+ session（浏览器）双认证
+- **nursing-erp**（3 处改动 + 新文件）：
+  - 新增 `nursing_erp/api_auth.py`：`erp_auth` 认证函数——`X-API-Key` 头与
+    `settings.ERP_API_KEY`（.env）常量时间比较，或已登录 Django session，任一通过；
+    都失败 → 401。**未配置 key 时 fail-closed**（密钥路径永不放行，不退化为无认证）
+  - `nursing_erp/urls.py`：`NinjaAPI(..., auth=erp_auth)` 全局生效
+  - `nursing_erp/settings.py`：`ERP_API_KEY` 环境变量 + `LOGIN_URL = "/admin/login/"`
+  - `nursing_erp/views.py`：7 个轻量页视图加 `@login_required`（未登录跳 admin 登录页，
+    登录后回跳；页面 JS 的 fetch 同源自动带 session cookie，模板零改动）
+- **ai-nursing-home**：
+  - `dl-control/dl_control/main.py`：新增 `_erp_headers()` 辅助函数，8 处
+    `AsyncClient(timeout=10.0)` 全部改为带 `X-API-Key` 头
+  - `infra/docker-compose.yml`：dato-control 服务加 `NURSING_ERP_API_KEY` env 透传
+  - `openclaw/skills/nursing-erp-query/handler.py`：`_client()` 支持从
+    `NURSING_ERP_API_KEY` env 读 key（agent 容器目前未配 ERP env，技能经 dl-control 中转，
+    暂无容器需重启）
+- **密钥**：`nursing-erp/.env` 的 `ERP_API_KEY` 与 `infra/.env` 的 `NURSING_ERP_API_KEY` 同值，
+  gitignored；生成方式 `python3 -c "import secrets; print(secrets.token_urlsafe(36))"`；
+  两侧 `.env.example` 已补文档
+
+### 验证结果（2026-08-21，全绿）
+| 检查 | 结果 |
+|---|---|
+| 公网匿名 GET /api/residents/ | 401 ✅（加固前 200 泄露 PII） |
+| 公网匿名 POST /api/incidents/ 伪造 | 401 ✅ |
+| 公网 GET /kitchen/ | 302 → admin 登录页 ✅ |
+| 公网带 key GET /api/residents/ | 200 ✅ |
+| dato-control 容器内带 key 调 ERP | 200 ✅（Dashboard/Chat 数据链路正常） |
+| dato-control 容器内无 key | 401 ✅ |
+| nursing-erp 测试 | 39 passed（33 原有 + 6 个新认证测试 `tests/test_api_auth.py`） |
+
+### 踩坑/注意
+- **Makefile 的 compose project 名与实际栈不一致（已修复）**：根因是 fork 自 dato 平台时
+  （commit 4108d19）只改了 Makefile 的 `--project-name nursing`，漏改
+  `scripts/lib/appliance-common.sh`（仍是 `dato`）。一体机经 `scripts/init` 安装，容器
+  label 全是 `project=dato` → `make up` 报容器名冲突、`make ps/logs` 视角为空。
+  2026-08-21 已把 Makefile 改回 `--project-name dato` 并加注释，`make ps` 验证恢复。
+  注意：修复后 `make down`/`make wipe` 等破坏性命令会真正作用于生产栈（这是应有语义，慎用）。
+- 零中断上线顺序：先给调用方（control）配好 key 并重启 → 再启用 ERP 认证，中间无 401 窗口
+- 多设备同账号并发不受影响（Django session 每设备独立，互不踢下线）
+- `openclaw/skills/` 的 handler 改动按 CLAUDE.md 规则需要 docker cp 进 agent 容器才生效——
+  本次因 agent 未直连 ERP，无需操作

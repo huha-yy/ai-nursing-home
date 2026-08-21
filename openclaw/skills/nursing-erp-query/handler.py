@@ -21,7 +21,11 @@ DEFAULT_URL = "http://nursing-erp:8080"
 
 def _client():
     url = os.environ.get("NURSING_ERP_URL", DEFAULT_URL)
-    return httpx.Client(base_url=url, timeout=15)
+    headers = {}
+    key = os.environ.get("NURSING_ERP_API_KEY", "")
+    if key:
+        headers["X-API-Key"] = key  # ERP /api/ 认证（2026-08-21 P0 加固）
+    return httpx.Client(base_url=url, timeout=15, headers=headers)
 
 
 def _print_json(data):

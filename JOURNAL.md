@@ -1048,3 +1048,34 @@ low_stock 已带头。若后续要把 dashboard 全量切到 ERP，需一并补�
   1号楼刘主任（id=7；上下文证据：张国栋住 1号楼、任务执行人均 1号楼、无一条指向
   5号楼）。备份 `backups/db-before-liu-zhuren-fix-20260821.sqlite3` 后定向 update 11 条，
   幂等重跑 `backfill_staff_fk` 清零——74/74 全挂接，0 歧义 0 无匹配。
+
+---
+
+## 2026-08-21（下午）· nursing-erp 应收月账单（阶段二 Q3）上线
+
+Q3 定稿落地：床位费+护理费+餐费合并出账、全额核销、欠费名单。nursing-erp 新建
+`billing` app（FeeRule 价目表 + MonthlyBill + services + API 6 端点 + /billing/ 看板 +
+admin 核销 actions），种子价目 800/300~2400/15 由数据迁移写入。提交 `31425ef`（功能）
++ `30d01f5`（路线图）。测试 18 新增、全套 102 绿；ruff 新文件干净。
+
+生产 2026-08 出账 36 张 ¥85,555，联调（127.0.0.1:8765 真网）全绿：匿名 302、
+summary 三额、1号楼 percent-encode 头 scope=6 张、settle/unsettle 往返、跨楼守卫。
+
+### 勾稽与偏差（记录在案）
+- 床位+护理 70,600 与计划锚点**分毫不差**（14×1100 + 10×2000 + 8×2800 + 4×3200）。
+- 餐费 14,955 vs 锚点 13,320：差额 1,635 全部来自张国栋（id=1）名下 171 条点餐
+  （演示期重复提交，同一 date+meal_type 最多 7 条）——月结行按口径刷新 930→2,565。
+  属设计内行为（餐费以 MealFinance=MealOrder 实际数据为准）；**点餐去重是独立的
+  数据治理事项**，未在本次处理（meals/ 零改动承诺）。
+
+### 踩坑：pytest 之外的 ORM 复现脚本直接写生产
+排障 ninja 400 时图省事用 `python -c` + Django setup 复现——**没意识到这连的是
+生产 db.sqlite3**（pytest 才有隔离测试库）。`_resident()` 已插入一位"测试老人"，
+后续 bed 挂接撞唯一约束才暴露。确认无子记录后按 id+name 定向删除（36 位老人复原）。
+教训：**生产库就是默认库**——凡要跑 ORM 复现，一律写 throwaway pytest（`tests/_scratch_*.py`
+跑完即删），禁止 manage.py shell / python -c 建对象。
+
+### 后续可选
+- dl-control 财务技能接 /api/billing/（ERP 侧 API 已就绪，另起小活）
+- 旧 /api/meal-finance/generate/ 硬编码 15 与价目分叉——可改读 FeeRule
+- 点餐重复数据治理（张国栋 171 条）

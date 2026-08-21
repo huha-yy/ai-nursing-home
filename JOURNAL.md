@@ -1127,9 +1127,10 @@ agent 目录留有 `*.bak-pre-moonshot`（pass2 前）与 `*.bak-pass3*`（pass3
 
 ### 后续计划：切换本地 qwen3.6 27b（用户已拍板要做，时间未定）
 流程与本次同构——改 `LLM_*` 三变量 + 按 CLAUDE.md 四站点矩阵走，完整手册已写进
-CLAUDE.md「Vendor switch runbook」一节。与云 API 的差异三点：① 27b 显存
-（dl-llm-local 现配 12g/4cpu/qwen3.5:9b，需上调且 COMPOSE_PROFILES 含
-local-llm）；② j2 模板 baseUrl 写死 moonshot，要改 `${OPENAI_BASE_URL}`
-（**唯一代码点**）；③ models.json reasoning/maxTokens 按模型实调。仓库已有半套
-本地管线：dl-llm-local(ollama) + dl-llm-proxy(限流鉴权) + provisioning tier1
-分流，属"升级现有管线"而非新接。
+CLAUDE.md「Vendor switch runbook」一节。**注意：本地目标是宿主机的
+`dato-vision.service`（vLLM serve ocicek/Qwen3.6-27B-NVFP4，0.0.0.0:8000，key
+在 ~/.config/dato/vision.env，与 ComfyUI 共卡 gpu-util 0.35、平时常处于
+inactive），不是项目内的 dl-llm-local(ollama)——两者别混。**差异三点：① 切换前
+`systemctl --user start dato-vision` 并确认显存余量（ComfyUI 常驻 28GB）；② j2
+模板 baseUrl 写死 moonshot，要改 `${OPENAI_BASE_URL}`（**唯一代码点**）；
+③ models.json reasoning/maxTokens/contextWindow 按 Qwen3.6-27B 实调。

@@ -440,9 +440,28 @@ agent path returns `invalid token`.
 settings、agent `.env`、setup-llm.sh、receiver 全部跟随）——换供应商是**配置
 改动，不是代码改动**。按上面"四站点矩阵"自上而下改，每步改完重启对应进程：
 
-1. `infra/.env` 三个值：走本地限流代理时 `LLM_BASE_URL=http://dl-llm-proxy:8080/v1`
-   （直连 ollama 则 `http://dl-llm-local:11434/v1`）、`LLM_API_KEY=<DL_INTERNAL_API_KEY>`
-   （代理鉴权）、`LLM_MODEL=qwen3.6:27b`（ollama tag 名，以实际拉取的为准）
+**本地目标不是项目里的 `dl-llm-local`（ollama，那是 tier1 备用管线，别混），
+而是宿主机上的 `dato-vision.service`**（user systemd 单元，
+`~/.config/systemd/user/dato-vision.service`）：
+
+- vLLM serve `ocicek/Qwen3.6-27B-NVFP4`（多模态），`0.0.0.0:8000`，
+  `--gpu-memory-utilization 0.35`（与 ComfyUI/dl-ocr/TTS 共卡，服务平时可能处于
+  inactive，用前 `systemctl --user start dato-vision`，日志
+  `journalctl --user -u dato-vision`）；模型已在 HF 本地缓存（HF_HUB_OFFLINE=1）
+- 鉴权 key 在 `~/.config/dato/vision.env` 的 `VISION_API_KEY`
+
+切换时的取值：
+
+| 变量 | 值 |
+|---|---|
+| `LLM_BASE_URL` | `http://192.168.10.247:8000/v1`（容器经宿主机 IP 访问，同 dl-ocr 的 `192.168.10.247:18080` 模式） |
+| `LLM_API_KEY` | `VISION_API_KEY` 的值（上表文件） |
+| `LLM_MODEL` | `ocicek/Qwen3.6-27B-NVFP4`（vLLM 无 `--served-model-name` 时 id=启动参数原名；改过要同步） |
+
+步骤（其余与换任何供应商相同）：
+
+1. `infra/.env` 三个值（上表）+ `systemctl --user start dato-vision` 确认
+   `curl http://192.168.10.247:8000/v1/models` 通
 2. agent `config/.env` ×15：`LLM_*` 与 `OPENAI_*` **两套同名值都要改**（openclaw
    的 env-marker 白名单只认 `OPENAI_API_KEY` 这个名字——见上文鉴权三坑第 1 条）
 3. agent `models.json`/`openclaw.json`：删 `.llm-configured` marker + `docker
@@ -450,18 +469,17 @@ settings、agent `.env`、setup-llm.sh、receiver 全部跟随）——换供应
 4. `docker compose ... up -d --force-recreate dato-control`（第 4 站点）
 5. 验证：chat.eldcare.cn 楼长（b1_liu）+ 院长（wang_jianguo）各发一句
 
-本地模型与云 API 的差异（切换时额外注意）：
+与云 API 的差异（切换时额外注意）：
 
-- **资源**：`dl-llm-local` 现配 `mem_limit 12g`/`cpus 4`/默认 `qwen3.5:9b`——27b
-  哪怕 q4 量化也要 20GB+ 级显存，先确认 GPU 够，再调大 `DL_LLM_LOCAL_MEM`/
-  `DL_LLM_LOCAL_CPUS`，并确认 `COMPOSE_PROFILES` 含 `local-llm`（否则服务不起）；
-  模型名同步改 `DL_LLM_LOCAL_MODEL`
+- **显存共卡**：服务 `--gpu-memory-utilization 0.35`，ComfyUI（常驻 28GB）等抢
+  显存时 vLLM 可能起不来或被停——切换前看 `nvidia-smi` 余量，必要时先停
+  ComfyUI
 - **唯一代码点**：`templates/openclaw.json.j2` 的 `providers.baseUrl` 目前写死
   `https://api.moonshot.cn/v1`——切换时改成 `"${OPENAI_BASE_URL}"`
   （`render_env_file` 已导出该变量，openclaw 加载时插值），顺手提交
-- **模型参数**：models.json 的 `reasoning`/`maxTokens` 按 qwen 实际行为调；
-  kimi 的 temperature=1 限制是它自己的怪癖，qwen 无此限制（`main.py` 直连调用
-  本就不传 temperature，无需改）
+- **模型参数**：models.json 的 `reasoning`/`maxTokens`/`contextWindow` 按
+  Qwen3.6-27B 实际值调；kimi 的 temperature=1 限制是它自己的怪癖，qwen 无此
+  限制（`main.py` 直连调用本就不传 temperature，无需改）
 - 排障口径不变：错误文案能指路（若报 DeepSeek/Moonshot 话术 = baseUrl 没切干净），
   凭证比对用 sha256 指纹，进程真实 env 读 `/proc/<pid>/environ`
 

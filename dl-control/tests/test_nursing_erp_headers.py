@@ -3,7 +3,9 @@
 覆盖 main.py 模块级 helper：
 - _erp_headers：X-API-Key 恒带；楼长会话附 X-Building，管理层无楼栋不发头
 - _skill_queries：meal-query 回归钉——不得再指向不存在的 /api/meal-plans/；
-  财务行接入 /api/billing/（欠费→ arrears 名单、泛财务→ summary、餐费仍走月结）
+  财务行接入 /api/billing/（欠费→ arrears 名单、泛财务→ summary、餐费仍走月结）；
+  评估行接入 /api/assessments/（盘点类→ review，泛评估→ 列表；行序在
+  logistics/resident 之前）
 - _erp_items：分页/聚合/纯标量三种 ERP 响应形状的行提取（2026-08-24 模块级化）
 - _week_start：任何日期都返回周一
 - _load_nursing_sess：cookie 缺失/无效/有效三分支
@@ -115,6 +117,41 @@ def test_skill_queries_meal_finance_row_kept():
     row = next(r for r in _skill_queries() if "餐费" in r[0])
     assert row[1] == "finance-query"
     assert row[2] == "API:/api/meal-finance/"
+
+
+# ---- _skill_queries 评估行（2026-08-24 接入 /api/assessments/）----
+
+
+def test_skill_queries_review_row_hits_assessments_review():
+    """盘点类意图（待评估/复评/评估盘点）→ 三态盘点（国标 12 个月复评）"""
+    row = next(r for r in _skill_queries() if "待评估" in r[0])
+    assert row[1] == "assessment-query"
+    assert row[2] == "API:/api/assessments/review/"
+
+
+def test_skill_queries_generic_assessment_row_hits_list():
+    """泛评估词（评估/定级/能力等级…）→ 评估单列表"""
+    row = next(r for r in _skill_queries() if "定级" in r[0])
+    assert row[1] == "assessment-query"
+    assert row[2] == "API:/api/assessments/"
+
+
+def test_skill_queries_assessment_rows_precede_logistics_and_resident():
+    """行序即优先级（首匹配 break）三连钉：
+    - review 行先于泛评估行（"待评估"含子串"评估"）
+    - 评估两行先于 logistics"盘点"行（否则"评估盘点"被吞成库存查询）
+    - 评估两行先于 resident"老人"行（"老人的评估"同理）
+    """
+    rows = _skill_queries()
+
+    def idx(pred):
+        return next(i for i, r in enumerate(rows) if pred(r))
+
+    i_review = idx(lambda r: "待评估" in r[0])
+    i_generic = idx(lambda r: "定级" in r[0])
+    i_logi = idx(lambda r: "盘点" in r[0] and r[1] == "logistics-inventory")
+    i_res = idx(lambda r: r[1] == "resident-query")
+    assert i_review < i_generic < i_logi < i_res
 
 
 # ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----

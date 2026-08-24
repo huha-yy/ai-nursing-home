@@ -1314,3 +1314,31 @@ admin 三页 HTTP 级渲染走 throwaway pytest 测试库超管验过）。测�
 遗留：AI 侧（chat/agent）评估只读查询未接（用户拍板后续单独做）——
 `_skill_queries` 加评估行须排在"老人/健康档案"行**之前**（行序即优先
 级，否则"评估"关键词被吞）；handler 侧配套读函数。
+
+## 2026-08-24 · AI 侧评估查询接入（chat 预取 + 技能读函数；nursing-erp 50dd857）
+
+入住评估上线的遗留项收尾。ERP 侧新增 `GET /api/assessments/review/`
+三态盘点端点（rows 只含待评估/待复评，期内已评只给计数——不稀释注入
+上限；聚合形状对齐 _erp_items 汇总置顶范式），本仓三处接入：
+
+**dl-control 预取两行**（`_skill_queries`）：盘点类（待评估/复评/评估
+盘点）→ review 端点，泛评估词（评估/定级/能力等级/护理等级）→ 评估单
+列表。**排位比计划多踩一坑**：不只 resident 行（"老人"），logistics 行
+的"盘点"同样会吞"评估盘点"——两行一并提到 logistics **之前**；行内
+review 先于泛评估（"待评估"含子串"评估"）。测试 +3（指向/三连行序钉
+i_review < i_generic < i_logi < i_res），18 过全套 84 过。
+
+**技能 +3 读函数**：nursing-erp-query/handler.py 的 list_assessments /
+get_assessment（26 行明细）/ assessment_review，1:1 映射 API；SKILL.md
+补触发词、端点表与口径注（总分越高越差、12 个月复评、"谁该复评"用
+review、"某人结果"用列表/详情）。
+
+**部署**：dato-control `--force-recreate --build`（容器内 grep 验新行）；
+技能 docker cp 进院长/通用助手两容器 + restart（其余 13 个无技能目录，
+镜像重建自然带上）。
+
+**E2E（院长 wang_jianguo，chat.eldcare.cn 同源）**："谁该复评了？"→
+32/1/2 与线上分毫不差，陈永发（1号楼103，2025-07-20 待复评）单列提示；
+"张国栋评估结果"→ 两次评估 60/80 分、半护→全护定级时间线全对；"做个
+评估盘点"→ 评估报告而非库存（行序修复的直接验证），"库存盘点/尿不湿"
+→ 物流无回归。

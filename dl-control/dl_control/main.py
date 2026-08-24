@@ -120,12 +120,24 @@ def _skill_queries() -> list:
     /api/billing/ —— 欠费类 → 欠费名单（跨月累计，首行带总数），
     泛财务词 → 当月三额汇总；餐费/月结仍走 /api/meal-finance/。
     行序即优先级（首匹配即 break）：欠费行必须排在泛财务行之前。
+
+    assessment 2026-08-24 接入：入住评估→定级查询。两行都必须排在
+    logistics（"盘点"）与 resident-query（"老人/健康档案"）行**之前**——
+    "评估盘点/老人的评估/谁该复评"这类问句同时含两边关键词，首匹配即
+    break，先命中评估行才有评估数据；行内再分：盘点类（待评估/复评）→
+    review 三态盘点，泛评估词 → 评估单列表。
     """
     return [
         (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
          "API:/api/schedules/?date=" + datetime.now().strftime("%Y-%m-%d")),
         (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
          "API:/api/incidents/"),
+        # 评估两行须在 logistics（"盘点"）与 resident（"老人"）行之前：
+        # "评估盘点/老人的评估" 同时含对方关键词，先命中这里才有评估数据
+        (["待评估", "复评", "评估盘点"], "assessment-query",
+         "API:/api/assessments/review/"),
+        (["评估", "定级", "能力等级", "护理等级"], "assessment-query",
+         "API:/api/assessments/"),
         (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"],
          "logistics-inventory", "API:/api/inventory/"),
         (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案"],

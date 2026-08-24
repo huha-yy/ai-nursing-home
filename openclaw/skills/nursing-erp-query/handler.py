@@ -80,6 +80,34 @@ def get_resident_medications(resident_id: int):
     _print_json(r.json())
 
 
+# ---- 入住评估（国标 GB/T 42195-2022：26 项 → 能力等级 → 护理档）----
+
+def list_assessments(resident_id=None, status=None):
+    """查评估单列表。status：draft=待定级 / confirmed=已定级。"""
+    params = {}
+    if resident_id is not None:
+        params["resident_id"] = resident_id
+    if status:
+        params["status"] = status
+    r = _client().get("/api/assessments/", params=params)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def get_assessment(assessment_id: int):
+    """查评估单详情（含 26 项明细、总分、能力等级、建议/定级护理档）。"""
+    r = _client().get(f"/api/assessments/{assessment_id}/")
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def assessment_review():
+    """评估状态盘点（国标 12 个月复评）：rows=待评估/待复评名单 + 三态计数。"""
+    r = _client().get("/api/assessments/review/")
+    r.raise_for_status()
+    _print_json(r.json())
+
+
 # ---- 人员管理 ----
 
 def search_employees(dept=None, is_caregiver=None):

@@ -1409,7 +1409,10 @@ X-Building 互斥不叠加），本侧库没有家属可看数据；行序：账
 agent 路由 ROLE_TO_AGENT 无 family 键自然落空。
 ③ **直连 LLM 超时 60→90s**——家属首问 E2E 真实超时一次（kimi-k2.6 推理
 +整周菜单注入，实测 42s 贴边），空异常文本是 httpx ReadTimeout 的
-str() 为空，排障别被"AI 服务暂时不可用："后面没字骗到。
+str() 为空，排障别被"AI 服务暂时不可用："后面没字骗到；同日另见
+"[Errno -2] Name or service not known"=瞬时 DNS 抖动（容器内嵌
+DNS → 宿主 systemd-resolved 127.0.0.53 链路，复测 30/30 正常），
+已给直连 LLM 加 AsyncHTTPTransport(retries=1) 连接层重试。
 
 **E2E（生产，chat.eldcare.cn）**：王丽华（138…0001/123456，双绑张国栋+
 李秀兰）登录 302→/chat；「这周吃饭情况」→ 双老人真实订单含少盐备注；

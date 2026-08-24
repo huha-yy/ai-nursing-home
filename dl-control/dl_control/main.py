@@ -872,7 +872,13 @@ async def build_app() -> FastAPI:
             # kimi-k2.6 only accepts temperature=1 — never send a custom temperature here.
             # 90s：推理模型在注入整周菜单/订单数据时偶发超 60s（2026-08-24 家属
             # 首问实测 42s，60s 版曾超时一次返回"AI 服务暂时不可用"）。
-            async with httpx.AsyncClient(timeout=90.0) as client:
+            # retries=1：连接层重试（含瞬时 DNS 抖动——同日容器偶发
+            # "[Errno -2] Name or service not known"，复测 30/30 正常），
+            # 只重连接不重请求体，不会重复扣费。
+            async with httpx.AsyncClient(
+                timeout=90.0,
+                transport=httpx.AsyncHTTPTransport(retries=1),
+            ) as client:
                 resp = await client.post(
                     f"{s.llm_base_url.rstrip('/')}/chat/completions",
                     headers={

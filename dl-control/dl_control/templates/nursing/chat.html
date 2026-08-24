@@ -159,8 +159,14 @@ var LABEL = '{{ role_label }}';
     text = text.replace(/^## (.+)/gm, '<!--h3-->$1<!--/h3-->');
     text = text.replace(/^- (.+)/gm, '<!--li-->$1<!--/li-->');
     text = text.replace(/(?:<!--li-->.*<!--\/li-->\n?)+/g, '<!--ul-->$&<!--/ul-->');
-    text = text.replace(/---+/g, '<!--hr-->');
+    // 横线只认"整行纯连字符"的 hr。不能全局替换 ---：表格分隔行
+    // |:---:|:---| 里的 --- 会先被吃掉，下面判分隔行的 indexOf('---')
+    // 永远落空 → 分隔行被当成数据行，渲染成一行冒号+内嵌横线
+    text = text.replace(/^\s*-{3,}\s*$/gm, '<!--hr-->');
     // Tables: mark rows, then wrap
+    // 分隔行（|:---:|---|）整行删除、换行一起删——只删行内匹配会留下空行，
+    // 把表头行与数据行的连续性打断 → 一张表被拆成两张
+    text = text.replace(/^[ \t]*\|[ \t:|]*-[ \t|:-]*\|[ \t]*\n?/gm, '');
     text = text.replace(/\|(.+)\|/g, function(m) {
       if (m.indexOf('---') >= 0) return '';
       var cells = m.split('|').filter(function(c) { return c.trim(); });
@@ -168,7 +174,11 @@ var LABEL = '{{ role_label }}';
       var tag = cells[0].match(/^[\s:=-]+$/) ? 'th' : 'td';
       return '<!--tr--><'+tag+'>' + cells.map(function(c) { return c.trim(); }).join('</'+tag+'><'+tag+'>') + '</'+tag+'>';
     });
-    text = text.replace(/((?:<!--tr-->.*\n?)+)/g, '<!--table-->$1<!--/table-->');
+    // 包裹表格块时顺手清掉块内换行——若留到步骤 3 的 \n→<br>，
+    // 行与行之间会插进游离 <br>，浏览器把无效的 <br> 挪出表格变成杂线
+    text = text.replace(/((?:<!--tr-->.*\n?)+)/g, function(m) {
+      return '<!--table-->' + m.replace(/\n+/g, '') + '<!--/table-->';
+    });
 
     // 2. Collapse whitespace, then convert remaining double-newlines to paragraph breaks
     text = text.replace(/\n{3,}/g, '\n\n');

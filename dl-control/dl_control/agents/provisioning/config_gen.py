@@ -189,6 +189,11 @@ def render_env_file(
     nursing_dept: str = "",
     nursing_building: str = "",
     nursing_floor: str = "",
+    # 2026-08-24: nursing-erp REST API vars (NURSING_ERP_URL / NURSING_ERP_API_KEY)
+    # for the agent-side nursing-erp-query skill. API key is a per-install secret —
+    # carried forward from the on-disk .env (Feishu-credential pattern), never
+    # templated. URL has an in-stack default matching infra/.env.
+    nursing_erp_env_lines: str = "",
 ) -> str:
     """Generate per-agent .env content (spec §6.4). Every value is
     single-quoted so `sh source`/`. ` cannot misinterpret it. P3: existing
@@ -231,6 +236,11 @@ def render_env_file(
         result += f"DL_OCR_URL={_sh_single_quote(dl_ocr_url)}\n"
     else:
         result += "DL_OCR_URL='http://192.168.10.247:18080'\n"
+    # nursing-erp API（见参数注释）：carry-forward 行原样保留；无则只给栈内默认 URL
+    if nursing_erp_env_lines:
+        result += nursing_erp_env_lines
+    else:
+        result += "NURSING_ERP_URL='http://dato-caddy:9081'\n"
     # Nursing context env vars (Task 3) — injected for role-based agent access.
     result += f"NURSING_ROLE={_sh_single_quote(nursing_role)}\n"
     result += f"NURSING_DEPT={_sh_single_quote(nursing_dept)}\n"

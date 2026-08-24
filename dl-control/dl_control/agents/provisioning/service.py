@@ -214,6 +214,9 @@ def _generate_config_set(
     gbrain_lines = ""
     # P10: carry forward COMFYUI_URL across restarts.
     comfyui_lines = ""
+    # 2026-08-24: carry forward nursing-erp API vars across restarts —
+    # the per-install X-API-Key lives only here (never templated in config_gen).
+    nursing_erp_lines = ""
     env_path = config_dir / ".env"
     if env_path.exists():
         for line in read_managed_text(env_path, agent_dir=agent_dir).splitlines():
@@ -253,6 +256,8 @@ def _generate_config_set(
                 gbrain_lines += line + "\n"
             elif line.startswith("COMFYUI_URL="):
                 comfyui_lines += line + "\n"
+            elif line.startswith("NURSING_ERP_URL=") or line.startswith("NURSING_ERP_API_KEY="):
+                nursing_erp_lines += line + "\n"
     openclaw_text = config_gen.render_openclaw_json(
         cfg.templates_root,
         row,
@@ -277,6 +282,7 @@ def _generate_config_set(
             cognee_env_lines=cognee_lines,
             cognee_internal_token=cognee_internal_token,
             comfyui_url=cfg.comfyui_url or "",
+            nursing_erp_env_lines=nursing_erp_lines,
         ),
         agent_dir=agent_dir,
     )

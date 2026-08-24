@@ -1198,3 +1198,49 @@ OCR 路径重构为 规范化→预检→落库 三遍，跳过条件语义不�
 → `systemctl --user stop nursing-erp` → 重灌 → start → E2E（两账号
 form+CSRF 登录、/api/ key 面对账、匿名 401）。服务由 systemd user unit
 `nursing-erp.service` 托管，重启不再手工 nohup。
+
+## 2026-08-24 · AI 财务技能接入 /api/billing/（chat 预取 + agent 侧 handler）
+
+ERP 应收月账单 6 端点上线 + 演示数据重灌（三个月账单/欠费剧本）后，
+把财务问答接到真实数据。提交 `b1bb6eb`（chat/技能）+ `e255f9d`（env 携带）。
+
+**dl-control chat 预取**（`_skill_queries` 财务行升级）：欠费类（欠费/没交/
+未缴/催缴）→ `/api/billing/arrears/`（跨月累计名单）；泛财务词（费用/结算/
+缴费/账单/应收/出账）→ `/api/billing/summary/`（当月三额勾稽）；餐费/月结
+仍走 meal-finance。**行序即优先级**——欠费行必须先于泛财务行（首匹配
+break，"谁欠费"不能落到 summary）。`_erp_items` 从 build_app 提升为模块级
+（可单测）并支持三种响应形状：分页 dict 取 items；聚合 dict（rows+汇总
+标量）汇总置顶成一行再接 rows（LLM 不丢 total_outstanding——13 行小数让
+LLM 自己加总会算错）；纯标量 dict 包成单行。
+
+**agent 侧**：nursing-erp-query/handler.py +6 函数（list/summary/arrears/
+generate/settle/unsettle，1:1 映射 API）；SKILL.md 补财务触发词、端点表、
+欠费口径说明（arrears 跨月 vs summary 单月）；finance-query（Mock
+Postgres）加废弃横幅——工作流 finance-step 的提示词让它读那个 SKILL.md，
+横幅正好把 agent 导向 billing。
+
+**部署发现（两个此前不可见的坑）**：① 运行中的 agent 容器镜像里**根本没有**
+nursing-erp-query 技能目录（agent.yaml skill_list 挂着，目录不存在）——
+此前 4c95e7a 联调全绿是因为 chat 走 dl-control 预取注入，agent 侧从未
+真正可用；② agent 容器 env 完全没有 NURSING_ERP_*，handler 默认连
+http://nursing-erp:8080（不存在的容器名）。修法：config_gen/service 加
+nursing_erp_env_lines 携带通道（Feishu 凭据同款 carry-forward，密钥永不
+进模板；无携带行给默认 URL `http://dato-caddy:9081`，与 dato_net 网内
+ERP 网关一致）；院长/通用助手两容器手工追加两行 + docker cp 技能 +
+restart。验证口径：`docker exec` 的 shell **不继承** PID 1 source 的 env
+（查 `/proc/1/environ`）；exec 里测 handler 要先 `. /app/config/.env`。
+
+**E2E（院长 wang_jianguo）**："这个月谁欠费？列出前3名" → 吴桂英
+¥12,840/3个月居首的表格（与重灌面板分毫不差）；"本月应收多少？" →
+104,500/66,460/38,040，LLM 自算收缴率 63.6%（22/35）。容器内 handler
+实测 arrears 13 人 ¥46,675 ✓。
+
+**顺带修复**：dl-control pyproject 加 pytest `pythonpath = ["."]`——项目
+无 build-system，uv 不装自身进 venv，此前依赖某次手工 editable 安装，
+`uv sync` 后全套 import 断（新克隆必炸）。另：root tests 套件在本机跑不动
+（uv run 落到 miniconda 3.14 缺 argon2），test_nursing_auth.py 的
+`deepseek_api_key=` 参数也已过期，账先记在这。
+
+**遗留**：其余 13 个 agent 容器未 cp 技能目录（非财务角色；镜像重建自然
+带上，skills 已在 git）；ERP `/api/meal-finance/generate/` 硬编码 15 元
+仍未读 FeeRule。

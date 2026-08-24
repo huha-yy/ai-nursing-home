@@ -1281,3 +1281,36 @@ restart。验证口径：`docker exec` 的 shell **不继承** PID 1 source 的 
 resident_id）确认线上响应带回 `price_per_meal`。nursing-erp `8b10b1e`。
 注意：该端点会对**全部老人** update_or_create——对无点餐老人会把
 fill_demo_data 的演示月结行刷成 0，故生产只做读验证不真跑出账。
+
+## 2026-08-24 · 入住评估→定级上线（nursing-erp 阶段二收尾）
+
+路线图阶段二最后一块：`assessments` app 全套上线，提交 `69b9b3c`。
+国标 GB/T 42195-2022 口径——26 项二级指标（4 维度 8-4-9-5，原始满分
+190）→ 归一化 0-100 → 等级分段（国标常量硬编码）→ 建议护理档
+（`GradeLevelMap` 配置表，缺行 fail-loud）→ `confirm()` 原子闭环：锁序
+resident→assessment 防死锁，翻转 `care_level` + **自动生成关联
+CareLevelChange**（from==to 也留痕、change_date=assess_date、重复确认
+raise）。失智刻意不入映射——只能定级改判且原因必填。原先"改字段+建
+记录"两步人工合一，billing 语义零改动（confirm 与手工改级完全同语义）。
+
+要点三条：①总分归一化对"在用目录"实时求满分——后台调目录不腐蚀
+0-100 语义；历史单总分落单上，`recalculate()` 是唯一写入口。②明细行
+item FK 用 PROTECT + 只存得分（快照语义），目录改名/调上限不漂移历史。
+③双评估员只记录不做工作流（国标要求 ≥1 医护），评估员1 走 StaffFkMixin。
+
+演示剧本升级：张国栋等级时间线改走真实 create+confirm（synth_scores
+目标分 55→60分2级半护 / 75→80分3级全护，±1 舍入不跨段），陈永发补录
+400 天前已确认单（from==to 留痕）→ 盘点「待复评」有内容；断言 #10 钉
+"每张已确认单恰关联 1 条变更行 + 补录者入待复评"。
+
+部署序：sqlite3 backup API 备份（注意 `scripts/backup_db.py` 是给
+dato-control Postgres 写的，找 pg_dump 会失败留 0 字节文件——本库一律
+`sqlite3 db.sqlite3 ".backup backups/<名>.sqlite3"`）→ 停服 → 迁移 3 张
+（含种子）→ 重灌 10 断言全过 → 起服 → E2E（b1_liu 看板/生命周期评估
+事件/API 26 行明细/匿名 401/楼长 admin 403 与 residents 既有口径一致，
+admin 三页 HTTP 级渲染走 throwaway pytest 测试库超管验过）。测试
+111→129 全绿，ruff 新文件零告警。
+
+遗留：AI 侧（chat/agent）评估只读查询未接（用户拍板后续单独做）——
+`_skill_queries` 加评估行须排在"老人/健康档案"行**之前**（行序即优先
+级，否则"评估"关键词被吞）；handler 侧配套读函数。

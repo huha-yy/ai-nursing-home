@@ -32,6 +32,9 @@ class Session:
     building: str | None = None
     floor: str | None = None
     username: str | None = None
+    # Family context (role="family" only): ERP 家属令牌 + 绑定老人清单（JSON 串）
+    family_token: str | None = None
+    residents: str | None = None
 
 
 def _sess_key(sid: str) -> str:
@@ -73,6 +76,8 @@ class SessionStore:
         building: str | None = None,
         floor: str | None = None,
         username: str | None = None,
+        family_token: str | None = None,
+        residents: str | None = None,
     ) -> Session:
         sid = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
@@ -95,6 +100,10 @@ class SessionStore:
             mapping["floor"] = floor
         if username is not None:
             mapping["username"] = username
+        if family_token is not None:
+            mapping["family_token"] = family_token
+        if residents is not None:
+            mapping["residents"] = residents
         async with self._r.pipeline(transaction=True) as pipe:
             key = _sess_key(sid)
             pipe.hset(key, mapping=mapping)
@@ -115,6 +124,8 @@ class SessionStore:
             building=building,
             floor=floor,
             username=username,
+            family_token=family_token,
+            residents=residents,
         )
 
     async def load(self, sid: str) -> Session | None:
@@ -136,6 +147,8 @@ class SessionStore:
             building=data.get("building"),
             floor=data.get("floor"),
             username=data.get("username"),
+            family_token=data.get("family_token"),
+            residents=data.get("residents"),
         )
 
     async def renew(self, sid: str) -> None:

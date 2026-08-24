@@ -16,7 +16,7 @@
 
     <form method="post" action="/auth/nursing-login" id="login-form">
       <div class="login-field">
-        <label for="login-user">用户名</label>
+        <label for="login-user" id="login-user-label">用户名</label>
         <input id="login-user" type="text" name="username" autocomplete="username"
                pattern="[A-Za-z0-9_]{1,32}" required autofocus>
       </div>
@@ -27,7 +27,10 @@
       <button type="submit" class="login-btn">登录</button>
     </form>
 
-    <a href="#" class="login-admin" id="admin-link">管理员入口</a>
+    <div class="login-modes">
+      <a href="#" id="family-link">家属入口</a>
+      <a href="#" id="admin-link">管理员入口</a>
+    </div>
   </div>
 
 </div>
@@ -42,17 +45,43 @@
   else if (h < 18) g.textContent = '下午好，今天也辛苦了';
   else             g.textContent = '晚上好，夜班请注意安全';
 
-  var admin = document.getElementById('admin-link');
-  var form  = document.getElementById('login-form');
+  // 三态切换：员工(默认) / 管理员 / 家属。家属用手机号登录，
+  // 身份在 nursing-erp 侧校验（dl-control 只委托不落库）。
+  var admin  = document.getElementById('admin-link');
+  var family = document.getElementById('family-link');
+  var form   = document.getElementById('login-form');
+  var uLabel = document.getElementById('login-user-label');
+  var uInput = document.getElementById('login-user');
+
+  function setMode(mode) {
+    if (mode === 'admin') {
+      form.action = '/login';
+      uLabel.textContent = '用户名';
+      uInput.placeholder = '';
+      admin.textContent = '返回登录';
+      family.textContent = '家属入口';
+    } else if (mode === 'family') {
+      form.action = '/auth/family-login';
+      uLabel.textContent = '手机号';
+      uInput.placeholder = '请输入家属手机号';
+      admin.textContent = '管理员入口';
+      family.textContent = '返回员工登录';
+    } else {
+      form.action = '/auth/nursing-login';
+      uLabel.textContent = '用户名';
+      uInput.placeholder = '';
+      admin.textContent = '管理员入口';
+      family.textContent = '家属入口';
+    }
+  }
+
   admin.addEventListener('click', function(e) {
     e.preventDefault();
-    if (form.action.endsWith('/login')) {
-      form.action = '/auth/nursing-login';
-      admin.textContent = '管理员入口';
-    } else {
-      form.action = '/login';
-      admin.textContent = '返回登录';
-    }
+    setMode(form.action.endsWith('/login') ? 'nursing' : 'admin');
+  });
+  family.addEventListener('click', function(e) {
+    e.preventDefault();
+    setMode(form.action.endsWith('/auth/family-login') ? 'nursing' : 'family');
   });
 
   // 3D tilt + parallax

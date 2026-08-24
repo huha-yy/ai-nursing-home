@@ -17,10 +17,15 @@
     <span class="nh-brand">AI 养老院院长</span>
     <nav>
       <a href="/chat"{% if active == 'chat' %} class="active"{% endif %}>对话</a>
+      {% if is_family %}
+      {# 家属只留对话 + ERP 家属服务页（照护/点餐/账单）；大屏/周报/告警/业务管理均为员工面 #}
+      <a href="https://admin.eldcare.cn:8443/family/" target="_blank" rel="noopener">家属服务</a>
+      {% else %}
       <a href="/dashboard"{% if active == 'dashboard' %} class="active"{% endif %}>大屏</a>
       <a href="/reports"{% if active == 'reports' %} class="active"{% endif %}>周报</a>
       <a href="/alerts"{% if active == 'alerts' %} class="active"{% endif %}>告警</a>
       <a href="https://admin.eldcare.cn:8443/admin/" target="_blank" rel="noopener">业务管理</a>
+      {% endif %}
     </nav>
     <div class="nh-user-area">
       {% set label_map = {
@@ -30,6 +35,7 @@
         'building': '楼长',
         'floor': '楼层组长',
         'general': '工作人员',
+        'family': '家属',
       } %}
       {% set lbl = label_map.get(nursing_user.role, nursing_user.role) %}
       <span class="nh-role-badge role-{{ nursing_user.role }}">{{ lbl }}</span>

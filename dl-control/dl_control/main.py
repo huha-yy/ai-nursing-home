@@ -73,12 +73,18 @@ def _erp_headers(sess=None) -> dict:
     ERP 只返回该楼数据；无楼栋会话（管理层 u001-u006）不发头 → 全院。
     楼栋名是中文，HTTP 头只可靠传 ASCII：percent-encode（quote）后发送，
     ERP 侧 unquote 还原（httpx 对非 ASCII 头值直接 UnicodeEncodeError）。
+    X-Family-Token：家属会话（role="family"）——ERP /api/family/* 靠它
+    定位 FamilyMember 并只放行绑定老人；token 是 secrets.token_hex 的
+    ASCII，无需编码。家属会话无 building，两个头互斥不叠加。
     """
     key = os.environ.get("NURSING_ERP_API_KEY", "")
     headers = {"X-API-Key": key} if key else {}
     building = ((getattr(sess, "building", "") or "") if sess else "").strip()
     if building:
         headers["X-Building"] = quote(building)
+    family_token = ((getattr(sess, "family_token", "") or "") if sess else "").strip()
+    if family_token:
+        headers["X-Family-Token"] = family_token
     return headers
 
 
@@ -157,6 +163,60 @@ def _skill_queries() -> list:
         (["员工", "谁负责", "人员", "值班人员"], "staff-query",
          "API:/api/employees/"),
     ]
+
+
+def _family_skill_queries() -> list:
+    """家属会话（role="family"）专用意图映射 —— 全部走 ERP /api/family/*。
+
+    与员工版三处刻意不同：
+    - 只有 API: 行，没有 SQL 行 —— 本侧库（agents/workflows 等）没有
+      家属可看的数据，SQL 预取对家属是越权面；
+    - ERP 侧按 X-Family-Token 过滤，返回的永远只是绑定老人；
+    - 行序即优先级（首匹配即 break）：账单/吃饭在前，泛"老人近况"兜底最后。
+    """
+    return [
+        (["账单", "费用", "缴费", "欠费", "收费", "月结", "钱"], "family-billing",
+         "API:/api/family/billing/"),
+        (["吃饭", "点餐", "订餐", "退餐", "伙食", "三餐", "菜单", "饭菜", "吃什么"],
+         "family-meals", "API:/api/family/meals/"),
+        (["健康", "身体", "血压", "血糖", "用药", "护理", "评估", "病历", "过敏", "诊断"],
+         "family-care", "API:/api/family/care/"),
+        # 兜底行：泛问老人近况 → 总览（基础+评估+近期动态+今日三餐+欠费）
+        (["老人", "爸", "妈", "近况", "怎么样", "状态", "情况", "照护", "住"],
+         "family-overview", "API:/api/family/overview/"),
+    ]
+
+
+def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> str:
+    """家属会话的 system prompt（模块级，便于单测）。
+
+    名单来自登录时 ERP 返回、缓存在 session 的 residents JSON
+    （[{name, building, room, relation}]）；有预取数据时只依据数据回答。
+    """
+    import json as _json
+    try:
+        residents = _json.loads(getattr(sess, "residents", "") or "[]")
+    except Exception:
+        residents = []
+    roster = "、".join(
+        f"{r.get('name', '?')}（{r.get('building') or ''}{r.get('room') or ''}，{r.get('relation') or ''}）"
+        for r in residents
+    ) or "（暂无绑定老人）"
+    if skill_result is not None:
+        data_json = _json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+        return (
+            f"你是养老院的家属服务助手。今天是{today_str}。当前用户是家属{sess.name}。"
+            f"以下是家属绑定老人的真实照护数据：\n{data_json}\n\n"
+            "请根据以上数据用中文直接回答用户问题，只谈数据中出现的老人，不要编造。"
+            "你不能代家属点餐、退餐或修改数据；家属需要操作时引导使用「家属服务」页面。语气温暖亲切。"
+        )
+    return (
+        f"你是养老院的家属服务助手。今天是{today_str}。当前用户是家属{sess.name}，"
+        f"绑定的老人：{roster}。请只谈论上述绑定老人的照护、健康、用餐与费用情况；"
+        "用户询问其他老人、员工事务或院内管理事务时，温暖而礼貌地说明这超出家属服务范围。"
+        "你只能查询和转述信息，不能代家属点餐、退餐或修改任何数据；家属需要操作时，"
+        "引导使用顶栏「家属服务」页面。回答用中文，语气温暖亲切。"
+    )
 
 
 async def _load_nursing_sess(request: _Request, sessions: SessionStore):
@@ -336,6 +396,10 @@ async def build_app() -> FastAPI:
     _NURSING_ROLES = frozenset(
         {"director", "nursing_dept", "logistics_dept", "building", "floor", "general"}
     )
+    # 家属（role="family"）只放行对话六处门（chat 页 + 会话 CRUD + 发消息）；
+    # dashboard/alerts/work-orders/reports 等员工路由仍查 _NURSING_ROLES，
+    # middleware 的同款集合也不含 family —— 家属进员工页一律 302 /login。
+    _CHAT_ALLOWED = _NURSING_ROLES | {"family"}
 
     # Helper: pick CURRENT_DATE when data exists, else the latest available
     # date from the table.  Prevents "N/A" displays when seed data is older
@@ -446,7 +510,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return RedirectResponse(url="/login", status_code=302)
         nursing_user = {
             "user_id": sess.user_id,
@@ -460,7 +524,8 @@ async def build_app() -> FastAPI:
         return TEMPLATES.TemplateResponse(
             request,
             "nursing/chat.html",
-            {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
+            {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token,
+             "is_family": sess.role == "family"},
         )
 
     # ── Chat history helpers ──────────────────────────────────────────
@@ -486,7 +551,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
         chats = await _get_user_chats(sess.user_id)
         return JSONResponse({"chats": chats}, 200)
@@ -496,7 +561,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
         import uuid
         chat_id = str(uuid.uuid4())[:8]
@@ -510,7 +575,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
         msgs = await _get_chat_msgs(chat_id)
         return JSONResponse({"messages": msgs}, 200)
@@ -520,7 +585,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
         chats = await _get_user_chats(sess.user_id)
         chats = [c for c in chats if c["id"] != chat_id]
@@ -536,7 +601,7 @@ async def build_app() -> FastAPI:
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
-        if sess is None or sess.role not in _NURSING_ROLES:
+        if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
 
         try:
@@ -627,8 +692,13 @@ async def build_app() -> FastAPI:
                 message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
             file_b64 = ""
 
+        # ── Family branch gate ─────────────────────────────────────
+        # 家属会话：跳过周报触发（nursing.ops 是员工工作流）、走 _family_skill_queries
+        # 预取、不进 agent 路由（ROLE_TO_AGENT 无 "family" 键，自然落到直连 LLM）。
+        is_family = sess.role == "family"
+
         # ── Weekly report workflow trigger (before skill intent) ──
-        if any(kw in message for kw in ("报表", "周报", "运营报表")):
+        if not is_family and any(kw in message for kw in ("报表", "周报", "运营报表")):
             from dl_control.workflows import runs as _wfruns
             from dl_control.workflows.wake import publish_wake as _wfpw
 
@@ -658,7 +728,7 @@ async def build_app() -> FastAPI:
         # ── Skill intent detection (run first) ────────────────────
         skill_result = None
         matched_skill = None
-        for keywords, skill_name, sql in _skill_queries():
+        for keywords, skill_name, sql in (_family_skill_queries() if is_family else _skill_queries()):
             if any(kw in message for kw in keywords):
                 matched_skill = skill_name
                 try:
@@ -745,15 +815,18 @@ async def build_app() -> FastAPI:
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)
         today_str = datetime.now().strftime("%Y年%m月%d日 %A")
-        context_parts = [f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
-        if sess.dept: context_parts.append(f"科室：{sess.dept}")
-        if sess.building: context_parts.append(f"楼栋：{sess.building}")
-        if sess.floor: context_parts.append(f"楼层：{sess.floor}")
-        context_parts.append("请用中文简洁回答用户的问题。")
-        system_prompt = "。".join(context_parts)
-        if skill_result is not None:
-            data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
-            system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
+        if is_family:
+            system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+        else:
+            context_parts = [f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
+            if sess.dept: context_parts.append(f"科室：{sess.dept}")
+            if sess.building: context_parts.append(f"楼栋：{sess.building}")
+            if sess.floor: context_parts.append(f"楼层：{sess.floor}")
+            context_parts.append("请用中文简洁回答用户的问题。")
+            system_prompt = "。".join(context_parts)
+            if skill_result is not None:
+                data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+                system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
         api_key = s.llm_api_key.get_secret_value()
         if not api_key:
             reply = "LLM API Key 未配置，请在 infra/.env 中设置 LLM_API_KEY"
@@ -797,7 +870,9 @@ async def build_app() -> FastAPI:
 
         try:
             # kimi-k2.6 only accepts temperature=1 — never send a custom temperature here.
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # 90s：推理模型在注入整周菜单/订单数据时偶发超 60s（2026-08-24 家属
+            # 首问实测 42s，60s 版曾超时一次返回"AI 服务暂时不可用"）。
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 resp = await client.post(
                     f"{s.llm_base_url.rstrip('/')}/chat/completions",
                     headers={

@@ -1377,3 +1377,52 @@ color:inherit;text-decoration:none 归一（`bad7af2`），对既有 button
 查这份名单。
 
 测试 129→134 全绿（评估 +5、床位 +1），ruff 手写文件零新增告警。
+## 2026-08-24 · 家属端上线（Q6 重启：ERP 轻量页 + AI 家属对话；nursing-erp 3b0313e）
+
+用户重启 Q6（08-21 定稿"暂不做"）并拍板形态 C：ERP 家属轻量页 + AI 对话
+入口都要；健康档案（诊断+过敏+用药）对家属全开放；家属可代点餐/退餐。
+id_card、他人数据、Resident.notes、异常上报永不开放（测试钉）。
+
+**架构**：ERP 是家属身份唯一真源（FamilyMember 手机号账号 + token +
+FamilyBinding 绑定）；AI 侧零账号表——`/auth/family-login` 委托 ERP
+`POST /api/family/auth/` 换 token+绑定清单写 session（role="family"，
+family_token/residents 两字段扩进 SessionStore），家属对话走 dl-control
+自己的预取+直连 LLM 路径（agent 容器零隔离，有意不进）。
+
+**ERP 侧**（细节见 nursing-erp/docs/业务完整度评估与路线图.md 落地记录）：
+三层安全闭合（erp_auth 拒家属 session / family_auth 只认家属 /
+staff_required×12 员工页）；家属 API 六端点 + 批量点餐（归属服务端生成
+`家属-姓名（关系）`）+ 退餐留痕；轻量页 7 模板；admin 开通/action/台账；
+seed_family 36 账号（王丽华双绑 showcase，`--seed-family-only` 外科手术
+模式与常驻 runserver 并行安全）。测试 134→179。
+
+**AI 侧三个易错点**：
+① **角色门分流**——`_NURSING_ROLES`（middleware+main 两处）刻意不加
+"family"（家属进 dashboard/alerts 等员工路由一律 302），只在 main.py 新增
+`_CHAT_ALLOWED = _NURSING_ROLES | {"family"}` 换掉**恰好六处**对话门
+（chat 页/会话 CRUD×4/发消息）；测试用源码计数钉死 6/8 分流（
+test_main_role_gate_split），新增路由时同步改钉。
+② **家属预取只有 API 行无 SQL 行**——`_family_skill_queries()` 全走
+`/api/family/*`（X-Family-Token 头，token 是 ASCII hex 免编码，与
+X-Building 互斥不叠加），本侧库没有家属可看数据；行序：账单<吃饭<健康<
+泛近况兜底 overview。周报触发 `not is_family and ...` 跳过（员工工作流）；
+agent 路由 ROLE_TO_AGENT 无 family 键自然落空。
+③ **直连 LLM 超时 60→90s**——家属首问 E2E 真实超时一次（kimi-k2.6 推理
++整周菜单注入，实测 42s 贴边），空异常文本是 httpx ReadTimeout 的
+str() 为空，排障别被"AI 服务暂时不可用："后面没字骗到。
+
+**E2E（生产，chat.eldcare.cn）**：王丽华（138…0001/123456，双绑张国栋+
+李秀兰）登录 302→/chat；「这周吃饭情况」→ 双老人真实订单含少盐备注；
+「3号楼有哪些老人」→ 只报自家名单不列他人；「帮我退餐」→ 拒代操作并
+引导「家属服务」页（prompt 明示只查不代改）。安全四针全过：跨家 token
+读非绑定 404 / 员工 session 进 /api/family/ 401 / 家属 session 进
+/api/residents/ 401 / 家属进 /billing/ 302 /family/。
+
+**坑**：ERP 家属页登录表单字段是 `phone` 不是 `username`（curl 冒烟曾
+因此 200 重渲染误判成"登录坏了"）；`docker exec dato-control python -c`
+直接实例化 Settings 会缺 DB_URL 等（入口注入），裸用 os.environ 即可。
+
+测试 dl-control 84→101（+17 家属管线：headers 回归钉/查询行序/prompt
+三分支/try_family_login 四路 fake httpx+redis），ruff 双仓基线持平
+（83/12）。部署：`docker compose --project-name dato --project-directory
+infra --env-file infra/.env up -d --force-recreate --build dato-control`。

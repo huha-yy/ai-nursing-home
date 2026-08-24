@@ -226,6 +226,25 @@ body.login-page::after {
   color: #3D3D3D;
 }
 
+/* 登录卡三态入口（员工/家属/管理员）并排 */
+.login-modes {
+  display: flex;
+  justify-content: center;
+  gap: 1.4rem;
+  margin-top: 1.2rem;
+}
+
+.login-modes a {
+  font-size: 0.78rem;
+  color: #8B7B6B;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.login-modes a:hover {
+  color: #3D3D3D;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .login-card { transform: none !important; transition: none !important; }
 }
@@ -293,6 +312,7 @@ body.login-page::after {
 .nh-role-badge.role-building       { background: #F5EEF8; color: #7D3C98; }
 .nh-role-badge.role-floor          { background: #FCF3CF; color: #B7950B; }
 .nh-role-badge.role-general        { background: #E5E7E9; color: #5D6D7E; }
+.nh-role-badge.role-family         { background: #FDEEF4; color: #A64D79; }
 
 .nursing-topbar .logout-form { margin: 0; }
 .nursing-topbar .ghost-btn {

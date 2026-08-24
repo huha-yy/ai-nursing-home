@@ -1,6 +1,8 @@
-"""HTTP routes: GET/POST /login, POST /logout, POST /auth/nursing-login."""
+"""HTTP routes: GET/POST /login, POST /logout, POST /auth/nursing-login, POST /auth/family-login."""
 
 from __future__ import annotations
+
+import json
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -15,7 +17,13 @@ from dl_control.auth.middleware import (
     set_session_cookie,
     ua_fingerprint,
 )
-from dl_control.auth.service import LoginError, try_login, try_nursing_login
+from dl_control.auth.service import (
+    LoginError,
+    try_family_login,
+    try_login,
+    try_nursing_login,
+)
+
 
 def _looks_like_uuid(s: str | None) -> bool:
     """Return True if s looks like a UUID (has dashes and hex chars)."""
@@ -117,6 +125,49 @@ def make_router(
         )
         resp = RedirectResponse(url="/chat", status_code=302)
         is_https = request.url.scheme == "https" or request.headers.get("X-Forwarded-Proto") == "https"
+        set_session_cookie(resp, token=sessions.sign(sess.sid), secure=is_https)
+        return resp
+
+    @r.post("/auth/family-login")
+    async def family_login_post(
+        request: Request,
+        username: str = Form(...),  # 家属用手机号，字段名与员工端保持一致
+        password: str = Form(...),
+    ):
+        ip = request.client.host if request.client else "unknown"
+        try:
+            result = await try_family_login(
+                db,
+                redis,
+                username=username,
+                password=password,
+                ip=ip,
+                rate_limit_fails=settings.login_rate_limit_fails,
+                rate_limit_window=settings.login_rate_limit_window_seconds,
+            )
+        except LoginError:
+            t = translator_for(request)
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {"error": t("auth.err.invalid")},
+                status_code=401,
+            )
+        sess = await sessions.create(
+            user_id=result.user_id,
+            role="family",
+            ip=ip,
+            ua_fingerprint=ua_fingerprint(request.headers.get("user-agent")),
+            name=result.name,
+            username=result.username,
+            family_token=result.token,
+            residents=json.dumps(result.residents, ensure_ascii=False),
+        )
+        resp = RedirectResponse(url="/chat", status_code=302)
+        is_https = (
+            request.url.scheme == "https"
+            or request.headers.get("X-Forwarded-Proto") == "https"
+        )
         set_session_cookie(resp, token=sessions.sign(sess.sid), secure=is_https)
         return resp
 

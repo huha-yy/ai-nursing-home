@@ -1270,3 +1270,14 @@ restart。验证口径：`docker exec` 的 shell **不继承** PID 1 source 的 
 `docker restart dato-control` 后 curl `/chat`（nursing 会话）确认三条新
 正则已在线上页面。历史消息无需重发——存储的原文没变，纯渲染修复，
 刷新即见干净表格。
+
+## 2026-08-24 · 餐费单价统一价目表（nursing-erp 侧小活）
+
+清掉上条"遗留"里的硬编码债：`MealFinance.generate_monthly` 默认参数
+15 元移除（billing 侧本就显式传 `FeeRule.get_meal_price()`，唯一吃默认值
+的是 `/api/meal-finance/generate/`，同改读价目表）。缺行 400 指引后台
+补配、响应回显单价；测试 +2（改价 20 生效 / 缺行 400 零写入），
+全套 111 绿。生产价目 meal=15 → 行为零变化；零写入 E2E（不存在
+resident_id）确认线上响应带回 `price_per_meal`。nursing-erp `8b10b1e`。
+注意：该端点会对**全部老人** update_or_create——对无点餐老人会把
+fill_demo_data 的演示月结行刷成 0，故生产只做读验证不真跑出账。

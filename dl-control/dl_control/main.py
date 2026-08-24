@@ -88,11 +88,38 @@ def _week_start() -> str:
     return (today - timedelta(days=today.weekday())).isoformat()
 
 
+def _erp_items(data) -> list:
+    """从 ERP API 响应中提取行，供 chat 技能预取注入（模块级，便于单测）。
+
+    - 分页 dict（{"items": [...], "count": N}）→ items 列表
+    - 聚合 dict（{"rows": [...], 汇总标量}，如 /api/billing/arrears/）→
+      汇总标量置顶成一行 + rows —— LLM 不丢 total_outstanding 这类总数
+    - 纯标量 dict（如 /api/billing/summary/ 三额勾稽）→ 包成单行列表
+    - 其余：list 原样，标量/None → 空列表
+    """
+    if isinstance(data, dict):
+        for key in ("items", "rows"):
+            if isinstance(data.get(key), list):
+                if key == "rows":
+                    scalars = {k: v for k, v in data.items()
+                               if not isinstance(v, (list, dict))}
+                    if scalars:
+                        return [scalars, *data[key]]
+                return data[key]
+        return [data]
+    return data if isinstance(data, list) else []
+
+
 def _skill_queries() -> list:
     """意图关键词 → 预取查询映射（每次调用重建，日期保持新鲜）。
 
     meal-query 2026-08-21 修复：原先指向不存在的 /api/meal-plans/
     （自上线起静默 404），改为本周周菜单。
+
+    finance-query 2026-08-24 升级：财务问答接入 ERP 应收月账单
+    /api/billing/ —— 欠费类 → 欠费名单（跨月累计，首行带总数），
+    泛财务词 → 当月三额汇总；餐费/月结仍走 /api/meal-finance/。
+    行序即优先级（首匹配即 break）：欠费行必须排在泛财务行之前。
     """
     return [
         (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
@@ -108,8 +135,11 @@ def _skill_queries() -> list:
         (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
          "SELECT title, date, time, location FROM nursing_activities "
          "WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
-        (["费用", "结算", "缴费", "账单"], "finance-query",
-         "API:/api/meal-finance/"),
+        (["欠费", "没交", "未缴", "未交", "催缴"], "finance-query",
+         "API:/api/billing/arrears/"),
+        (["餐费", "月结"], "finance-query", "API:/api/meal-finance/"),
+        (["费用", "结算", "缴费", "账单", "应收", "出账"], "finance-query",
+         "API:/api/billing/summary/"),
         (["预警", "告警", "重点关注", "异常"], "alert-query",
          "API:/api/incidents/?handled=false"),
         (["员工", "谁负责", "人员", "值班人员"], "staff-query",
@@ -303,12 +333,6 @@ async def build_app() -> FastAPI:
             f"COALESCE((SELECT date FROM {table} WHERE date = CURRENT_DATE LIMIT 1), "
             f"(SELECT MAX(date) FROM {table}))"
         )
-
-    def _erp_items(data) -> list:
-        """Extract items from ERP API response (paginated dict or plain list)."""
-        if isinstance(data, dict):
-            return data.get("items", [])
-        return data if isinstance(data, list) else []
 
     def _extract_step_summary(step_key: str, output) -> dict | None:
         """Extract key fields from a workflow step's raw output (OpenClaw JSON

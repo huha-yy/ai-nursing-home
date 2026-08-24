@@ -25,6 +25,7 @@ API 地址通过环境变量 `NURSING_ERP_URL` 获取，默认为 `http://nursin
 - **库存**: "尿不湿还有多少"、"库存不够了"、"盘点库存"
 - **点餐**: "今天吃什么"、"午餐菜单"、"xxx老人点餐"、"退餐"
 - **健康**: "血压记录"、"用药情况"、"血糖多少"
+- **财务**: "这个月应收多少"、"谁欠费"、"欠费名单"、"缴费情况"、"账单"、"出账"、"核销"
 
 ---
 
@@ -37,6 +38,7 @@ API 地址通过环境变量 `NURSING_ERP_URL` 获取，默认为 `http://nursin
 | `staff-query` handler 查 Mock 数据 | 本技能查 `/api/employees/` |
 | `logistics-inventory` handler | 本技能查 `/api/inventory/` |
 | 旧的 `nursing-work-order` handler | 本技能查 `/api/incidents/`（异常上报替代了工单） |
+| `finance-query` handler 查 Mock `nursing_finances` 表 | 本技能查 `/api/billing/`（应收月账单：床位费+护理费+餐费） |
 
 ---
 
@@ -89,6 +91,21 @@ API 地址通过环境变量 `NURSING_ERP_URL` 获取，默认为 `http://nursin
 | 查菜单 | `GET /api/meal-plans/` | `?date=2026-08-04` |
 | 查点餐订单 | `GET /api/meal-orders/` | `?date=2026-08-04&status=preparing` |
 | 查餐费月结 | `GET /api/meal-finance/` | `?month=2026-08` |
+
+### 财务账单（应收月账单 = 床位费+护理费+餐费）
+
+| 操作 | 端点 | 参数 |
+|------|------|------|
+| 查账单列表 | `GET /api/billing/` | `?month=2026-08&status=pending` |
+| 查三额汇总 | `GET /api/billing/summary/` | `?month=2026-08`（缺省当月）→ 应收/已收/欠缴 |
+| 查欠费名单 | `GET /api/billing/arrears/` | `?month=2026-08`（截止月，**含更早账期**，跨月累计） |
+| 生成月账单 | `POST /api/billing/generate/` | `?month=2026-09&building=1号楼&resident_id=7` |
+| 核销账单 | `POST /api/billing/{id}/settle/` | `{"note": "减免后全额", "settled_by": "刘主任"}` |
+| 撤销核销 | `POST /api/billing/{id}/unsettle/` | —（回待缴费，可再生成刷新金额） |
+
+> 欠费口径：`arrears` 榜单是**跨月累计**（如"吴桂英欠 3 个月共 12,840"），
+> 不是单月；`summary` 是单月三额勾稽。回答"谁欠费"用 arrears，
+> 回答"这个月应收多少"用 summary。
 
 ---
 

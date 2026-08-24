@@ -65,6 +65,8 @@ known-first-party = ["dl_control"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# 项目未声明 build-system，uv 不装自身进 venv——测试从这里解析 dl_control
+pythonpath = ["."]
 markers = ["docker: contract test requiring the OpenClaw image"]
 addopts = "-m 'not docker'"
 

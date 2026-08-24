@@ -2,7 +2,9 @@
 
 覆盖 main.py 模块级 helper：
 - _erp_headers：X-API-Key 恒带；楼长会话附 X-Building，管理层无楼栋不发头
-- _skill_queries：meal-query 回归钉——不得再指向不存在的 /api/meal-plans/
+- _skill_queries：meal-query 回归钉——不得再指向不存在的 /api/meal-plans/；
+  财务行接入 /api/billing/（欠费→ arrears 名单、泛财务→ summary、餐费仍走月结）
+- _erp_items：分页/聚合/纯标量三种 ERP 响应形状的行提取（2026-08-24 模块级化）
 - _week_start：任何日期都返回周一
 - _load_nursing_sess：cookie 缺失/无效/有效三分支
 """
@@ -10,7 +12,13 @@
 from datetime import datetime
 
 from dl_control.auth.middleware import COOKIE_NAME
-from dl_control.main import _erp_headers, _load_nursing_sess, _skill_queries, _week_start
+from dl_control.main import (
+    _erp_headers,
+    _erp_items,
+    _load_nursing_sess,
+    _skill_queries,
+    _week_start,
+)
 
 
 class _Sess:
@@ -75,6 +83,70 @@ def test_skill_queries_meal_query_hits_week_menu():
     week_start = entry.rsplit("=", 1)[1]
     datetime.strptime(week_start, "%Y-%m-%d")  # 合法日期
     assert week_start == _week_start()
+
+
+# ---- _skill_queries 财务行（2026-08-24 接入 /api/billing/）----
+
+
+def test_skill_queries_arrears_row_hits_billing_arrears():
+    """欠费类意图 → ERP 欠费名单（跨月累计），不再只看餐费月结"""
+    row = next(r for r in _skill_queries() if "欠费" in r[0])
+    assert row[1] == "finance-query"
+    assert row[2] == "API:/api/billing/arrears/"
+
+
+def test_skill_queries_generic_finance_row_hits_billing_summary():
+    """泛财务词（费用/账单/应收…）→ 当月三额汇总（ERP 侧缺省当月）"""
+    row = next(r for r in _skill_queries() if "费用" in r[0])
+    assert row[1] == "finance-query"
+    assert row[2] == "API:/api/billing/summary/"
+
+
+def test_skill_queries_arrears_row_precedes_generic_finance():
+    """行序即优先级（首匹配 break）：'谁欠费' 必须命中 arrears 而非 summary"""
+    rows = _skill_queries()
+    i_arrears = next(i for i, r in enumerate(rows) if "欠费" in r[0])
+    i_generic = next(i for i, r in enumerate(rows) if "费用" in r[0])
+    assert i_arrears < i_generic
+
+
+def test_skill_queries_meal_finance_row_kept():
+    """餐费/月结细分意图仍走 /api/meal-finance/（按人餐费行）"""
+    row = next(r for r in _skill_queries() if "餐费" in r[0])
+    assert row[1] == "finance-query"
+    assert row[2] == "API:/api/meal-finance/"
+
+
+# ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----
+
+
+def test_erp_items_paginated_dict():
+    assert _erp_items({"items": [1, 2], "count": 2}) == [1, 2]
+
+
+def test_erp_items_arrears_dict_prepends_scalars():
+    """聚合 dict：汇总标量置顶成一行 + rows，LLM 不丢 total_outstanding"""
+    data = {
+        "month": "2026-08", "resident_count": 2, "total_outstanding": 46675.0,
+        "rows": [{"resident_name": "吴桂英"}, {"resident_name": "王秀兰"}],
+    }
+    out = _erp_items(data)
+    assert out[0] == {"month": "2026-08", "resident_count": 2,
+                      "total_outstanding": 46675.0}
+    assert out[1:] == data["rows"]
+
+
+def test_erp_items_summary_dict_wrapped_as_single_row():
+    """纯标量 dict（/api/billing/summary/ 三额勾稽）→ 包成单行列表"""
+    data = {"month": "2026-08", "count": 36, "receivable": 104500.0,
+            "received": 70000.0, "outstanding": 34500.0}
+    assert _erp_items(data) == [data]
+
+
+def test_erp_items_plain_list_and_garbage():
+    assert _erp_items([{"a": 1}]) == [{"a": 1}]
+    assert _erp_items("junk") == []
+    assert _erp_items(None) == []
 
 
 # ---- _week_start ----

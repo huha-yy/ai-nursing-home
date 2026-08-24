@@ -199,6 +199,67 @@ def search_meal_finance(month=None):
     _print_json(r.json())
 
 
+# ---- 财务账单（应收月账单：床位费+护理费+餐费）----
+
+def list_bills(month=None, status=None):
+    """查应收月账单列表。"""
+    params = {}
+    if month:
+        params["month"] = month
+    if status:
+        params["status"] = status
+    r = _client().get("/api/billing/", params=params)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def billing_summary(month=None):
+    """查单月三额勾稽（应收/已收/欠缴）。缺省当月。"""
+    params = {}
+    if month:
+        params["month"] = month
+    r = _client().get("/api/billing/summary/", params=params)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def billing_arrears(month=None):
+    """查欠费名单（截止 month，含更早账期）。缺省当月。"""
+    params = {}
+    if month:
+        params["month"] = month
+    r = _client().get("/api/billing/arrears/", params=params)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def generate_bills(month, building=None, resident_id=None):
+    """生成月账单。已缴费的旧单冻结跳过；金额随价目表与点餐事实重算。"""
+    params = {"month": month}
+    if building:
+        params["building"] = building
+    if resident_id is not None:
+        params["resident_id"] = resident_id
+    r = _client().post("/api/billing/generate/", params=params)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def settle_bill(bill_id: int, note: str = "", settled_by: str = ""):
+    """全额核销账单（幂等）。"""
+    payload = {"note": note, "settled_by": settled_by}
+    r = _client().post(f"/api/billing/{bill_id}/settle/", json=payload)
+    r.raise_for_status()
+    _print_json(r.json())
+
+
+def unsettle_bill(bill_id: int):
+    """撤销核销（幂等）——回待缴费后可再生成刷新金额。"""
+    r = _client().post(f"/api/billing/{bill_id}/unsettle/")
+    r.raise_for_status()
+    _print_json(r.json())
+
+
 # ---- 写入操作 ----
 
 def create_nursing_log(resident_id: int, category: str, detail: str = "",

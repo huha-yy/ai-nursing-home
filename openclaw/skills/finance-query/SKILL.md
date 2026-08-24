@@ -1,5 +1,9 @@
 # finance-query — 费用查询
 
+> ⚠️ **已废弃（2026-08-24）**：本技能查询的是 Mock 种子数据（`nursing_finances` 表），
+> 与真实收费数据无关。费用/账单/欠费问题一律改用 **nursing-erp-query** 技能的
+> `/api/billing/` 端点（真实应收月账单：床位费+护理费+餐费）。
+
 > Python handler 不注册为可调用工具。不能直接调用 `finance_query.query_resident_finance()`。
 > 必须通过 **process 工具**执行 `python3 -c` 调用 handler。
 

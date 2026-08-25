@@ -116,6 +116,93 @@ def _erp_items(data) -> list:
     return data if isinstance(data, list) else []
 
 
+# ── 大屏增强辅助（2026-08-25；模块级，便于单测）──────────────────
+
+_MEAL_ORDER = ("早餐", "午餐", "晚餐")
+_ORDER_STATUS_DISPLAY = {
+    "ordered": "已点", "modified": "已改", "preparing": "备餐中",
+    "delivering": "配送中", "delivered": "已送达", "cancelled": "已退",
+}
+_CARE_LEVEL_ORDER = ("自理", "半护", "全护", "失智", "特护", "未定")
+
+
+def _today_cn() -> str:
+    """ERP WeekMenu.day 的中文星期取值（周一…周日）。"""
+    return "周" + "一二三四五六日"[datetime.now().weekday()]
+
+
+def _today_menu(week_rows: list) -> list[dict]:
+    """week-menu 全周行 → 今日三餐 [{meal_type, dishes:[菜名]}]，按 早/午/晚 排序。"""
+    order = {"早餐": 0, "午餐": 1, "晚餐": 2}
+    rows = [
+        {
+            "meal_type": m.get("meal_type", ""),
+            "dishes": [d.get("name", "") for d in m.get("dishes", []) if d.get("name")],
+        }
+        for m in week_rows
+        if m.get("day") == _today_cn()
+    ]
+    return sorted(rows, key=lambda r: order.get(r["meal_type"], 9))
+
+
+def _order_stats(per_meal: dict) -> dict:
+    """按餐次分拉回来的今日订单 → 餐次×状态统计 + 特殊餐计数。
+
+    total 口径 = 除 cancelled 外全部（退餐不算今日餐单）；by_status 保留
+    退餐计数——大屏要让厨房/院长看到退改痕迹，前端灰字展示。
+    special 同理只数未退订单（退了的特殊诉求不该再让厨房操心）。
+    per_meal 只认 _MEAL_ORDER 里的餐次，键序即输出序。
+    """
+    meals, by_status_all = [], {}
+    total = special_total = 0
+    for mt in _MEAL_ORDER:
+        by_status: dict[str, int] = {}
+        special = 0
+        for i in per_meal.get(mt, []):
+            st = i.get("status", "")
+            by_status[st] = by_status.get(st, 0) + 1
+            if st != "cancelled" and (i.get("special_requests") or "").strip():
+                special += 1
+        valid = sum(n for st, n in by_status.items() if st != "cancelled")
+        meals.append({"meal_type": mt, "total": valid, "special": special,
+                      "by_status": by_status})
+        total += valid
+        special_total += special
+        for st, n in by_status.items():
+            by_status_all[st] = by_status_all.get(st, 0) + n
+    return {"meals": meals, "total": total, "special": special_total,
+            "by_status": by_status_all}
+
+
+def _care_level_pie(residents: list) -> list[dict]:
+    """residents 列表 → echarts 饼图数据 [{name, value}]，按档位顺序排列。
+
+    空 care_level 归"未定"；表外新增档位（如拍脑袋加的"特护2"）追加在
+    尾部而不是丢弃——分布图宁多勿缺。
+    """
+    counts: dict[str, int] = {}
+    for r in residents:
+        lv = (r.get("care_level") or "").strip() or "未定"
+        counts[lv] = counts.get(lv, 0) + 1
+    rows = [{"name": k, "value": counts.pop(k)} for k in _CARE_LEVEL_ORDER if k in counts]
+    rows += [{"name": k, "value": v} for k, v in counts.items()]
+    return rows
+
+
+def _occupancy_summary(buildings: list) -> dict:
+    """beds/occupancy 楼栋行 → 合计 {total, occupied, free, rate}。
+
+    rate 为 0-100 整数百分比（前端直接拼字），无床位 None。
+    楼长会话带 X-Building 时 ERP 只回本楼行——副行语义随之变成本楼入住率，
+    无需这边区分。
+    """
+    total = sum(b.get("total", 0) for b in buildings)
+    occupied = sum(b.get("occupied", 0) for b in buildings)
+    free = sum(b.get("free", 0) for b in buildings)
+    rate = round(occupied / total * 100) if total else None
+    return {"total": total, "occupied": occupied, "free": free, "rate": rate}
+
+
 def _skill_queries() -> list:
     """意图关键词 → 预取查询映射（每次调用重建，日期保持新鲜）。
 
@@ -1219,6 +1306,63 @@ async def build_app() -> FastAPI:
                 {"building": r[0], "count": r[1]} for r in brows
             ]
 
+            # -- 2026-08-25 大屏增强：ERP 五组件（单个挂掉降级为空值，不炸屏）--
+            today_menu: list = []
+            order_stats: dict = {}
+            care_level_distribution: list = []
+            assessment_review = {"pending_first_count": 0, "due_review_count": 0}
+            occupancy = {"total": 0, "occupied": 0, "free": 0, "rate": None}
+            try:
+                import httpx as _hx5
+                _erp5 = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                async with _hx5.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _c5:
+                    # ① 今日三餐菜单：week-menu 按中文星期过滤（day 取值 周一…周日）
+                    try:
+                        _r = await _c5.get(f"{_erp5}/api/week-menu/",
+                                           params={"week_start": _week_start()})
+                        if _r.status_code == 200:
+                            today_menu = _today_menu(_erp_items(_r.json()))
+                    except Exception:
+                        pass
+                    # ② 今日点餐动态：订单分页上限 50，按餐次分三次拉（每餐 ≤36）
+                    try:
+                        _today = datetime.now().strftime("%Y-%m-%d")
+                        per_meal = {}
+                        for _mt in _MEAL_ORDER:
+                            _r = await _c5.get(f"{_erp5}/api/meal-orders/",
+                                               params={"date": _today, "meal_type": _mt})
+                            per_meal[_mt] = _erp_items(_r.json()) if _r.status_code == 200 else []
+                        order_stats = _order_stats(per_meal)
+                    except Exception:
+                        pass
+                    # ③ 护理等级分布：residents 分页 50 ≥ 全院 36 人，单页拿全
+                    try:
+                        _r = await _c5.get(f"{_erp5}/api/residents/")
+                        if _r.status_code == 200:
+                            care_level_distribution = _care_level_pie(_erp_items(_r.json()))
+                    except Exception:
+                        pass
+                    # ④ 评估待办（待首评 + 到期复评两计数）
+                    try:
+                        _r = await _c5.get(f"{_erp5}/api/assessments/review/")
+                        if _r.status_code == 200:
+                            _d = _r.json()
+                            assessment_review = {
+                                "pending_first_count": _d.get("pending_first_count", 0),
+                                "due_review_count": _d.get("due_review_count", 0),
+                            }
+                    except Exception:
+                        pass
+                    # ⑤ 床位入住率（在院老人卡副行；楼长会话自动收窄到本楼）
+                    try:
+                        _r = await _c5.get(f"{_erp5}/api/beds/occupancy/")
+                        if _r.status_code == 200:
+                            occupancy = _occupancy_summary(_r.json().get("buildings", []))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         return {
             "summary": {
                 "total_residents": total_residents,
@@ -1234,6 +1378,11 @@ async def build_app() -> FastAPI:
             "completion_rate": completion_rate,
             "work_order_details": work_order_details,
             "building_distribution": building_distribution,
+            "today_menu": today_menu,
+            "order_stats": order_stats,
+            "care_level_distribution": care_level_distribution,
+            "assessment_review": assessment_review,
+            "occupancy": occupancy,
         }
 
     # -- Nursing workflow trigger (Task 9) --

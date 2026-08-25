@@ -24,6 +24,7 @@
       <div class="nh-kpi-icon nh-kpi-icon-people"></div>
       <div class="nh-kpi-val" id="kpi-residents">--</div>
       <div class="nh-kpi-label">在院老人</div>
+      <div class="nh-kpi-sub" id="sub-occupancy"></div>
       <div class="nh-kpi-trend" id="trend-residents"></div>
     </div>
     <div class="nh-kpi-card">
@@ -37,6 +38,12 @@
       <div class="nh-kpi-val" id="kpi-inventory">--</div>
       <div class="nh-kpi-label">库存预警</div>
       <div class="nh-kpi-trend" id="trend-inventory"></div>
+    </div>
+    <div class="nh-kpi-card">
+      <div class="nh-kpi-icon nh-kpi-icon-assess"></div>
+      <div class="nh-kpi-val" id="kpi-assess">--</div>
+      <div class="nh-kpi-label">评估待办</div>
+      <div class="nh-kpi-trend" id="trend-assess"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
@@ -87,6 +94,26 @@
     </table>
   </div>
 
+  {# -- 2026-08-25 大屏增强：餐食 / 点餐动态 / 护理等级 -- #}
+  <div class="nh-dash-bottom">
+    <div class="nh-dash-panel nh-menu-panel">
+      <h3 class="nh-dash-panel-title">今日餐食 <span class="nh-dash-panel-sub" id="menu-day"></span></h3>
+      <div id="today-menu" class="nh-menu-cols">
+        <div class="nh-focus-empty">加载中…</div>
+      </div>
+    </div>
+    <div class="nh-dash-panel">
+      <h3 class="nh-dash-panel-title">今日点餐动态</h3>
+      <div id="order-stats" class="nh-order-stats">
+        <div class="nh-focus-empty">加载中…</div>
+      </div>
+    </div>
+    <div class="nh-dash-panel nh-chart-panel">
+      <h3 class="nh-dash-panel-title">护理等级分布</h3>
+      <div id="care-chart" style="width:100%;height:280px"></div>
+    </div>
+  </div>
+
   <div class="nh-dash-footer">
     <button class="nh-dash-refresh-btn" onclick="refreshData(); countdown=30" title="立即刷新">↻ 刷新</button>
     <span class="nh-dash-divider">|</span>
@@ -103,6 +130,7 @@
 (function() {
   var completionChart = null;
   var buildingChart = null;
+  var careChart = null;
   var woDetailOpen = false;
 
   function toggleWorkOrderDetail() {
@@ -136,10 +164,88 @@
   function initCharts() {
     completionChart = echarts.init(document.getElementById('completion-chart'));
     buildingChart = echarts.init(document.getElementById('building-chart'));
+    careChart = echarts.init(document.getElementById('care-chart'));
     window.addEventListener('resize', function() {
       completionChart && completionChart.resize();
       buildingChart && buildingChart.resize();
+      careChart && careChart.resize();
     });
+  }
+
+  // -- 2026-08-25 大屏增强渲染 --
+
+  var ORDER_STATUS = [['ordered','已点'],['modified','已改'],['preparing','备餐中'],
+                       ['delivering','配送中'],['delivered','已送达'],['cancelled','已退']];
+
+  function renderTodayMenu(rows) {
+    var el = document.getElementById('today-menu');
+    var dayEl = document.getElementById('menu-day');
+    if (dayEl) dayEl.textContent = '（' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()] + '）';
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="nh-focus-empty">今日菜单未发布</div>';
+      return;
+    }
+    var html = '';
+    rows.forEach(function(m) {
+      html += '<div class="nh-menu-col"><div class="nh-menu-type">' + m.meal_type + '</div>';
+      (m.dishes || []).forEach(function(d) { html += '<div class="nh-menu-dish">' + d + '</div>'; });
+      if (!m.dishes || !m.dishes.length) html += '<div class="nh-menu-dish nh-menu-empty">未排菜</div>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function renderOrderStats(stats) {
+    var el = document.getElementById('order-stats');
+    if (!stats || !stats.meals || !stats.meals.length) {
+      el.innerHTML = '<div class="nh-focus-empty">今日暂无点餐</div>';
+      return;
+    }
+    var html = '<div class="nh-order-total">今日合计 <b>' + stats.total + '</b> 单' +
+      (stats.special > 0 ? ' · 特殊餐 <b>' + stats.special + '</b> 份' : '') + '</div>';
+    stats.meals.forEach(function(m) {
+      var chips = '';
+      ORDER_STATUS.forEach(function(st) {
+        var n = m.by_status[st[0]];
+        if (n > 0) {
+          chips += '<span class="nh-order-chip' + (st[0] === 'cancelled' ? ' chip-cancelled' : '') +
+            (st[0] === 'delivered' ? ' chip-delivered' : '') + '">' + st[1] + ' ' + n + '</span>';
+        }
+      });
+      if (!chips) chips = '<span class="nh-order-chip">暂无单</span>';
+      html += '<div class="nh-order-meal">' +
+        '<span class="nh-order-meal-name">' + m.meal_type + '</span>' +
+        '<span class="nh-order-meal-count">' + m.total + ' 单</span>' +
+        (m.special > 0 ? '<span class="nh-order-special">特殊 ' + m.special + '</span>' : '') +
+        '<span class="nh-order-chips">' + chips + '</span></div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function updateCareChart(data) {
+    if (!careChart) return;
+    if (!data || !data.length) {
+      careChart.clear();  // 数据缺席时清空面板，实例保留（30s 刷新自愈）
+      return;
+    }
+    var palette = ['#E67E22', '#F39C12', '#27AE60', '#8E44AD', '#3498DB', '#E74C3C'];
+    var option = {
+      tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
+      legend: { bottom: 0, itemWidth: 10, itemHeight: 10,
+                textStyle: { color: '#6B5A45', fontSize: 12 } },
+      series: [{
+        type: 'pie',
+        radius: ['42%', '68%'],
+        center: ['50%', '42%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 6, borderColor: '#FFF8F0', borderWidth: 3 },
+        label: { show: true, formatter: '{b}\n{c}人', color: '#4A3728', fontSize: 12 },
+        data: data.map(function(d, i) {
+          return { name: d.name, value: d.value, itemStyle: { color: palette[i % palette.length] } };
+        })
+      }]
+    };
+    careChart.setOption(option);
   }
 
   function updateDate() {
@@ -371,6 +477,26 @@
         altEl.textContent = s.pending_health_alerts;
         altEl.className = 'nh-kpi-val' + (s.pending_health_alerts > 0 ? ' kpi-danger' : ' kpi-ok');
 
+        // 评估待办（待首评 + 到期复评）
+        var ar = data.assessment_review || {};
+        var assessN = (ar.pending_first_count || 0) + (ar.due_review_count || 0);
+        var asEl = document.getElementById('kpi-assess');
+        asEl.textContent = assessN;
+        asEl.className = 'nh-kpi-val' + (assessN > 0 ? ' kpi-warn' : ' kpi-ok');
+        var asTr = document.getElementById('trend-assess');
+        if (asTr) {
+          asTr.textContent = '待首评 ' + (ar.pending_first_count || 0) + ' · 复评到期 ' + (ar.due_review_count || 0);
+          asTr.className = 'nh-kpi-trend ' + (assessN > 0 ? 'trend-bad' : 'trend-flat');
+        }
+
+        // 床位入住率副行（楼长会话显示本楼口径）
+        var oc = data.occupancy || {};
+        var ocEl = document.getElementById('sub-occupancy');
+        if (ocEl) {
+          ocEl.textContent = (oc.total > 0 && oc.rate !== null && oc.rate !== undefined)
+            ? '入住率 ' + oc.rate + '% · 空余 ' + oc.free + ' 床' : '';
+        }
+
         // Trend indicators
         function trend(el, curr, prev, inverse) {
           if (!el || prev === null || prev === undefined) return;
@@ -426,6 +552,11 @@
         updateShiftHandover(data);
         document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
         updateBuildingChart(data.building_distribution);
+
+        // 大屏增强：餐食 / 点餐动态 / 护理等级
+        renderTodayMenu(data.today_menu);
+        renderOrderStats(data.order_stats);
+        updateCareChart(data.care_level_distribution);
       })
       .catch(function(err) {
         console.error('Dashboard refresh error:', err);

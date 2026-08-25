@@ -1429,3 +1429,34 @@ DNS → 宿主 systemd-resolved 127.0.0.53 链路，复测 30/30 正常），
 三分支/try_family_login 四路 fake httpx+redis），ruff 双仓基线持平
 （83/12）。部署：`docker compose --project-name dato --project-directory
 infra --env-file infra/.env up -d --force-recreate --build dato-control`。
+
+## 2026-08-25 · 运营大屏增强（餐食/点餐/护理等级/评估/入住率五组件）
+
+用户反馈 dashboard 数据太少，选定五项（今日餐食/今日点餐动态/护理等级
+分布/评估待办/床位入住率；点餐动态按用户拍板独立成面板、餐食面板纯菜单）。
+全部数据走 ERP 既有 /api/*（week-menu、meal-orders、residents、
+assessments/review、beds/occupancy），零 ERP 侧改动。
+
+**四个实测出的坑**：
+① **week-menu 的 `day` 是中文"周二"不是日期**——今日过滤键
+`'周' + '一二三四五六日'[date.today().weekday()]`（_today_cn）。
+② **meal-orders 分页上限 50**——全院 96 单超页，按餐次分三次拉
+（每餐 ≤36）再聚（_order_stats）；status 口径：cancelled 不进
+total 但 by_status 保留（大屏要看得见退改痕迹），特殊餐只数未退单
+（退了的特殊诉求不该再让厨房操心）。
+③ **楼长会话 scope 自动收窄五组件**——X-Building 一路透传，b1_liu 实测：
+点餐 17 单（全院 96）/护理等级 6 人（全院 36）/入住率 100%（=1号楼
+满床，非全院），副行语义随之变"本楼"，无需代码区分。
+④ **ERP 挂掉单组件降级**——五个拉取各自 try/except 包在同一个
+AsyncClient 里，缺谁谁空（前端显示"未发布/暂无"），大屏不炸。
+
+**前端**：KPI 行 4→5 卡（+评估待办 = 待首评+到期复评，副行拆两数；
+在院老人卡加入住率副行"入住率 97% · 空余 2 床"）；新底排三面板
+（早/午/晚三列菜单 ｜ 餐次×状态 chips+特殊餐徽章 ｜ echarts 环形饼图，
+档位定序 自理→半护→全护→失智→特护、未定兜底永远最后）。
+注意 echarts 实例数据缺席时 clear() 即可、别置 null（30s 自愈刷新）。
+
+测试 dl-control 101→111（+10 helper 单测：七天星期映射/菜单过滤排序/
+订单聚合口径/等级定序/入住率取整+除零/五键装配源码钉），ruff 基线 83
+持平。部署同一条 compose 命令；E2E b1_liu 会话五键全通+页面/静态资源
+10/10 命中。

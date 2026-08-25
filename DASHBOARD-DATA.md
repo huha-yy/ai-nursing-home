@@ -16,6 +16,7 @@
 | 今日餐食 | ERP `/api/week-menu/?week_start=` | 按 ERP 中文星期（周X）取今日三餐；菜签颜色按 ERP category（主食/汤/素菜/荤菜/小菜） |
 | 今日点餐动态 | ERP `/api/meal-orders/?date=&meal_type=` ×3 | 退餐不计总量但保留计数；特殊餐只数未退单 |
 | 护理等级分布 | ERP `/api/residents/` | care_level 计数，定序 自理→半护→全护→失智→特护、未定兜底；色阶 = 照护强度递进 |
+| 今日文娱活动 | AI 侧 Postgres `nursing_activities` | `_eff_date` 口径：当天有数据取当天，否则取最近一天且卡面标注实际日期（M月D日 周X）。⚠️ 表结构真、数据演示：03-seed 只有 2026-07-23~25 五条；2026-08-25 手工补当天 4 条（晨间操/健康讲座/棋牌/手工课），此后每天由 seed 的每日复制块续期 |
 | **今日护理完成率** | **AI 侧 Postgres `nursing_work_orders`（静态演示）** | ⚠️ 见下节 |
 
 ## ⚠️ 今日护理完成率 —— 静态演示数字（当前不接 ERP）

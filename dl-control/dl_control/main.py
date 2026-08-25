@@ -211,6 +211,21 @@ def _occupancy_summary(buildings: list) -> dict:
     return {"total": total, "occupied": occupied, "free": free, "rate": rate}
 
 
+def _today_activities(rows: list) -> dict:
+    """nursing_activities 行 (date, title, time, location) → {date, items}。
+
+    SQL 已按 _eff_date 选定日期（当天无数据取最近一天），这里只负责
+    成形：time 文本升序（"09:00-…" 字典序即时间序）、time 为空垫最后、
+    title 透传。date 供前端标注"实际是哪天的安排"（演示数据可能停在
+    最近一天，口径要诚实）。
+    """
+    items = sorted(
+        ({"title": r[1], "time": r[2] or "", "location": r[3] or ""} for r in rows),
+        key=lambda x: (x["time"] == "", x["time"]),  # 空时间垫最后
+    )
+    return {"date": str(rows[0][0]) if rows else None, "items": items}
+
+
 def _skill_queries() -> list:
     """意图关键词 → 预取查询映射（每次调用重建，日期保持新鲜）。
 
@@ -1314,6 +1329,14 @@ async def build_app() -> FastAPI:
                 {"building": r[0], "count": r[1]} for r in brows
             ]
 
+            # -- 今日文娱活动（当天无数据自动取最近一天，卡面标注该日期）--
+            arows = await (await conn.execute(
+                "SELECT date, title, time, location FROM nursing_activities "
+                f"WHERE date = ({_eff_date('nursing_activities')}) "
+                "ORDER BY time NULLS LAST"
+            )).fetchall()
+            today_activities = _today_activities(arows)
+
             # -- 2026-08-25 大屏增强：ERP 五组件（单个挂掉降级为空值，不炸屏）--
             today_menu: list = []
             order_stats: dict = {}
@@ -1391,6 +1414,7 @@ async def build_app() -> FastAPI:
             "care_level_distribution": care_level_distribution,
             "assessment_review": assessment_review,
             "occupancy": occupancy,
+            "today_activities": today_activities,
         }
 
     # -- Nursing workflow trigger (Task 9) --

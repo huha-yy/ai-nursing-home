@@ -1564,3 +1564,18 @@ DASHBOARD-DATA.md（docs/ 目录被 gitignore，故放仓库根）：逐组件�
 顺手修复：.nh-focus-icon 规则块损坏——sev 变体规则被重复 9 份与属性行
 交错（疑似早前 sed 误伤），靠 CSS 嵌套容错才未瞎；重写为干净形式并回归
 线上验证。教训：对 CSS 用 sed 原地改有历史风险，改完应抽查目标块全文。
+
+**同日十三补（新增"今日文娱活动"卡）**：用户问 dashboard 还能加什么（排除
+财务）。先做数据源盘点再提方案——Postgres 有 activities/work_orders/
+complaints，ERP 有维修工单(API现成,3+2+1真数据)/incidents(6条)/健康记录/
+用药记录(72条)。按"口径必须真"筛出四候选，用户选**今日文娱活动**；设备
+报修/年龄结构（真数据，API 现成）留作下次，incidents 数据太少、用药打卡
+口径会假（72条是处方不是执行记录）主动排除。
+
+实现：nursing_activities 补当日 4 条演示数据（晨间操/讲座/棋牌/手工课，
+此后每日复制块续期）；main.py 加 `_today_activities` helper（time 文本升序
+空时间垫后——注意空串字典序最小要显式下压）+ `_eff_date` 口径取数（当天
+无数据取最近一天，卡面诚实标注实际日期）；模板第三列时间轴卡（左时间深金/
+主橙轴点/暖棕标题），后勤线变 1.15fr/1fr/1fr 三列生活线；测试 +2（排序/
+空表）+ 装配钉扩 today_activities 键，113 passed；容器重建上线，API 与
+页面均已验证。DASHBOARD-DATA.md 增该组件口径行。

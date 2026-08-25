@@ -104,6 +104,13 @@
         <div class="nh-focus-empty">加载中…</div>
       </div>
     </div>
+    {# -- 今日文娱活动（Postgres nursing_activities；当天无数据取最近一天并在标题标注日期）-- #}
+    <div class="nh-dash-panel">
+      <h3 class="nh-dash-panel-title">今日文娱活动 <span class="nh-dash-panel-sub" id="activity-day"></span></h3>
+      <div id="today-activities" class="nh-activity-list">
+        <div class="nh-focus-empty">加载中…</div>
+      </div>
+    </div>
   </div>
 
   {# -- Low stock table（整宽横条：四列表格挤窄格可读性差，用户拍板保留原格式）-- #}
@@ -204,6 +211,35 @@
       });
       if (!dishes.length) html += '<span class="nh-menu-dish cat-other">未排菜</span>';
       html += '</div></div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function renderActivities(act) {
+    var el = document.getElementById('today-activities');
+    var dayEl = document.getElementById('activity-day');
+    var items = (act && act.items) || [];
+    if (dayEl) {
+      // 口径诚实：当天无数据时后端取最近一天，标题标注实际日期
+      var d = act && act.date ? new Date(act.date + 'T00:00:00') : null;
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      var wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      if (!d) { dayEl.textContent = ''; }
+      else if (d.getTime() === today.getTime()) { dayEl.textContent = '（' + wd[d.getDay()] + '）'; }
+      else { dayEl.textContent = '（' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + wd[d.getDay()] + '）'; }
+    }
+    if (!items.length) {
+      el.innerHTML = '<div class="nh-focus-empty">今日无活动安排</div>';
+      return;
+    }
+    var html = '';
+    items.forEach(function(a) {
+      html += '<div class="nh-activity-item">' +
+        '<div class="nh-activity-time">' + (a.time || '时间待定') + '</div>' +
+        '<div class="nh-activity-body">' +
+        '<div class="nh-activity-title">' + a.title + '</div>' +
+        (a.location ? '<div class="nh-activity-loc">' + a.location + '</div>' : '') +
+        '</div></div>';
     });
     el.innerHTML = html;
   }
@@ -547,6 +583,7 @@
         // 大屏增强：餐食 / 点餐动态 / 护理等级
         renderTodayMenu(data.today_menu);
         renderOrderStats(data.order_stats);
+        renderActivities(data.today_activities);
         updateCareChart(data.care_level_distribution);
       })
       .catch(function(err) {

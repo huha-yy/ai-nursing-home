@@ -126,6 +126,28 @@ def test_care_level_pie_empty():
     assert m._care_level_pie([]) == []
 
 
+# ---- _today_activities ----
+
+
+def test_today_activities_sorts_and_shapes():
+    """time 文本升序（字典序即时间序）、空 time/空 location 兜底、date 透传"""
+    rows = [
+        ("2026-08-25", "棋牌友谊赛", "14:00-16:00", "活动中心棋牌室"),
+        ("2026-08-25", "晨间操·八段锦", "09:00-09:30", "各楼栋一层大厅"),
+        ("2026-08-25", "时间待定的活动", None, None),
+    ]
+    out = m._today_activities(rows)
+    assert out["date"] == "2026-08-25"
+    # 空时间垫最后而不是排最前（空串字典序最小，须显式下压）
+    assert [i["title"] for i in out["items"]] == ["晨间操·八段锦", "棋牌友谊赛", "时间待定的活动"]
+    assert out["items"][2] == {"title": "时间待定的活动", "time": "", "location": ""}
+
+
+def test_today_activities_empty():
+    """无活动（表空/全被日期过滤）→ date None + 空列表（前端显示"今日无活动安排"）"""
+    assert m._today_activities([]) == {"date": None, "items": []}
+
+
 # ---- _occupancy_summary ----
 
 
@@ -154,5 +176,5 @@ def test_dashboard_api_returns_new_widget_keys():
         encoding="utf-8"
     )
     for key in ("today_menu", "order_stats", "care_level_distribution",
-                "assessment_review", "occupancy"):
+                "assessment_review", "occupancy", "today_activities"):
         assert f'"{key}": {key}' in src, f"dashboard 返回缺 {key} 接线"

@@ -248,7 +248,9 @@
     var valMap = {};
     var total = 0;
     data.forEach(function(d) { valMap[d.name] = d.value; total += d.value; });
-    var palette = ['#E67E22', '#F39C12', '#27AE60', '#8E44AD', '#3498DB', '#E74C3C'];
+    // 护理强度暖色阶（与主题同族）：越深=照护越重，浅杏→琥珀→主橙→焦橙→
+    // 深棕，未定用中性暖灰。取代绿/紫/蓝高饱和跳色（与暖橙主题违和）
+    var palette = ['#FAD7A1', '#F39C12', '#E67E22', '#A04000', '#6E2C00', '#C9AE8C'];
     var option = {
       title: {
         text: total + '人', subtext: '在院分级',

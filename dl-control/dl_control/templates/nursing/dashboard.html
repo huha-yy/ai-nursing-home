@@ -248,8 +248,9 @@
       careChart.clear();  // 数据缺席时清空面板，实例保留（30s 刷新自愈）
       return;
     }
-    // 窄面板里外置标签容易被画布边缘裁成残字（"…9"）：edge 对齐 + 图例带人数
-    // + 中心总数，三处都能读到数，谁被挤掉都不丢信息
+    // ECharts 5 饼图外置标签默认 overflow:"truncate"——窄面板放不下档位名时
+    // 会把"全护"截成裸省略号"…"（只剩"…9人"）。overflow:'none' 关掉截断；
+    // edge 对齐给足宽度 + 图例带人数 + 中心总数，谁被挤掉都不丢信息
     var valMap = {};
     var total = 0;
     data.forEach(function(d) { valMap[d.name] = d.value; total += d.value; });
@@ -276,6 +277,7 @@
         itemStyle: { borderRadius: 6, borderColor: '#FFF8F0', borderWidth: 3 },
         label: {
           show: true, alignTo: 'edge', edgeDistance: 6, minMargin: 4,
+          overflow: 'none',
           formatter: '{b}\n{c}人',
           color: '#4A3728', fontSize: 12, lineHeight: 16
         },

@@ -21,7 +21,7 @@
 .nh-wo-prog i{display:block;height:100%;background:#27AE60;border-radius:2px;transition:width .3s}
 
 /* ── 三栏：日期侧栏 + 工单列表 + 详情（stretch 撑满剩余高度，各自内滚） ── */
-.nh-wo-layout{display:grid;grid-template-columns:170px 300px 1fr;gap:1rem;align-items:stretch;flex:1;min-height:0}
+.nh-wo-layout{display:grid;grid-template-columns:190px 300px 1fr;gap:1rem;align-items:stretch;flex:1;min-height:0}
 
 /* 左：日期侧栏（单行紧凑：常规 16 个日期一屏装下，不出滚动条） */
 .nh-wo-dates{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.55rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:0;overflow-y:auto}
@@ -191,8 +191,8 @@ function renderDates(){
             '" onclick="selectDate(\'' + dt.date + '\')">' +
             '<span class="nh-wo-dt-label">' + lab.label + '</span>' +
             '<span class="nh-wo-dt-tag">' + lab.tag + '</span>' +
-            '<span class="nh-wo-dt-sub">' + (dt.pend ? '<span class="pend">待' + dt.pend + '</span> · ' : '') +
-            dt.total + ' 单</span></div>';
+            '<span class="nh-wo-dt-sub">' + (dt.pend ? '<span class="pend">待' + dt.pend + '</span>·' : '') +
+            dt.total + '单</span></div>';
   });
   box.innerHTML = html;
 }

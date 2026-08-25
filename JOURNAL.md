@@ -1489,3 +1489,8 @@ echarts 渲染怪象直接 grep min.js 的默认配置表。
 定高防 flex 压缩失真，默认 display:none 防首帧空块，title 悬停看全值），
 buildingChart 实例/resize/updateBuildingChart 全删。纯模板+CSS 零后端，
 bind-mount 即时生效；JS 用 node --check 验过语法，111 测试不动全绿。
+
+**同日四补（库存表回滚整宽）**：库存表塞进后勤线 1fr 窄格后四列可读性
+差，用户反馈"还是之前的格式好"——恢复整宽横条（后勤线收缩为餐食|点餐
+两格 1.3fr/1fr，库存表降到两面板下方整宽）。教训：4 列表格不适合 <400px
+列宽，整宽表格的可读性 > 布局的对称性。

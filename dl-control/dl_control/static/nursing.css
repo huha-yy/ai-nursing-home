@@ -985,9 +985,8 @@ body.login-page::after {
   font-size: 0.95rem;
 }
 
-/* -- Stock table（后勤线第三格：行高跟菜单面板走，超出滚动）-- */
-.nh-stock-panel { display: flex; flex-direction: column; min-height: 0; }
-.nh-stock-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+/* -- Stock table（整宽横条）-- */
+.nh-stock-panel { margin-bottom: 1.5rem; }
 
 .nh-stock-table {
   width: 100%;
@@ -1140,7 +1139,7 @@ body.login-page::after {
 
 .nh-dash-bottom {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr;   /* 餐食 + 点餐；库存表恢复整宽横条 */
   gap: 1rem;
   margin-bottom: 1.5rem;
 }

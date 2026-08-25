@@ -105,17 +105,17 @@
         <div class="nh-focus-empty">加载中…</div>
       </div>
     </div>
-    <div class="nh-dash-panel nh-stock-panel">
-      <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
-      <div class="nh-stock-scroll">
-        <table class="nh-stock-table">
-          <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
-          <tbody id="stock-tbody">
-            <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  </div>
+
+  {# -- Low stock table（整宽横条：四列表格挤窄格可读性差，用户拍板保留原格式）-- #}
+  <div class="nh-dash-panel nh-stock-panel">
+    <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
+    <table class="nh-stock-table">
+      <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
+      <tbody id="stock-tbody">
+        <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="nh-dash-footer">

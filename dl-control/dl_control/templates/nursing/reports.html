@@ -13,7 +13,7 @@
 .nh-rp-run-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
 .nh-rp-run-id{font-family:monospace;font-size:.78rem;color:#6B5A45}
 .nh-rp-run-status{font-size:.75rem;font-weight:700;padding:.15rem .55rem;border-radius:10px}
-.nh-rp-run-status.ok{background:#E8F5E9;color:#2E7D32}
+.nh-rp-run-status.ok{background:#FAD7A1;color:#7E5109}
 .nh-rp-run-status.fail{background:#FEF0EF;color:#C0392B}
 .nh-rp-run-status.run{background:#FFF3E0;color:#E65100}
 .nh-rp-run-time{font-size:.75rem;color:#6B5A45}
@@ -23,10 +23,10 @@
 .nh-rp-step{border:1px solid #F0E8DB;border-radius:8px;overflow:hidden}
 .nh-rp-step-head{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:#FDF6EC;cursor:pointer;font-size:.85rem}
 .nh-rp-step-num{width:22px;height:22px;border-radius:50%;background:#E67E22;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
-.nh-rp-step-num.ok{background:#27AE60}
+.nh-rp-step-num.ok{background:#B9770E}
 .nh-rp-step-name{font-weight:600;color:#4A3728;flex:1}
 .nh-rp-step-badge{font-size:.7rem;font-weight:700;padding:.08rem .4rem;border-radius:8px}
-.nh-rp-step-badge.ok{background:#E8F5E9;color:#2E7D32}
+.nh-rp-step-badge.ok{background:#FAD7A1;color:#7E5109}
 .nh-rp-step-badge.fail{background:#FEF0EF;color:#C0392B}
 
 .nh-rp-step-body{display:none;padding:.55rem .7rem .55rem 2.7rem;border-top:1px solid #F0E8DB;background:#FFFBF6}
@@ -57,6 +57,10 @@
 .nh-rp-md strong{color:#E67E22}
 .nh-rp-meta{font-size:.78rem;color:#6B5A45;margin-top:.4rem}
 .nh-rp-txt{font-size:.8rem;color:#6B5A45;margin:0;white-space:pre-wrap;max-height:300px;overflow-y:auto}
+/* 执行过程折叠（agent 工具调用旁白，与报告正文拆开展示） */
+.nh-rp-proc{margin-top:.5rem;font-size:.75rem}
+.nh-rp-proc summary{cursor:pointer;color:#B9770E;font-weight:600;user-select:none}
+.nh-rp-proc pre{margin:.35rem 0 0;padding:.5rem .65rem;background:#FDF6EC;border:1px solid #F0E8DB;border-radius:6px;color:#6B5A45;white-space:pre-wrap;max-height:220px;overflow-y:auto}
 
 /* empty / loading */
 .nh-rp-empty{text-align:center;padding:3rem 1rem;color:#6B5A45;font-size:.9rem}
@@ -104,6 +108,7 @@ function simpleMd(t){
   // Headers
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm, '<h2>$1</h2>');   // 报告 H1 标题（院长周报 "# 🏥 …"）
   // Lists
   s = s.replace(/((?:^- .+$\n?)+)/gm, function(m){
     return '<ul>' + m.trim().split('\n').map(function(li){return '<li>' + li.replace(/^- /,'') + '</li>';}).join('') + '</ul>';
@@ -218,6 +223,10 @@ function durMin(a,b){
             });
             html += '</div>';
           }
+        }
+        if (sum && sum.process) {
+          html += '<details class="nh-rp-proc"><summary>⚙ 执行过程（agent 旁白，点击展开）</summary>' +
+                  '<pre>' + esc(sum.process) + '</pre></details>';
         }
         html += '</div></div>';
       });

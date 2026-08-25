@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -224,6 +225,31 @@ def _today_activities(rows: list) -> dict:
         key=lambda x: (x["time"] == "", x["time"]),  # 空时间垫最后
     )
     return {"date": str(rows[0][0]) if rows else None, "items": items}
+
+
+def _split_report_text(text: str) -> dict:
+    """agent 输出 → {text: 报告正文, process: 过程旁白}。
+
+    OpenClaw 把工具调用旁白（"📋 已读取技能说明… / ⚠️ 缺少依赖…"）和最终
+    报告拼在同一串 payload 文本里。正文 = 从首个 markdown 标题行（#/##/###）
+    起；标题前的旁白与报告尾部混入的"执行摘要：…"归 process，前端折叠
+    展示（raw 字段仍全量留档，审计不受影响）。无标题行时整体当正文返回。
+    """
+    m = re.search(r"(?m)^#{1,3} ", text)
+    if not m:
+        return {"text": text[:8000], "process": None}
+    head = text[: m.start()].strip()
+    body = text[m.start():].strip()
+    m2 = re.search(r"(?m)^执行摘要[：:]", body)
+    tail = ""
+    if m2:
+        tail = body[m2.start():].strip()
+        body = body[: m2.start()].strip()
+    process = "\n\n".join(p for p in (head, tail) if p)
+    return {
+        "text": body[:8000] or None,
+        "process": process[:3000] if process else None,
+    }
 
 
 def _skill_queries() -> list:
@@ -549,8 +575,9 @@ async def build_app() -> FastAPI:
 
         # 报告类步骤（院长/总务/财务）的输出本身就是 Markdown 周报，直接展示，
         # 不再尝试解析结构化 JSON（否则会得到空的或英文 key 的字段）。
+        # 工具调用旁白与正文拆开（_split_report_text），旁白前端折叠。
         if step_key in ("director-report-step", "logistics-step", "finance-step") and text:
-            return {"text": text[:8000]}
+            return _split_report_text(text)
 
         # Try to extract JSON from the unwrapped text (LLM often wraps JSON in ```json blocks)
         if text and isinstance(text, str):

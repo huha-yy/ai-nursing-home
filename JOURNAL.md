@@ -1697,3 +1697,28 @@ Postgres"，已纠正为 ERP /api/incidents/?handled=false 并记录演示密度
 新增为 0（17 个既有违规基线持平）；重建容器后 jar 走查——院长 474 单/
 16 天全楼栋、b1_liu 81 单全 1号楼、匿名 401、页面三容器渲染、dashboard
 work_order_details 吃到当天新数据。
+
+## 2026-08-25 · 工单页样式污染修复（nursing.css 旧 .nh-wo-* 块清除）
+
+用户报障：改版后的 /work-orders「看起来很奇怪」——列表项里类型行和备注行
+**并排**成两条窄列（158px+88px），29/29 项文字全省略号截断。定位链：
+Playwright 测几何（截断 29/29）→ computed style 发现 `.nh-wo-item` 是
+`display:flex`（新模板根本没写 display）→ CSSOM 全命中规则 dump
+（`document.styleSheets` 遍历 + `el.matches(selectorText)`，/tmp/wb4.cjs）
+锁定真凶：**nursing.css 1319-1382 残留的旧版工单页样式块**——旧
+`.nh-wo-item{display:flex;align-items:center;gap:.6rem}` 与新页内联样式
+类名撞车，内联覆盖了同名属性但没写 display → 旧 flex 横排漏进来，把
+两行结构挤成两列。旧块还顺带污染 .nh-wo-i-type（旧底色/内边距）等。
+
+修复：删 nursing.css 整个旧块（64 行，`grep -c nh-wo` 归零；grep 全
+templates 确认只有 work-orders.html 用这些类名，删除无副作用）。static
+是 bind-mount，即时生效无需重建容器。
+
+复测（wo-verify.cjs）：item display block、两行各 256px、截断 0/29；
+vision 终验三栏正常无破版；右卡 638×300 与告警页同款 min-height 范式，
+不改。smoke -k work_orders 5 项全绿（断言的是模板内容，本改不动模板）。
+
+教训两条：(1) 排查外链样式表污染时 `grep | head -40` 按匹配行截断会把
+1300 行以后的规则漏掉——排除干扰要 `grep -c` 或不 head；(2) 内联
+`<style>` 虽在外链 `<link>` 之后加载，但只覆盖**同名属性**，没写的属性
+（display）由外链同名类兜底——类名撞车时旧值会漏进来。

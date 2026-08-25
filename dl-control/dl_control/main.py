@@ -132,12 +132,20 @@ def _today_cn() -> str:
 
 
 def _today_menu(week_rows: list) -> list[dict]:
-    """week-menu 全周行 → 今日三餐 [{meal_type, dishes:[菜名]}]，按 早/午/晚 排序。"""
+    """week-menu 全周行 → 今日三餐 [{meal_type, dishes:[{name, category}]}]。
+
+    按 早/午/晚 排序；category 原样透传（ERP 取值域 主食/汤/素菜/荤菜/小菜，
+    前端按类别给菜签配色，未知值走中性色兜底）。
+    """
     order = {"早餐": 0, "午餐": 1, "晚餐": 2}
     rows = [
         {
             "meal_type": m.get("meal_type", ""),
-            "dishes": [d.get("name", "") for d in m.get("dishes", []) if d.get("name")],
+            "dishes": [
+                {"name": d.get("name", ""), "category": d.get("category", "")}
+                for d in m.get("dishes", [])
+                if d.get("name")
+            ],
         }
         for m in week_rows
         if m.get("day") == _today_cn()

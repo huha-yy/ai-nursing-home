@@ -1125,27 +1125,80 @@ body.login-page::after {
   background: var(--nh-bg);
   border: 1px solid var(--nh-border);
   border-radius: 10px;
-  padding: 0.6rem 0.7rem;
+  padding: 0.6rem 0.7rem 0.7rem;
   min-height: 120px;
 }
 
+/* 三餐色带：早=橙 午=绿 晚=紫（与徽章同源） */
+.nh-menu-col.breakfast { border-top: 3px solid #E67E22; }
+.nh-menu-col.lunch     { border-top: 3px solid #27AE60; }
+.nh-menu-col.dinner    { border-top: 3px solid #7D5BA6; }
+
 .nh-menu-type {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--nh-primary);
-  padding-bottom: 0.35rem;
-  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.55rem;
   border-bottom: 1px dashed var(--nh-border);
 }
 
-.nh-menu-dish {
+.nh-menu-badge {
+  font-weight: 700;
   font-size: 0.82rem;
-  color: var(--nh-text);
-  padding: 0.18rem 0;
-  line-height: 1.45;
+  border-radius: 8px;
+  padding: 0.1rem 0.55rem;
 }
 
-.nh-menu-dish.nh-menu-empty { color: var(--nh-text-dim); }
+.nh-menu-badge.breakfast { background: #FDEBD0; color: #D35400; }
+.nh-menu-badge.lunch     { background: #D5F0D5; color: #1E8449; }
+.nh-menu-badge.dinner    { background: #EDE7F6; color: #6C3483; }
+
+.nh-menu-count { font-size: 0.72rem; color: var(--nh-text-dim); }
+
+.nh-menu-dishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.nh-menu-dish {
+  font-size: 0.78rem;
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+/* 类别配色（ERP category 取值域：主食/汤/素菜/荤菜/小菜；未知走中性） */
+.nh-menu-dish.cat-staple, .nh-menu-dot.cat-staple { background: #F5E6C8; }
+.nh-menu-dish.cat-staple { color: #8B6914; }
+.nh-menu-dish.cat-soup,   .nh-menu-dot.cat-soup   { background: #D6EAF8; }
+.nh-menu-dish.cat-soup   { color: #1F618D; }
+.nh-menu-dish.cat-veg,    .nh-menu-dot.cat-veg    { background: #E9F7EF; }
+.nh-menu-dish.cat-veg    { color: #1E8449; }
+.nh-menu-dish.cat-meat,   .nh-menu-dot.cat-meat   { background: #FADBD8; }
+.nh-menu-dish.cat-meat   { color: #B03A2E; }
+.nh-menu-dish.cat-side,   .nh-menu-dot.cat-side   { background: #FCF3CF; }
+.nh-menu-dish.cat-side   { color: #9C640C; }
+.nh-menu-dish.cat-other  { background: #F0E6D6; color: #6B5B4A; }
+
+.nh-menu-legend {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 0.7rem;
+  font-size: 0.72rem;
+  color: var(--nh-text-dim);
+}
+
+.nh-menu-legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.nh-menu-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
 
 .nh-order-stats { padding-top: 0.2rem; }
 

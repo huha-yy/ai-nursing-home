@@ -101,6 +101,13 @@
       <div id="today-menu" class="nh-menu-cols">
         <div class="nh-focus-empty">加载中…</div>
       </div>
+      <div class="nh-menu-legend">
+        <span><i class="nh-menu-dot cat-meat"></i>荤菜</span>
+        <span><i class="nh-menu-dot cat-veg"></i>素菜</span>
+        <span><i class="nh-menu-dot cat-staple"></i>主食</span>
+        <span><i class="nh-menu-dot cat-soup"></i>汤</span>
+        <span><i class="nh-menu-dot cat-side"></i>小菜</span>
+      </div>
     </div>
     <div class="nh-dash-panel">
       <h3 class="nh-dash-panel-title">今日点餐动态</h3>
@@ -177,6 +184,10 @@
   var ORDER_STATUS = [['ordered','已点'],['modified','已改'],['preparing','备餐中'],
                        ['delivering','配送中'],['delivered','已送达'],['cancelled','已退']];
 
+  var MEAL_THEME = { '早餐': 'breakfast', '午餐': 'lunch', '晚餐': 'dinner' };
+  var CAT_CLASS = { '荤菜': 'cat-meat', '素菜': 'cat-veg', '主食': 'cat-staple',
+                    '汤': 'cat-soup', '小菜': 'cat-side' };
+
   function renderTodayMenu(rows) {
     var el = document.getElementById('today-menu');
     var dayEl = document.getElementById('menu-day');
@@ -187,10 +198,19 @@
     }
     var html = '';
     rows.forEach(function(m) {
-      html += '<div class="nh-menu-col"><div class="nh-menu-type">' + m.meal_type + '</div>';
-      (m.dishes || []).forEach(function(d) { html += '<div class="nh-menu-dish">' + d + '</div>'; });
-      if (!m.dishes || !m.dishes.length) html += '<div class="nh-menu-dish nh-menu-empty">未排菜</div>';
-      html += '</div>';
+      var theme = MEAL_THEME[m.meal_type] || '';
+      var dishes = m.dishes || [];
+      html += '<div class="nh-menu-col ' + theme + '">' +
+        '<div class="nh-menu-type">' +
+        '<span class="nh-menu-badge ' + theme + '">' + m.meal_type + '</span>' +
+        '<span class="nh-menu-count">' + dishes.length + ' 道</span></div>' +
+        '<div class="nh-menu-dishes">';
+      dishes.forEach(function(d) {
+        var cat = CAT_CLASS[d.category] || 'cat-other';
+        html += '<span class="nh-menu-dish ' + cat + '">' + d.name + '</span>';
+      });
+      if (!dishes.length) html += '<span class="nh-menu-dish cat-other">未排菜</span>';
+      html += '</div></div>';
     });
     el.innerHTML = html;
   }

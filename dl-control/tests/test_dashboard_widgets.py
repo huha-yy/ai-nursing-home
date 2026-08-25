@@ -1,7 +1,8 @@
 """大屏增强五组件的模块级 helper 单测（2026-08-25）。
 
 覆盖 main.py 新增的纯函数（不触网、不触库）：
-- _today_cn / _today_menu：week-menu 行按中文星期过滤 + 早/午/晚排序
+- _today_cn / _today_menu：week-menu 行按中文星期过滤 + 早/午/晚排序，
+  菜名+类别（主食/汤/素菜/荤菜/小菜）透传供前端配色
 - _order_stats：按餐次分拉的订单 → 状态聚合（退餐不计 total 但保留计数）+ 特殊餐
 - _care_level_pie：care_level 计数、档位定序、空值归"未定"、表外档位追加
 - _occupancy_summary：楼栋行求和 + 百分比取整 + 无床位 None
@@ -40,18 +41,22 @@ def test_today_cn_all_seven_days(monkeypatch):
 
 
 def test_today_menu_filters_and_sorts(monkeypatch):
-    """全周行 → 只留今日 + 早/午/晚定序（输入乱序）"""
+    """全周行 → 只留今日 + 早/午/晚定序（输入乱序）；菜名+类别透传"""
     monkeypatch.setattr(m, "datetime", _dt.datetime)  # 真实今天
     cn = m._today_cn()
     rows = [
-        {"day": cn, "meal_type": "午餐", "dishes": [{"id": 1, "name": "香菇炖鸡", "category": "荤菜"}]},
-        {"day": cn, "meal_type": "早餐", "dishes": [{"id": 2, "name": "八宝粥"}, {"id": 3, "name": ""}]},
+        {"day": cn, "meal_type": "午餐",
+         "dishes": [{"id": 1, "name": "香菇炖鸡", "category": "荤菜"}]},
+        {"day": cn, "meal_type": "早餐",
+         "dishes": [{"id": 2, "name": "八宝粥", "category": "主食"}, {"id": 3, "name": ""}]},
         {"day": "周五", "meal_type": "早餐", "dishes": [{"id": 4, "name": "别的一天"}]},
-        {"day": cn, "meal_type": "晚餐", "dishes": [{"id": 5, "name": "蒜蓉菠菜"}]},
+        {"day": cn, "meal_type": "晚餐", "dishes": [{"id": 5, "name": "蒜蓉菠菜"}]},  # 无类别
     ]
     out = m._today_menu(rows)
     assert [r["meal_type"] for r in out] == ["早餐", "午餐", "晚餐"]
-    assert out[0]["dishes"] == ["八宝粥"]  # 空名菜剔除
+    assert out[0]["dishes"] == [{"name": "八宝粥", "category": "主食"}]  # 空名菜剔除
+    assert out[1]["dishes"] == [{"name": "香菇炖鸡", "category": "荤菜"}]
+    assert out[2]["dishes"] == [{"name": "蒜蓉菠菜", "category": ""}]  # 缺类别透传空串
     assert all(r["meal_type"] != "别的一天" for r in out)
 
 

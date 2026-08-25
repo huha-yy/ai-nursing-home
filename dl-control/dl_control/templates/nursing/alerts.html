@@ -2,133 +2,255 @@
 {% block title %}健康告警 — AI 养老院院长{% endblock %}
 {% block body %}
 
-<div class="nh-alerts-page">
-  <div class="nh-alerts-header">
-    <p class="nh-alerts-back-top"><a href="/dashboard">← 返回大屏</a></p>
-    <h1>健康告警</h1>
-    <p class="nh-alerts-summary">
-      {% set danger_count = alerts | selectattr('severity', 'equalto', 'danger') | list | length %}
-      {% set warn_count = alerts | selectattr('severity', 'equalto', 'warning') | list | length %}
-      {% set info_count = alerts | selectattr('severity', 'equalto', 'info') | list | length %}
-      {% set unhandled = alerts | selectattr('handled', 'equalto', false) | list | length %}
-      共 {{ alerts | length }} 条 · {{ unhandled }} 条未处理 · 🔴{{ danger_count }} 🟡{{ warn_count }} 🔵{{ info_count }}
-    </p>
+<style>
+.nh-al{max-width:980px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+.nh-al-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.nh-al-back{font-size:.85rem;color:#E67E22;text-decoration:none}
+.nh-al-total{font-size:.78rem;color:#6B5A45}
+.nh-al-ttl{font-size:1.4rem;font-weight:700;color:#4A3728;margin:0 0 .7rem}
+
+/* 待处理严重度概览条 */
+.nh-al-sevrow{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem}
+.nh-al-sevchip{font-size:.78rem;font-weight:600;padding:.18rem .65rem;border-radius:12px}
+.nh-al-sevchip.danger{background:#FEF0EF;color:#C0392B}
+.nh-al-sevchip.warning{background:#FDF3DC;color:#B9770E}
+.nh-al-sevchip.info{background:#F4EFE9;color:#8D6E63}
+.nh-al-sevchip.zero{opacity:.45}
+
+/* 待处理 / 已处理 切换 */
+.nh-al-tabs{display:flex;gap:.4rem;margin-bottom:1rem}
+.nh-al-tab{padding:.35rem .95rem;border:1px solid #E8D5C4;border-radius:16px;background:#FFF8F0;color:#6B5A45;font-size:.83rem;font-weight:600;cursor:pointer}
+.nh-al-tab:hover{background:#FDF6EC}
+.nh-al-tab.act{background:#B9770E;border-color:#B9770E;color:#FFF8F0}
+.nh-al-tab .n{display:inline-block;min-width:1.3em;margin-left:.25rem;padding:0 .35rem;border-radius:8px;background:rgba(255,255,255,.35);font-size:.75rem}
+
+/* ── 主从布局 ── */
+.nh-al-layout{display:grid;grid-template-columns:290px 1fr;gap:1rem;align-items:start}
+
+/* 左：告警列表 */
+.nh-al-list{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.6rem;box-shadow:0 2px 8px rgba(0,0,0,.06);position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow-y:auto}
+.nh-al-item{display:block;border:1px solid transparent;border-left:3px solid #ccc;border-radius:8px;padding:.5rem .6rem;margin-bottom:.35rem;cursor:pointer}
+.nh-al-item:hover{background:#FDF6EC}
+.nh-al-item.sel{background:#FDEBD0;border-color:#F0D9B8;border-left-width:3px}
+.nh-al-item.sev-danger{border-left-color:#C0392B}
+.nh-al-item.sev-warning{border-left-color:#B9770E}
+.nh-al-item.sev-info{border-left-color:#8D6E63}
+.nh-al-item.handled{opacity:.62}
+.nh-al-item-top{display:flex;align-items:baseline;gap:.45rem}
+.nh-al-item-name{font-size:.88rem;font-weight:700;color:#4A3728;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nh-al-item-cat{font-size:.7rem;padding:.06rem .4rem;border-radius:4px;background:#FDF6EC;color:#B9770E;white-space:nowrap}
+.nh-al-item-time{font-size:.7rem;color:#6B5A45;margin-top:.15rem}
+.nh-al-empty-list{font-size:.78rem;color:#6B5A45;text-align:center;padding:1rem .5rem;line-height:1.7}
+
+/* 右：详情 */
+.nh-al-main{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:1.1rem 1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:300px}
+.nh-al-detail-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem}
+.nh-al-detail-name{font-size:1.1rem;font-weight:700;color:#4A3728}
+.nh-al-detail-building{font-size:.8rem;color:#6B5A45}
+.nh-al-badge{font-size:.72rem;font-weight:700;padding:.14rem .55rem;border-radius:10px}
+.nh-al-badge.danger{background:#FEF0EF;color:#C0392B}
+.nh-al-badge.warning{background:#FDF3DC;color:#B9770E}
+.nh-al-badge.info{background:#F4EFE9;color:#8D6E63}
+.nh-al-cat-tag{font-size:.75rem;padding:.1rem .5rem;border-radius:4px;background:#FDF6EC;color:#B9770E;font-weight:600}
+.nh-al-detail-content{font-size:.92rem;color:#4A3728;line-height:1.7;margin:.7rem 0 .9rem;padding:.7rem .85rem;background:#FFFBF6;border-radius:8px;border:1px solid #F0E8DB}
+.nh-al-meta{font-size:.78rem;color:#6B5A45;line-height:1.9}
+.nh-al-meta b{color:#4A3728;font-weight:600}
+.nh-al-handled-box{margin-top:.7rem;padding:.55rem .8rem;border-radius:8px;background:#FDF3DC;color:#7E5109;font-size:.82rem;font-weight:600}
+.nh-al-handle-btn{margin-top:.9rem;padding:.45rem 1.3rem;border:none;border-radius:8px;background:#B9770E;color:#FFF8F0;font-size:.85rem;font-weight:700;cursor:pointer}
+.nh-al-handle-btn:hover{background:#A0660B}
+.nh-al-handle-btn:disabled{opacity:.55;cursor:wait}
+.nh-al-placeholder{text-align:center;padding:3.2rem 1rem;color:#6B5A45;font-size:.9rem}
+.nh-al-spin{display:inline-block;width:20px;height:20px;border:2px solid #E8D5C4;border-top-color:#E67E22;border-radius:50%;animation:alspin .6s linear infinite;margin-right:.4rem;vertical-align:middle}
+@keyframes alspin{to{transform:rotate(360deg)}}
+
+/* ── 响应式：窄屏列表变横向 chips ── */
+@media (max-width:860px){
+  .nh-al-layout{grid-template-columns:1fr}
+  .nh-al-list{position:static;max-height:none;overflow:visible;display:flex;gap:.4rem;overflow-x:auto;padding-bottom:.25rem}
+  .nh-al-item{flex-shrink:0;min-width:180px;margin-bottom:0}
+  .nh-al-item-time{display:none}
+}
+</style>
+
+<div class="nh-al">
+  <div class="nh-al-bar">
+    <a href="/dashboard" class="nh-al-back">← 大屏</a>
+    <span class="nh-al-total" id="al-total"></span>
+  </div>
+  <h1 class="nh-al-ttl">健康告警</h1>
+
+  <div class="nh-al-sevrow" id="al-sevrow"></div>
+  <div class="nh-al-tabs">
+    <button class="nh-al-tab act" id="tab-pending" onclick="switchTab('pending')">待处理<span class="n" id="n-pending"></span></button>
+    <button class="nh-al-tab" id="tab-handled" onclick="switchTab('handled')">已处理<span class="n" id="n-handled"></span></button>
   </div>
 
-  {% set groups = {'danger': [], 'warning': [], 'info': []} %}
-  {% for a in alerts %}
-    {% set _ = groups[a.severity].append(a) %}
-  {% endfor %}
-
-  {% set labels = {'danger': '紧急', 'warning': '需关注', 'info': '常规'} %}
-  {% for sev in ['danger', 'warning', 'info'] %}
-    {% if groups[sev] %}
-    <section class="nh-alerts-group">
-      <h2 class="nh-alerts-sev-head" data-sev="{{ sev }}">
-        <span class="nh-alerts-sev-dot"></span>
-        {{ labels[sev] }} · {{ groups[sev] | length }} 条
-      </h2>
-
-      {% for a in groups[sev] %}
-      <div class="nh-alert-card {% if a.handled %}handled{% endif %}" id="alert-{{ a.id }}">
-        <div class="nh-alert-top">
-          <span class="nh-alert-name">{{ a.name }}</span>
-          <span class="nh-alert-room">{{ a.room }}</span>
-          <span class="nh-alert-tag">{{ a.category }}</span>
-          {% if a.handled %}
-          <span class="nh-alert-badge badge-handled">已处理</span>
-          {% else %}
-          <button class="nh-alert-handle-btn"
-                  onclick="handleAlert({{ a.id }}, this)">标记已处理</button>
-          {% endif %}
-        </div>
-        <p class="nh-alert-content">{{ a.content }}</p>
-        <span class="nh-alert-time">{{ a.created_at }}</span>
-      </div>
-      {% endfor %}
-    </section>
-    {% endif %}
-  {% endfor %}
-
-  <p class="nh-alerts-back"><a href="/dashboard">← 返回大屏</a></p>
+  <div class="nh-al-layout">
+    <aside class="nh-al-list" id="al-list"><div class="nh-al-empty-list"><span class="nh-al-spin"></span>加载中…</div></aside>
+    <main class="nh-al-main" id="al-main"><div class="nh-al-placeholder"><span class="nh-al-spin"></span>加载中…</div></main>
+  </div>
 </div>
 
 <script>
-function handleAlert(id, btn) {
-  fetch('/api/nursing/alerts/' + id + '/handle', { method: 'POST', credentials: 'same-origin' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        var card = document.getElementById('alert-' + id);
-        card.classList.add('handled');
-        btn.outerHTML = '<span class="nh-alert-badge badge-handled">已处理</span>';
-      }
-    });
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+var SEV_LABEL = {danger:'危急', warning:'紧急', info:'一般'};
+
+function fmtShort(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d)) return String(iso).slice(0,16).replace('T',' ');
+  var now = new Date();
+  var pad = function(n){return n<10?'0'+n:''+n;};
+  var hm = pad(d.getHours())+':'+pad(d.getMinutes());
+  if (d.toDateString() === now.toDateString()) return '今天 '+hm;
+  var y = new Date(now); y.setDate(now.getDate()-1);
+  if (d.toDateString() === y.toDateString()) return '昨天 '+hm;
+  return (d.getMonth()+1)+'月'+d.getDate()+'日 '+hm;
 }
+function fmtFull(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d)) return String(iso).slice(0,19).replace('T',' ');
+  var pad = function(n){return n<10?'0'+n:''+n;};
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+var state = {alerts: [], tab: 'pending', sel: null, handling: false};
+
+function byId(id){ return state.alerts.find(function(a){return a.id === id;}); }
+
+function counts(){
+  var pending = state.alerts.filter(function(a){return !a.handled;});
+  var bySev = {danger:0, warning:0, info:0};
+  pending.forEach(function(a){ if (bySev[a.severity] !== undefined) bySev[a.severity]++; });
+  return {pending: pending.length, handled: state.alerts.length - pending.length, bySev: bySev};
+}
+
+function switchTab(t){
+  state.tab = t;
+  document.getElementById('tab-pending').classList.toggle('act', t === 'pending');
+  document.getElementById('tab-handled').classList.toggle('act', t === 'handled');
+  renderList();
+}
+
+function selectAlert(id){
+  state.sel = id;
+  try { history.replaceState(null, '', '#a=' + id); } catch(e) {}
+  renderList();
+  renderDetail();
+}
+
+function renderSevRow(){
+  var c = counts();
+  document.getElementById('al-total').textContent = '共 ' + state.alerts.length + ' 条 · ' + c.pending + ' 条待处理';
+  var html = '';
+  ['danger','warning','info'].forEach(function(sev){
+    var n = c.bySev[sev];
+    html += '<span class="nh-al-sevchip ' + sev + (n ? '' : ' zero') + '">' + SEV_LABEL[sev] + ' ' + n + '</span>';
+  });
+  document.getElementById('al-sevrow').innerHTML = html;
+  document.getElementById('n-pending').textContent = c.pending;
+  document.getElementById('n-handled').textContent = c.handled;
+}
+
+function renderList(){
+  var box = document.getElementById('al-list');
+  var items = state.alerts.filter(function(a){ return state.tab === 'pending' ? !a.handled : a.handled; });
+  if (!items.length) {
+    box.innerHTML = state.tab === 'pending'
+      ? '<div class="nh-al-empty-list">🎉 待处理告警已清零</div>'
+      : '<div class="nh-al-empty-list">暂无已处理记录</div>';
+    return;
+  }
+  var html = '';
+  items.forEach(function(a){
+    html += '<div class="nh-al-item sev-' + (a.severity||'info') + (a.handled ? ' handled' : '') + (a.id === state.sel ? ' sel' : '') +
+            '" onclick="selectAlert(' + a.id + ')">' +
+            '<div class="nh-al-item-top">' +
+            '<span class="nh-al-item-name">' + esc(a.name || '未关联老人') + '</span>' +
+            '<span class="nh-al-item-cat">' + esc(a.category) + '</span></div>' +
+            '<div class="nh-al-item-time">' + SEV_LABEL[a.severity] + ' · ' + fmtShort(a.created_at) + '</div>' +
+            '</div>';
+  });
+  box.innerHTML = html;
+}
+
+function renderDetail(){
+  var el = document.getElementById('al-main');
+  var a = byId(state.sel);
+  if (!a) {
+    el.innerHTML = '<div class="nh-al-placeholder">' + (state.alerts.length ? '← 从列表选择一条告警' : '暂无告警记录') + '</div>';
+    return;
+  }
+  var html = '<div class="nh-al-detail-head">' +
+    '<span class="nh-al-detail-name">' + esc(a.name || '未关联老人') + '</span>' +
+    '<span class="nh-al-detail-building">' + esc(a.building || '') + '</span>' +
+    '<span class="nh-al-badge ' + (a.severity||'info') + '">' + (SEV_LABEL[a.severity] || a.severity_display || a.severity) + '</span>' +
+    '<span class="nh-al-cat-tag">' + esc(a.category) + '</span></div>';
+  html += '<div class="nh-al-detail-content">' + esc(a.content || '（无补充说明）') + '</div>';
+  html += '<div class="nh-al-meta">上报时间　<b>' + fmtFull(a.created_at) + '</b></div>';
+  if (a.handled) {
+    html += '<div class="nh-al-meta">处理时间　<b>' + fmtFull(a.handled_at) + '</b>' + (a.handled_by ? '　处理人　<b>' + esc(a.handled_by) + '</b>' : '') + '</div>';
+    html += '<div class="nh-al-handled-box">✓ 已处理</div>';
+  } else {
+    html += '<button class="nh-al-handle-btn" id="al-handle" onclick="handleAlert(' + a.id + ')">标记已处理</button>';
+  }
+  el.innerHTML = html;
+}
+
+async function handleAlert(id){
+  if (state.handling) return;
+  state.handling = true;
+  var btn = document.getElementById('al-handle');
+  if (btn) { btn.disabled = true; btn.textContent = '处理中…'; }
+  try {
+    var r = await fetch('/api/nursing/alerts/' + id + '/handle', {method:'POST', credentials:'same-origin'});
+    var d = await r.json();
+    if (!d.ok) { alert('标记失败：' + (d.error || r.status)); if (btn){btn.disabled=false; btn.textContent='标记已处理';} return; }
+    await refresh();           // 重新拉列表：计数与分流都以后端为准
+    renderDetail();            // 停留在该条详情，展示处理人/时间
+  } catch(e) {
+    alert('网络错误：' + e.message);
+    if (btn){btn.disabled=false; btn.textContent='标记已处理';}
+  }
+  state.handling = false;
+}
+
+async function refresh(){
+  var r = await fetch('/api/nursing/alerts', {credentials:'same-origin'});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  var d = await r.json();
+  state.alerts = d.alerts || [];
+  renderSevRow();
+  renderList();
+  return d;
+}
+
+(async function(){
+  var listEl = document.getElementById('al-list');
+  var mainEl = document.getElementById('al-main');
+  try {
+    await refresh();
+    if (!state.alerts.length) {
+      listEl.innerHTML = '<div class="nh-al-empty-list">暂无告警记录</div>';
+      mainEl.innerHTML = '<div class="nh-al-placeholder">暂无告警记录</div>';
+      return;
+    }
+    // hash 还原选中（#a=<id>）；缺省选待处理里最急的一条，没有待处理则第一条
+    var initial = null;
+    var m = location.hash.match(/^#a=(\d+)/);
+    if (m) initial = byId(parseInt(m[1], 10));
+    if (!initial) {
+      var pending = state.alerts.filter(function(a){return !a.handled;});
+      initial = (pending[0] || state.alerts[0]);
+    }
+    selectAlert(initial.id);
+  } catch(e) {
+    listEl.innerHTML = '<div class="nh-al-empty-list">加载失败</div>';
+    mainEl.innerHTML = '<div class="nh-al-placeholder">加载失败：' + esc(e.message) + '</div>';
+  }
+})();
 </script>
-
-<style>
-.nh-alerts-page { max-width: 800px; margin: 0 auto; padding: 1.5rem; }
-.nh-alerts-header { margin-bottom: 1.5rem; }
-.nh-alerts-header h1 { margin: 0 0 0.25rem; font-size: 1.4rem; color: var(--nh-text); }
-.nh-alerts-summary { font-size: 0.88rem; color: var(--nh-text-dim); margin: 0; }
-
-.nh-alerts-group { margin-bottom: 1.5rem; }
-
-.nh-alerts-sev-head {
-  display: flex; align-items: center; gap: 0.4rem;
-  margin: 0 0 0.6rem; font-size: 0.95rem; font-weight: 700;
-  padding: 0.4rem 0.6rem; border-radius: 6px;
-}
-.nh-alerts-sev-head[data-sev="danger"]  { color: var(--nh-danger);  background: #FEF0EF; }
-.nh-alerts-sev-head[data-sev="warning"] { color: var(--nh-warning); background: #FEF9ED; }
-.nh-alerts-sev-head[data-sev="info"]    { color: var(--nh-info);    background: #EEF3F9; }
-
-.nh-alerts-sev-dot { width: 8px; height: 8px; border-radius: 50%; }
-.nh-alerts-sev-head[data-sev="danger"] .nh-alerts-sev-dot  { background: var(--nh-danger); }
-.nh-alerts-sev-head[data-sev="warning"] .nh-alerts-sev-dot { background: var(--nh-warning); }
-.nh-alerts-sev-head[data-sev="info"] .nh-alerts-sev-dot    { background: var(--nh-info); }
-
-.nh-alert-card {
-  background: var(--nh-surface); border: 1px solid var(--nh-border);
-  border-radius: var(--nh-radius); padding: 0.85rem 1rem; margin-bottom: 0.5rem;
-  box-shadow: var(--nh-shadow);
-}
-.nh-alert-card.handled { opacity: 0.6; }
-
-.nh-alert-top {
-  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem;
-}
-.nh-alert-name { font-weight: 700; color: var(--nh-text); font-size: 0.95rem; }
-.nh-alert-room { color: var(--nh-text-dim); font-size: 0.82rem; }
-.nh-alert-tag {
-  font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 4px;
-  background: var(--nh-primary-light); color: var(--nh-primary);
-}
-
-.nh-alert-content { margin: 0 0 0.25rem; font-size: 0.9rem; color: var(--nh-text); line-height: 1.5; }
-.nh-alert-time { font-size: 0.76rem; color: var(--nh-text-dim); }
-
-.nh-alert-handle-btn {
-  font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 4px;
-  background: var(--nh-primary); color: #fff; border: none; cursor: pointer;
-  font-weight: 600; margin-left: auto;
-}
-.nh-alert-handle-btn:hover { background: var(--nh-primary-hover); }
-
-.nh-alert-badge.badge-handled {
-  font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px;
-  background: #D5F5E3; color: #27AE60; font-weight: 600; margin-left: auto;
-}
-
-.nh-alerts-back { text-align: center; margin-top: 1.5rem; }
-.nh-alerts-back-top { margin: 0 0 0.5rem; }
-.nh-alerts-back-top a { color: var(--nh-text-dim); font-size: 0.85rem; text-decoration: none; }
-.nh-alerts-back-top a:hover { color: var(--nh-primary); }
-.nh-alerts-back a { color: var(--nh-text-dim); font-size: 0.88rem; }
-.nh-alerts-back-top { margin: 0 0 0.5rem; }
-.nh-alerts-back-top a { color: var(--nh-text-dim); font-size: 0.85rem; text-decoration: none; }
-.nh-alerts-back-top a:hover { color: var(--nh-primary); }
-</style>
 
 {% endblock %}

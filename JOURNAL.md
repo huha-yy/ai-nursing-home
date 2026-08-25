@@ -1633,3 +1633,19 @@ json 块。raw 仍全量留档。
 过程旁白）；护理科排班是结构化数据，文档区里退键值卡格（不是 prose 硬造
 文档）；失败步骤标签红框，换期次自动回到院长汇总标签。删除折叠块 CSS/
 JS（renderStepBody → renderDoc 统一）。
+
+**同日十八补（告警页主从改造 + 假处理按钮转真）**：/alerts 是第二个
+一拉到底页（服务端 Jinja 全量渲染，已处理/未处理混排）。改造沿用周报页
+范式：待处理/已处理双 tab（带计数）+ 左侧告警列表（严重度色条 danger
+红/warning 金/info 褐，同级新上报在前）+ 右侧详情（老人/楼栋/类别/说明/
+上报时间/处理人/处理时间），hash #a=<id> 选中还原，<860px 列表变横向
+chips；数据改页面 JS 拉 /api/nursing/alerts。
+**顺手修掉一个真 bug**：旧「标记已处理」按钮是假的——ERP 无写端点，
+dl-control 只回 200 装成功（main.py 旧注释自认），前端变样式一刷新就
+打回原形。本次：ERP 新增 POST /api/incidents/{id}/handle/（幂等+楼栋
+守卫+处理人署名，列表补 handled_by/handled_at 字段，ERP 测试 +2，runserver
+autoreload 生效）；dl-control handle 端点转发并传 nursing 会话姓名。
+端到端验证：#23（拒食/一般）经院长会话标记 → ERP 库真实落账（处理人
+陈建国 = wang_jianguo 会话显示名），待处理 6→1。注意：demo 数据里
+个别 pending 行自带 handled_by（台账先行填了处理人未点处理），详情只在
+handled=True 时展示处理人，不受影响。

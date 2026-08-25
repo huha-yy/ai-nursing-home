@@ -1107,10 +1107,13 @@ async def build_app() -> FastAPI:
 
     @app.get("/api/nursing/alerts")
     async def nursing_alerts(request: _Request):
-        """Return pending (unhandled) health alerts from nursing-erp.
+        """告警全量列表（含已处理），/alerts 主从页数据源。
 
         2026-08-21 加固：原先无鉴权且经公网代理暴露（ERP 老人 PII 可被
         匿名拉取）。现在要求 nursing 会话，并按会话楼栋过滤 ERP 数据。
+        2026-08-25 改版：旧版只回 pending ≤50 且丢 resident_name；现在
+        全量透传（含 handled_by/handled_at），前端按 待处理/已处理 分流。
+        排序：danger→warning→info，同级新上报在前。
         """
         sess = await _load_nursing_sess(request, sessions)
         if sess is None or sess.role not in _NURSING_ROLES:
@@ -1119,22 +1122,29 @@ async def build_app() -> FastAPI:
             import httpx as _hx_a
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
             async with _hx_a.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli:
-                _r = await _cli.get(f"{_erp}/api/incidents/?handled=false")
+                _r = await _cli.get(f"{_erp}/api/incidents/")
                 if _r.status_code == 200:
                     data = _r.json()
                     items = _erp_items(data)
-                    return [
-                        {"id": i["id"], "resident_id": i.get("resident_id", 0),
-                         "content": i.get("description", ""),
-                         "category": i.get("category_display", i.get("category", "")),
-                         "severity": i.get("severity", ""),
-                         "created_at": i.get("created_at", ""),
-                         "handled": False}
-                        for i in items[:50]
-                    ]
+                    _sev = {"danger": 0, "warning": 1, "info": 2}
+                    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    items.sort(key=lambda x: _sev.get(x.get("severity", ""), 9))
+                    return {"alerts": [{
+                        "id": i["id"],
+                        "name": i.get("resident_name", ""),
+                        "building": i.get("building", ""),
+                        "category": i.get("category_display", i.get("category", "")),
+                        "severity": i.get("severity", ""),
+                        "severity_display": i.get("severity_display", ""),
+                        "content": i.get("description", ""),
+                        "handled": bool(i.get("handled", False)),
+                        "handled_by": i.get("handled_by", "") or "",
+                        "handled_at": i.get("handled_at", "") or "",
+                        "created_at": i.get("created_at", ""),
+                    } for i in items[:100]]}
         except Exception:
             pass
-        return []
+        return {"alerts": []}
 
     @app.get("/alerts", response_class=HTMLResponse)
     async def nursing_alerts_page(request: _Request):
@@ -1150,47 +1160,42 @@ async def build_app() -> FastAPI:
             "building": getattr(sess, "building", None) or "",
             "floor": getattr(sess, "floor", None) or "",
         }
-        # Fetch alerts from nursing-erp API
-        alerts = []
-        try:
-            import httpx as _hx2
-            _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-            async with _hx2.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli2:
-                _r = await _cli2.get(f"{_erp}/api/incidents/")
-                if _r.status_code == 200:
-                    data = _r.json()
-                    items = _erp_items(data)
-                    severity_order = {"danger": 1, "warning": 2, "info": 3}
-                    items.sort(key=lambda x: severity_order.get(x.get("severity", ""), 9))
-                    alerts = [{
-                        "id": i["id"],
-                        "name": i.get("resident_name", ""),
-                        "room": i.get("building", "") + i.get("room", "").replace(i.get("building", ""), "") if i.get("building") else "",
-                        "content": i.get("description", ""),
-                        "category": i.get("category_display", i.get("category", "")),
-                        "severity": i.get("severity", ""),
-                        "created_at": i.get("created_at", "")[:19] if i.get("created_at") else "",
-                        "handled": i.get("handled", False),
-                    } for i in items]
-        except Exception:
-            pass
+        # 2026-08-25 改版：数据改为页面 JS 拉 /api/nursing/alerts（主从
+        # 筛选/详情/处理都在前端做），路由只负责会话与模板上下文。
         return TEMPLATES.TemplateResponse(request, "nursing/alerts.html", {
             "active": "alerts",
             "nursing_user": nursing_user,
             "csrf_token": sess.csrf_token,
-            "alerts": alerts,
         })
 
     @app.post("/api/nursing/alerts/{alert_id}/handle")
     async def nursing_alerts_handle(alert_id: int, request: _Request):
+        """标记已处理 — 真写路径（2026-08-25）：转发 ERP handle 端点。
+
+        旧版只回 200 假装成功（当时 ERP 无写端点，前端样式一刷新就打回
+        原形）。处理人署名取 nursing 会话姓名。
+        """
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
         if sess is None or sess.role not in _NURSING_ROLES:
             return JSONResponse({"error": "unauthorized"}, 401)
-        # Mark as handled in nursing-erp — no equivalent write endpoint yet,
-        # so just acknowledge. The ERP Admin can mark incidents as handled.
-        return JSONResponse({"status": "ok", "message": "请在 ERP 管理后台标记为已处理"}, 200)
+        operator = ((getattr(sess, "name", None) or sess.user_id or ""))[:30]
+        try:
+            import httpx as _hx_h
+            _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+            async with _hx_h.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli:
+                _r = await _cli.post(
+                    f"{_erp}/api/incidents/{alert_id}/handle/",
+                    json={"operator": operator},
+                )
+            if _r.status_code == 200:
+                return {"ok": True, **_r.json()}
+            return JSONResponse(
+                {"ok": False, "error": f"ERP {_r.status_code}: {_r.text[:200]}"}, 502
+            )
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, 502)
 
     @app.get("/work-orders", response_class=HTMLResponse)
     async def nursing_work_orders_page(request: _Request):

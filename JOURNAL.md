@@ -1665,3 +1665,35 @@ gen_other_domains 同一函数（auto_now_add 时间回填同点餐模式）。
 连带效果：大屏「未处理告警」KPI 2→7、「重点关注老人」卡吃满 5 条
 （同源 ERP incidents）；DASHBOARD-DATA.md 该行口径原本误写"AI 侧
 Postgres"，已纠正为 ERP /api/incidents/?handled=false 并记录演示密度。
+
+## 2026-08-25 · 工单页改版主从 + 工单演示种子（/work-orders）
+
+用户拍板「告警页同款主从的工单页日期侧栏」。旧页只服务端渲染"当天"
+一屏（_eff_date 兜底），且演示数据只剩 07-27/07-29 两个过期日期——
+改版两件事一起做：
+
+1. **主从页**：/work-orders 改为 日期侧栏(~170px) + 当日列表(~300px) +
+   详情(1fr) 三栏，样式镜像 alerts.html 的 .nh-al-* 范式（暖色调 .nh-wo-*）。
+   选中日期联动当日 KPI 行（总单/已完成/待处理/完成率+进度条），列表带
+   全部/待处理/已完成 chips，hash `#d=YYYY-MM-DD&o=<id>` 可还原选中，
+   <860px 响应式日期侧栏转横向 chips。数据改页面 JS 拉新端点
+   `GET /api/nursing/work-orders`（近 30 天全量 JOIN nursing_residents 带
+   老人名/楼栋/房号；楼长会话按 r.building=%s 过滤，对齐 alerts 口径）；
+   页面路由瘦身为只管会话门。
+2. **演示种子**：`scripts/seed_work_orders_demo.py`——近 14 天(含当天) ×
+   每天 24-34 单共 414 条，固定种子可重跑；完成率 过去日 88-97% / 昨天
+   ~90% / 当天 62%（留足待处理）；staff_name 严格按老人楼栋从员工台账
+   映射取（验 0 错配），note 按 24 种工单类型模板。表只有 PK 无
+   (resident_id,date,type) 唯一索引——幂等只能 DELETE 后 INSERT，且
+   DELETE 范围用宿主机日期字面量（防容器时区跨日删不干净），不走
+   ON CONFLICT。
+
+连带：大屏「今日护理完成率」KPI 同表同源自动吃当天数据（62%，旧 83%
+叙事作废，DASHBOARD-DATA.md 已重写该节并补第 4 条数据来源）；07-27/07-29
+旧批次仍在 30 天窗口内、侧栏可见，不归种子管。
+
+验证：node --check 模板 JS；smoke 测试 +3（源级：端点挂载+楼栋过滤、
+模板主从三容器、种子脚本确定性/ON_ERROR_STOP/DELETE-INSERT）；ruff
+新增为 0（17 个既有违规基线持平）；重建容器后 jar 走查——院长 474 单/
+16 天全楼栋、b1_liu 81 单全 1号楼、匿名 401、页面三容器渲染、dashboard
+work_order_details 吃到当天新数据。

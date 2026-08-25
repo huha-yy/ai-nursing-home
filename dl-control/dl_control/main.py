@@ -1197,6 +1197,48 @@ async def build_app() -> FastAPI:
         except Exception as e:
             return JSONResponse({"ok": False, "error": str(e)}, 502)
 
+    @app.get("/api/nursing/work-orders")
+    async def nursing_work_orders_api(request: _Request):
+        """工单近 30 天全量，/work-orders 主从页数据源（2026-08-25 改版）。
+
+        旧页只服务端渲染"当天"一屏（_eff_date 兜底最近一天）；现在按日期
+        全量返回，前端自分组做 日期侧栏 + 列表/详情 主从。楼长会话按
+        楼栋过滤（对齐 /api/nursing/alerts 口径）。
+        """
+        sess = await _load_nursing_sess(request, sessions)
+        if sess is None or sess.role not in _NURSING_ROLES:
+            return JSONResponse({"error": "unauthorized"}, 401)
+        building = (getattr(sess, "building", None) or "").strip()
+        sql = (
+            "SELECT w.id, w.date, w.type, w.completed, w.staff_name, w.note, "
+            "r.name, r.building, r.room "
+            "FROM nursing_work_orders w "
+            "JOIN nursing_residents r ON w.resident_id = r.id "
+            "WHERE w.date >= CURRENT_DATE - 30 "
+        )
+        params: tuple = ()
+        if building:
+            sql += "AND r.building = %s "
+            params = (building,)
+        sql += "ORDER BY w.date DESC, w.completed, w.id"
+        try:
+            async with db.conn(user_id=None, role="system") as conn:
+                cur = await conn.execute(sql, params)
+                rows = await cur.fetchall()
+        except Exception:
+            return {"orders": []}
+        return {"orders": [{
+            "id": r[0],
+            "date": r[1].isoformat() if r[1] else "",
+            "type": r[2],
+            "completed": bool(r[3]),
+            "staff": r[4] or "",
+            "note": r[5] or "",
+            "resident": r[6] or "",
+            "building": r[7] or "",
+            "room": r[8] or "",
+        } for r in rows]}
+
     @app.get("/work-orders", response_class=HTMLResponse)
     async def nursing_work_orders_page(request: _Request):
         raw = request.cookies.get(_NURSING_COOKIE, "")
@@ -1211,26 +1253,11 @@ async def build_app() -> FastAPI:
             "building": getattr(sess, "building", None) or "",
             "floor": getattr(sess, "floor", None) or "",
         }
-        async with db.conn(user_id=None, role="system") as conn:
-            cur = await conn.execute(
-                f"SELECT w.type, r.room, r.name, w.completed, w.date, "
-                f"w.staff_name, w.note "
-                f"FROM nursing_work_orders w "
-                f"JOIN nursing_residents r ON w.resident_id = r.id "
-                f"WHERE w.date = ({_eff_date('nursing_work_orders')}) "
-                f"ORDER BY w.completed, w.type"
-            )
-            rows = await cur.fetchall()
-        orders = [{
-            "type": r[0], "room": r[1], "resident": r[2],
-            "done": r[3],
-            "time": r[4].strftime("%m月%d日") if r[4] else "",
-            "staff": r[5] or "", "note": r[6] or "",
-        } for r in rows]
+        # 2026-08-25 改版：数据改为页面 JS 拉 /api/nursing/work-orders
+        # （日期侧栏 + 主从），此处只管会话门。
         return TEMPLATES.TemplateResponse(request, "nursing/work-orders.html", {
             "active": "dashboard",
             "nursing_user": nursing_user,
-            "orders": orders,
         })
 
     @app.get("/api/nursing/dashboard")

@@ -387,6 +387,35 @@ def test_dashboard_api_endpoints_mounted():
     assert "/api/nursing/alerts" in src
 
 
+def test_work_orders_api_mounted():
+    """工单主从页数据源 /api/nursing/work-orders 存在且按楼栋过滤（2026-08-25 改版）."""
+    with open(_MAIN_PY, encoding="utf-8") as f:
+        src = f.read()
+    assert 'app.get("/api/nursing/work-orders")' in src
+    assert "AND r.building = %s" in src  # 楼长会话按楼栋收窄（对齐 alerts 口径）
+
+
+def test_work_orders_page_master_detail():
+    """/work-orders 模板改为 日期侧栏 + 列表/详情 主从（页面 JS 拉 API）."""
+    tpl_path = os.path.join(_PROJECT, "dl-control", "dl_control", "templates",
+                            "nursing", "work-orders.html")
+    with open(tpl_path, encoding="utf-8") as f:
+        tpl = f.read()
+    assert "fetch('/api/nursing/work-orders'" in tpl
+    assert "nh-wo-dates" in tpl and "nh-wo-list" in tpl and "nh-wo-main" in tpl
+    assert "#d=" in tpl  # hash 还原（日期 + 工单 id）
+
+
+def test_work_orders_seed_script_deterministic():
+    """演示种子脚本存在且固定随机种子（可重跑幂等）."""
+    seed_path = os.path.join(_PROJECT, "scripts", "seed_work_orders_demo.py")
+    with open(seed_path, encoding="utf-8") as f:
+        src = f.read()
+    assert "random.Random(SEED)" in src  # 局部 Random 实例，不污染全局
+    assert "ON_ERROR_STOP" in src
+    assert "DELETE FROM nursing_work_orders" in src  # 无唯一索引 → 删后插
+
+
 def test_dashboard_api_sql_queries_valid():
     """Dashboard API queries reference valid table/column names from seed SQL."""
     with open(_MAIN_PY, encoding="utf-8") as f:

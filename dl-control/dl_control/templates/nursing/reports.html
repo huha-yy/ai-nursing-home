@@ -59,24 +59,16 @@
 .nh-rp-md hr{border:none;border-top:1px solid #F0E8DB;margin:.6rem 0}
 .nh-rp-doc-missing{font-size:.82rem;color:#999;padding:1.2rem 0;text-align:center}
 
-/* 部门产出（支撑材料，折叠） */
-.nh-rp-deps{margin-top:1.1rem;border-top:1px solid #F0E8DB;padding-top:.8rem}
-.nh-rp-deps-title{font-size:.72rem;font-weight:700;color:#6B5A45;letter-spacing:.08em;margin-bottom:.5rem}
-.nh-rp-steps{display:flex;flex-direction:column;gap:.45rem}
-.nh-rp-step{border:1px solid #F0E8DB;border-radius:8px;overflow:hidden}
-.nh-rp-step-head{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:#FDF6EC;cursor:pointer;font-size:.85rem}
-.nh-rp-step-num{width:22px;height:22px;border-radius:50%;background:#E67E22;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0}
-.nh-rp-step-num.ok{background:#B9770E}
-.nh-rp-step-name{font-weight:600;color:#4A3728;flex:1}
+/* 四份产出同为文档，用标签页切换（院长汇总默认在前） */
+.nh-rp-tabs{display:flex;gap:.4rem;flex-wrap:wrap;border-bottom:1px solid #F0E8DB;padding-bottom:.65rem;margin-bottom:.2rem}
+.nh-rp-tab{padding:.35rem .85rem;border:1px solid #E8D5C4;border-radius:16px;background:#FFF8F0;color:#6B5A45;font-size:.8rem;font-weight:600;cursor:pointer}
+.nh-rp-tab:hover{background:#FDF6EC}
+.nh-rp-tab.act{background:#B9770E;border-color:#B9770E;color:#FFF8F0}
+.nh-rp-tab.bad{color:#C0392B;border-color:#E6B0AA}
+.nh-rp-tab.bad.act{background:#C0392B;border-color:#C0392B;color:#fff}
 .nh-rp-step-badge{font-size:.7rem;font-weight:700;padding:.08rem .4rem;border-radius:8px}
 .nh-rp-step-badge.ok{background:#FAD7A1;color:#7E5109}
 .nh-rp-step-badge.fail{background:#FEF0EF;color:#C0392B}
-.nh-rp-step-body{display:none;padding:.55rem .7rem .55rem 2.7rem;border-top:1px solid #F0E8DB;background:#FFFBF6}
-.nh-rp-step-body.open{display:block}
-.nh-rp-step-body table{width:100%;border-collapse:collapse;font-size:.82rem}
-.nh-rp-step-body td{padding:.2rem .5rem .2rem 0;vertical-align:top}
-.nh-rp-step-body td.k{color:#6B5A45;font-weight:500;white-space:nowrap;width:90px}
-.nh-rp-step-body td.v{color:#4A3728}
 /* report sections */
 .nh-rp-sec{margin-bottom:.55rem}
 .nh-rp-sec-title{font-size:.78rem;font-weight:700;color:#E67E22;margin-bottom:.2rem}
@@ -186,10 +178,10 @@ var stepNames = {
   'finance-step': '财务科 — 成本预估',
   'director-report-step': '院长 — 运营周报'
 };
-// 部门产出按工作流真实顺序展示（院长汇总抽出为正文，不在此列）
-var DEP_ORDER = ['nursing-schedule-step', 'logistics-step', 'finance-step'];
+// 四份产出同级成文档标签页，院长汇总默认在前，其余按工作流真实顺序
+var TAB_ORDER = ['director-report-step', 'nursing-schedule-step', 'logistics-step', 'finance-step'];
 
-var state = {runs: [], sel: null, total: 0, hasMore: false, loading: false};
+var state = {runs: [], sel: null, tab: 'director-report-step', total: 0, hasMore: false, loading: false};
 
 // 运行状态 → 样式类 + 中文标签（库里有 cancelled 期次，别让它掉进"进行中"闪烁）
 function runStat(st){
@@ -201,11 +193,17 @@ function runStat(st){
 
 function runById(id){ return state.runs.find(function(r){return r.id === id;}); }
 
-function selectRun(id, push){
+function selectRun(id){
   state.sel = id;
+  state.tab = 'director-report-step';  // 换期次回到默认标签
   // 选中态写进 hash（replaceState 不污染历史栈），刷新/分享可还原
   try { history.replaceState(null, '', '#r=' + String(id).slice(0, 8)); } catch(e) {}
   renderSide();
+  renderMain();
+}
+
+function selectTab(k){
+  state.tab = k;
   renderMain();
 }
 
@@ -235,11 +233,14 @@ function renderSide(){
   document.getElementById('rp-more').style.display = state.hasMore ? 'block' : 'none';
 }
 
-function renderStepBody(k, s){
-  // 单个步骤的展开内容（沿用旧版：结构化卡格 / markdown 周报 + 旁白折叠）
+function renderDoc(k, s){
+  // 一份产出 = 一个文档：markdown 报告优先，结构化摘要退卡格，全空给占位
   var sum = s.summary || {};
   var html = '';
-  if (k === 'director-report-step' && (sum['排班概况'] || sum['物资配送'] || sum['成本预估'])) {
+  if (sum['text']) {
+    html += '<div class="nh-rp-md">' + simpleMd(sum['text']) + '</div>';
+  } else if (k === 'director-report-step' && (sum['排班概况'] || sum['物资配送'] || sum['成本预估'])) {
+    // 旧版院长结构化摘要兜底（新 run 都走 text 分支）
     var secNames = ['排班概况','物资配送','成本预估'];
     secNames.forEach(function(sn){
       if (sum[sn]) {
@@ -257,30 +258,32 @@ function renderStepBody(k, s){
       html += '</ul></div>';
     }
     if (sum['period']) html += '<div class="nh-rp-meta">' + sum['period'] + '</div>';
-  } else if (sum['text']) {
-    html += '<div class="nh-rp-md">' + simpleMd(sum['text']) + '</div>';
   } else {
-    var cnLabels = {
-      building:'楼栋',staff_count:'当班人数',total_shifts:'总班次',
-      day_shifts:'白班',night_shifts:'夜班',week:'时间段',
-      item:'物资',category:'分类',weekly_consumption:'周消耗',suggestion:'建议',
-      report_type:'报表类型',period:'周期',department:'部门',residents:'老人数',
-      'summary.weekly_total':'周总成本','summary.daily_average':'日均成本',
-      'summary.estimated_monthly_total':'预估月成本',
-      'summary.estimated_per_resident_per_month':'老人月均成本',
-      'summary.per_resident_per_day':'老人日均成本',
-      'cost_breakdown.labor_cost':'人力成本','cost_breakdown.material_cost':'物资成本',
-      'cost_breakdown.food_cost':'餐饮成本','cost_breakdown.other_cost':'其他成本'
-    };
-    html += '<div class="nh-rp-sec-grid">';
-    Object.keys(sum).forEach(function(kk){
-      var v = sum[kk];
-      if (v !== null && v !== undefined && kk !== 'text') {
+    var keys = Object.keys(sum).filter(function(kk){ return kk !== 'process' && sum[kk] !== null && sum[kk] !== undefined; });
+    if (keys.length) {
+      // 护理科排班等结构化产出：键值卡格
+      var cnLabels = {
+        building:'楼栋',staff_count:'当班人数',total_shifts:'总班次',
+        day_shifts:'白班',night_shifts:'夜班',week:'时间段',
+        item:'物资',category:'分类',weekly_consumption:'周消耗',suggestion:'建议',
+        report_type:'报表类型',period:'周期',department:'部门',residents:'老人数',
+        'summary.weekly_total':'周总成本','summary.daily_average':'日均成本',
+        'summary.estimated_monthly_total':'预估月成本',
+        'summary.estimated_per_resident_per_month':'老人月均成本',
+        'summary.per_resident_per_day':'老人日均成本',
+        'cost_breakdown.labor_cost':'人力成本','cost_breakdown.material_cost':'物资成本',
+        'cost_breakdown.food_cost':'餐饮成本','cost_breakdown.other_cost':'其他成本'
+      };
+      html += '<div class="nh-rp-sec-grid">';
+      keys.forEach(function(kk){
+        var v = sum[kk];
         var label = cnLabels[kk] || kk;
         html += '<div class="nh-rp-sec-cell"><span class="lbl">' + label + '</span><span class="val">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>';
-      }
-    });
-    html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="nh-rp-doc-missing">本期未生成' + (stepNames[k] || '该步骤') + '的产出（步骤未执行或输出为空）</div>';
+    }
   }
   if (sum.process) {
     html += '<details class="nh-rp-proc"><summary>⚙ 执行过程（agent 旁白，点击展开）</summary>' +
@@ -304,37 +307,26 @@ function renderMain(){
     '<span class="nh-rp-run-status ' + stt.cls + '">' + stt.label + '</span></div>' +
     '<div class="nh-rp-run-time">' + (cts.time || '') + ' ~ ' + (fts.time || (stt.cls === 'run' ? '进行中' : '—')) + (dur ? ' · 用时 ' + dur : '') + '</div>';
 
-  // 院长汇总报告 = 本期主文档
-  var dir = run.steps['director-report-step'];
-  html += '<div class="nh-rp-doc"><div class="nh-rp-doc-label">本期周报 · 院长汇总</div>';
-  if (dir && dir.summary && dir.summary.text) {
-    html += '<div class="nh-rp-md">' + simpleMd(dir.summary.text) + '</div>';
-    if (dir.summary.process) {
-      html += '<details class="nh-rp-proc"><summary>⚙ 执行过程（agent 旁白，点击展开）</summary>' +
-              '<pre>' + esc(dir.summary.process) + '</pre></details>';
-    }
-  } else {
-    html += '<div class="nh-rp-doc-missing">本期未生成院长汇总报告（工作流未走到该步骤或输出为空）</div>';
-  }
-  html += '</div>';
-
-  // 部门产出：支撑材料，按工作流顺序，默认全收起
-  var depKeys = DEP_ORDER.filter(function(k){ return run.steps[k]; });
-  if (depKeys.length) {
-    html += '<div class="nh-rp-deps"><div class="nh-rp-deps-title">部门产出（支撑材料）</div><div class="nh-rp-steps">';
-    depKeys.forEach(function(k, i){
+  // 四份产出同级：标签页切换，失败步骤标红
+  var tabs = TAB_ORDER.filter(function(k){ return run.steps[k]; });
+  if (tabs.length) {
+    if (tabs.indexOf(state.tab) < 0) state.tab = tabs[0];
+    html += '<div class="nh-rp-tabs">';
+    tabs.forEach(function(k){
       var s = run.steps[k];
-      var ok = s.status === 'succeeded';
-      html += '<div class="nh-rp-step">';
-      html += '<div class="nh-rp-step-head" onclick="this.nextElementSibling.classList.toggle(\'open\')">';
-      html += '<span class="nh-rp-step-num' + (ok?' ok':'') + '">' + (i+1) + '</span>';
-      html += '<span class="nh-rp-step-name">' + (stepNames[k]||k) + '</span>';
-      html += '<span class="nh-rp-step-badge' + (ok?' ok':' fail') + '">' + (ok?'成功':'失败') + '</span>';
-      html += '</div>';
-      html += '<div class="nh-rp-step-body">' + renderStepBody(k, s) + '</div>';
-      html += '</div>';
+      var bad = s.status && s.status !== 'succeeded';
+      html += '<button class="nh-rp-tab' + (k === state.tab ? ' act' : '') + (bad ? ' bad' : '') +
+              '" onclick="selectTab(\'' + k + '\')">' + (stepNames[k] || k) + '</button>';
     });
-    html += '</div></div>';
+    html += '</div>';
+    var cur = run.steps[state.tab];
+    var curOk = cur.status === 'succeeded';
+    html += '<div class="nh-rp-doc"><div class="nh-rp-doc-label">' + (stepNames[state.tab] || state.tab) +
+            ' <span class="nh-rp-step-badge' + (curOk ? ' ok' : ' fail') + '">' + (curOk ? '成功' : '失败') + '</span></div>';
+    html += renderDoc(state.tab, cur);
+    html += '</div>';
+  } else {
+    html += '<div class="nh-rp-doc"><div class="nh-rp-doc-missing">本期没有任何步骤产出（工作流未执行或全部为空）</div></div>';
   }
   el.innerHTML = html;
 }

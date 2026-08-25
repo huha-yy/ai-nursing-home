@@ -12,7 +12,7 @@
   --nh-primary: #E67E22;
   --nh-primary-hover: #D35400;
   --nh-primary-light: #FDEBD0;
-  --nh-accent: #27AE60;
+  --nh-accent: #B9770E; /* 深金=正常/完成；原薄荷绿与暖橙主题违和（2026-08-25 暖色化） */
   --nh-danger: #E74C3C;
   --nh-warning: #F39C12;
   --nh-info: #3498DB;
@@ -784,11 +784,12 @@ body.login-page::after {
   font-size: 1.2rem;
 }
 
-.nh-kpi-icon-people   { background: #FDEBD0; color: #E67E22; }
-.nh-kpi-icon-duty     { background: #D5F5E3; color: #27AE60; }
-.nh-kpi-icon-inventory{ background: #FCF3CF; color: #F39C12; }
-.nh-kpi-icon-assess   { background: #EDE7F6; color: #7D5BA6; }
-.nh-kpi-icon-alert    { background: #FADBD8; color: #E74C3C; }
+/* KPI 图标与饼图同一暖色家族，深浅=轻重（告警最深）；绿/紫/红跳色退场 */
+.nh-kpi-icon-people   { background: #FDEBD0; color: #E67E22; } /* 主橙 */
+.nh-kpi-icon-duty     { background: #FCF3CF; color: #D68910; } /* 金（原绿） */
+.nh-kpi-icon-inventory{ background: #FEF9E7; color: #F39C12; } /* 琥珀 */
+.nh-kpi-icon-assess   { background: #F2E8DA; color: #8B5A2B; } /* 棕（原紫） */
+.nh-kpi-icon-alert    { background: #FAE5D3; color: #A04000; } /* 焦橙=最紧急（原红） */
 
 /* Simple shape icons via CSS (no emoji, no images) */
 .nh-kpi-icon-people::after   { content: ''; width: 10px; height: 10px; border-radius: 50%; background: currentColor; box-shadow: 8px 0 0 currentColor, -8px 0 0 currentColor, 0 10px 0 currentColor; }
@@ -820,8 +821,8 @@ body.login-page::after {
   margin-top: 0.25rem;
   font-weight: 600;
 }
-.nh-kpi-trend.trend-good { color: #27AE60; }
-.nh-kpi-trend.trend-bad  { color: #E74C3C; }
+.nh-kpi-trend.trend-good { color: var(--nh-accent); } /* 深金（原绿） */
+.nh-kpi-trend.trend-bad  { color: var(--nh-danger); }
 .nh-kpi-trend.trend-flat { color: var(--nh-text-dim); }
 
 .nh-kpi-label {
@@ -1131,10 +1132,10 @@ body.login-page::after {
   min-height: 120px;
 }
 
-/* 三餐色带：早=橙 午=绿 晚=紫（与徽章同源） */
-.nh-menu-col.breakfast { border-top: 3px solid #E67E22; }
-.nh-menu-col.lunch     { border-top: 3px solid #27AE60; }
-.nh-menu-col.dinner    { border-top: 3px solid #7D5BA6; }
+/* 三餐色带：越晚越深 早=琥珀 午=主橙 晚=焦橙（与徽章同源、随主题暖化） */
+.nh-menu-col.breakfast { border-top: 3px solid #F39C12; }
+.nh-menu-col.lunch     { border-top: 3px solid #E67E22; }
+.nh-menu-col.dinner    { border-top: 3px solid #A04000; }
 
 .nh-menu-type {
   display: flex;
@@ -1152,9 +1153,9 @@ body.login-page::after {
   padding: 0.1rem 0.55rem;
 }
 
-.nh-menu-badge.breakfast { background: #FDEBD0; color: #D35400; }
-.nh-menu-badge.lunch     { background: #D5F0D5; color: #1E8449; }
-.nh-menu-badge.dinner    { background: #EDE7F6; color: #6C3483; }
+.nh-menu-badge.breakfast { background: #FDF3DC; color: #9C6D0C; }
+.nh-menu-badge.lunch     { background: #FDEBD0; color: #D35400; }
+.nh-menu-badge.dinner    { background: #FAE5D3; color: #A04000; }
 
 .nh-menu-count { font-size: 0.72rem; color: var(--nh-text-dim); }
 
@@ -1251,7 +1252,7 @@ body.login-page::after {
 }
 
 .nh-order-chip.chip-cancelled { background: #FADBD8; color: #8B2A20; text-decoration: line-through; }
-.nh-order-chip.chip-delivered { background: #D5F0D5; color: #2D5A27; }
+.nh-order-chip.chip-delivered { background: #FAD7A1; color: #7E5109; } /* 已送达=杏金（原绿） */
 
 /* -- Dashboard responsive -- */
 @media (max-width: 1024px) {

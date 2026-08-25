@@ -25,7 +25,6 @@
       <div class="nh-kpi-val" id="kpi-residents">--</div>
       <div class="nh-kpi-label">在院老人</div>
       <div class="nh-kpi-sub" id="sub-occupancy"></div>
-      <div class="nh-kpi-buildings" id="kpi-buildings"></div>
       <div class="nh-kpi-trend" id="trend-residents"></div>
     </div>
     <div class="nh-kpi-card">
@@ -334,26 +333,6 @@
     completionChart.setOption(option);
   }
 
-  // 各楼栋在院人数 → 在院老人 KPI 卡里的迷你条形（楼长作用域下只有一根，
-  // 不再配独立面板；悬停 title 看 "楼栋 N人"）
-  function renderKpiBuildings(data) {
-    var el = document.getElementById('kpi-buildings');
-    if (!el) return;
-    if (!data || !data.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
-    el.style.display = 'flex';
-    var max = 1;
-    data.forEach(function(d) { if (d.count > max) max = d.count; });
-    var html = '';
-    data.forEach(function(d) {
-      var h = Math.max(4, Math.round(d.count / max * 32));  // 32px 满格，配 CSS 条区
-      var label = (d.building || '?').replace('号楼', '').replace('栋', '');
-      html += '<div class="nh-kpi-bcol" title="' + d.building + '：' + d.count + '人">' +
-              '<div class="nh-kpi-bbar" style="height:' + h + '%"></div>' +
-              '<span>' + label + '</span></div>';
-    });
-    el.innerHTML = html;
-  }
-
   function renderFocusList(items) {
     var el = document.getElementById('focus-list');
     var cnt = document.getElementById('focus-count');
@@ -564,7 +543,6 @@
         updateCompletionChart(data.completion_rate);
         updateShiftHandover(data);
         document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
-        renderKpiBuildings(data.building_distribution);
 
         // 大屏增强：餐食 / 点餐动态 / 护理等级
         renderTodayMenu(data.today_menu);

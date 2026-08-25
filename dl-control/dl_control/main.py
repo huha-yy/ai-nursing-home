@@ -1509,14 +1509,25 @@ async def build_app() -> FastAPI:
 
     # -- Nursing weekly report (workflow results) --
     @app.get("/api/nursing/report")
-    async def nursing_report_api():
-        """Return the latest nursing-ops workflow run with extracted step data."""
+    async def nursing_report_api(offset: int = 0, limit: int = 10):
+        """周报期次列表（最新在前，分页）。
+
+        raw 不再随列表下发（页面不渲染它，10 期 × 4 步的 OpenClaw 原文会把
+        载荷撑大数倍）；审计看库里的 workflow_step.output 原值。
+        """
+        limit = max(1, min(limit, 50))
+        offset = max(0, offset)
         async with db.conn(user_id=None, role="system") as conn:
+            cur = await conn.execute(
+                "SELECT count(*) FROM workflow_run WHERE workflow_id = 'nursing.ops'"
+            )
+            total = (await cur.fetchone())[0]
             cur = await conn.execute(
                 "SELECT id::text, status, trigger, input, "
                 "created_at::timestamptz(0), finished_at::timestamptz(0) "
                 "FROM workflow_run WHERE workflow_id = 'nursing.ops' "
-                "ORDER BY created_at DESC LIMIT 10"
+                "ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (limit, offset),
             )
             runs_raw = await cur.fetchall()
 
@@ -1529,16 +1540,19 @@ async def build_app() -> FastAPI:
                 )
                 steps = {}
                 for s in await cur2.fetchall():
-                    out = s[2]
-                    summary = _extract_step_summary(s[0], out)
-                    steps[s[0]] = {"status": s[1], "summary": summary, "raw": out}
+                    summary = _extract_step_summary(s[0], s[2])
+                    steps[s[0]] = {"status": s[1], "summary": summary}
                 runs_list.append({
                     "id": rid, "status": r[1], "trigger": r[2],
                     "input": r[3], "created_at": str(r[4]), "finished_at": str(r[5]),
                     "steps": steps,
                 })
 
-        return {"runs": runs_list}
+        return {
+            "runs": runs_list,
+            "total": total,
+            "has_more": offset + limit < total,
+        }
 
     @app.get("/reports", response_class=HTMLResponse)
     async def nursing_reports_page(request: _Request):

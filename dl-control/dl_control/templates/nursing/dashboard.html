@@ -316,13 +316,13 @@
           formatter: rateStr,
           fontSize: 28,
           fontWeight: 'bold',
-          color: pct >= 80 ? '#27AE60' : pct >= 60 ? '#F39C12' : '#E74C3C'
+          color: '#F39C12'
         },
         emphasis: {
           label: { fontSize: 32 }
         },
         data: [
-          { value: pct, name: '已完成', itemStyle: { color: pct >= 80 ? '#27AE60' : pct >= 60 ? '#F39C12' : '#E74C3C' } },
+          { value: pct, name: '已完成', itemStyle: { color: '#F39C12' } },
           { value: 100 - pct, name: '待完成', itemStyle: { color: '#E8D5C4' } }
         ]
       }]

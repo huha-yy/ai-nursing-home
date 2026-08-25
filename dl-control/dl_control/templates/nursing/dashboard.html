@@ -254,7 +254,9 @@
     var option = {
       title: {
         text: total + '人', subtext: '在院分级',
-        left: 'center', top: '28%', itemGap: 4,
+        // 圆心垂直居中：画布固定 280px×饼心 44% ≈ 123px，标题块高约 43px
+        // → 顶边 123-43/2 ≈ 100px（top:'28%' 会浮在圆心上方约 20px）
+        left: 'center', top: 100, itemGap: 4,
         textStyle: { color: '#4A3728', fontSize: 24, fontWeight: 700 },
         subtextStyle: { color: '#6B5A45', fontSize: 12 }
       },

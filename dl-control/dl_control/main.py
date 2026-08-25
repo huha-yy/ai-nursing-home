@@ -234,6 +234,10 @@ def _split_report_text(text: str) -> dict:
     报告拼在同一串 payload 文本里。正文 = 从首个 markdown 标题行（#/##/###）
     起；标题前的旁白与报告尾部混入的"执行摘要：…"归 process，前端折叠
     展示（raw 字段仍全量留档，审计不受影响）。无标题行时整体当正文返回。
+
+    报告尾部的"输出 JSON（供下一部门使用）"段是 agent 间机器交接数据，
+    不是人读内容——从展示中整体剥除（heading 形式或收尾 ```json 块），
+    同样只影响展示，raw 留档不动。
     """
     m = re.search(r"(?m)^#{1,3} ", text)
     if not m:
@@ -244,7 +248,22 @@ def _split_report_text(text: str) -> dict:
     tail = ""
     if m2:
         tail = body[m2.start():].strip()
-        body = body[: m2.start()].strip()
+        body = body[: m2.start():].strip()
+    # 剥除尾部机器交接 JSON 段：优先按"输出 JSON"标题切；无标题时认裸
+    # ```json 块——块后只剩一两句收尾话（≤120 字，如"以上结果可直接作为
+    # 下一部门的输入"）或为空，则整段剥除；后面还有实质内容则当正文引用
+    # 不动（从最后一个满足条件的块往前找）
+    m3 = re.search(
+        r"(?m)^(?:#{1,3}\s*)?(?:\d+|[一二三四五六七八九十]+)?[、.]?\s*输出\s*JSON.*$",
+        body,
+    )
+    if m3:
+        body = body[: m3.start()].strip()
+    else:
+        for m3 in reversed(list(re.finditer(r"(?ms)^```json\s*.*?^```[ \t]*$", body))):
+            if len(body[m3.end():].strip()) <= 120:
+                body = body[: m3.start()].strip()
+                break
     process = "\n\n".join(p for p in (head, tail) if p)
     return {
         "text": body[:8000] or None,

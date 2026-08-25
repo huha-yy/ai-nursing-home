@@ -36,3 +36,44 @@ def test_split_report_only_no_process():
     out = m._split_report_text("## 报告正文")
     assert out["text"] == "## 报告正文"
     assert out["process"] is None
+
+
+def test_strip_machine_handoff_json_section():
+    """尾部"六、输出 JSON（供下一部门使用）"是 agent 间交接段 → 展示中整体剥除"""
+    text = (
+        "# 💰 成本预估报告\n\n## 一、概况\n内容。\n\n"
+        "## 六、输出 JSON（供下一部门使用）\n```json\n{\"total\": 12328}\n```"
+    )
+    out = m._split_report_text(text)
+    assert out["text"] == "# 💰 成本预估报告\n\n## 一、概况\n内容。"
+    assert "供下一部门" not in out["text"]
+    assert out["process"] is None  # 交接段不进旁白（raw 已留档）
+
+
+def test_strip_bare_trailing_json_block():
+    """无"输出 JSON"标题、只有收尾 ```json 块 → 也剥（且不动前半正文）"""
+    text = "旁白一句。\n\n# 报告\n\n概况内容。\n\n```json\n{\"a\": 1}\n```"
+    out = m._split_report_text(text)
+    assert out["text"].endswith("概况内容。")
+    assert "```json" not in out["text"]
+    assert out["process"] == "旁白一句。"
+
+
+def test_strip_json_block_with_short_outro():
+    """裸 ```json 块后跟一句收尾话（总务科 8-14 实际形态）→ 连收尾话一起剥"""
+    text = (
+        "# 📦 物资配送计划\n\n## 三、执行建议\n1. 按计划配送\n\n"
+        "```json\n{\"runId\": \"a3d5\", \"daily_delivery\": {}}\n```\n\n"
+        "以上结果可直接作为下一部门（采购/配送执行）的输入。"
+    )
+    out = m._split_report_text(text)
+    assert out["text"].endswith("1. 按计划配送")
+    assert "runId" not in out["text"]
+    assert "下一部门" not in out["text"]
+
+
+def test_mid_text_json_block_kept():
+    """正文中部引用的 json 块（非收尾交接）不误伤"""
+    text = "# 报告\n\n示例配置：\n```json\n{\"a\": 1}\n```\n\n后文还有一大段结论内容。" + "结论。" * 50
+    out = m._split_report_text(text)
+    assert "```json" in out["text"]

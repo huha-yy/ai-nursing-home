@@ -1649,3 +1649,19 @@ autoreload 生效）；dl-control handle 端点转发并传 nursing 会话姓名
 陈建国 = wang_jianguo 会话显示名），待处理 6→1。注意：demo 数据里
 个别 pending 行自带 handled_by（台账先行填了处理人未点处理），详情只在
 handled=True 时展示处理人，不受影响。
+
+**同日十九补（告警演示数据加密）**：告警页主从改造后 6 条太稀（待处理
+只剩 1），演示撑不起来。nursing-erp 演示脚本扩容：INCIDENT_BASE（原 6
+条）+ INCIDENT_EXTRA（新增 19 条）共 25 条铺近两周，口径设计——金字塔
+分布（危急2/紧急8/一般8·已处理18 待处理7）、类别贴护理等级（失智→
+走失/情绪、全护→摔倒/皮肤/病情、自理→慢病指标）、时段贴事件节律
+（起夜/餐后/日落后徘徊）、处理人为本楼护理员或主任、处理耗时半小时
+到次日晨；待处理留三档都有（沈桂花摔倒危急置顶，1/3号楼有分布照顾
+楼长会话与院长周报口径）。落地方式：`--seed-incidents-extra` 外科手术
+模式（仿 --seed-family-only：纯增量 INSERT、与常驻 runserver 并行安全、
+幂等跳过），先备份 db.sqlite3 再执行；顺手修掉旧口径瑕疵——未处理行
+不再自带处理人（旧 #24 有此瑕疵，属历史数据不动）。full rebuild 走
+gen_other_domains 同一函数（auto_now_add 时间回填同点餐模式）。
+连带效果：大屏「未处理告警」KPI 2→7、「重点关注老人」卡吃满 5 条
+（同源 ERP incidents）；DASHBOARD-DATA.md 该行口径原本误写"AI 侧
+Postgres"，已纠正为 ERP /api/incidents/?handled=false 并记录演示密度。

@@ -12,7 +12,7 @@
 | 今日当班 | AI 侧 Postgres `nursing_schedules` | 当日白班/夜班 DISTINCT 护理员数（排班技能生成） |
 | 库存预警 + 库存不足表 | ERP `InventoryItem` | 当前库存 < 安全库存（`is_low_stock`） |
 | 评估待办 | ERP `/api/assessments/review/` | 待首评 + 到期复评两项计数之和 |
-| 未处理告警 | AI 侧 Postgres 健康告警 | 未处理健康信号告警计数 |
+| 未处理告警 | ERP `/api/incidents/?handled=false`（异常上报；按会话楼栋过滤） | 待处理异常上报计数。重点关注老人卡同一来源：未处理按 危急→紧急→一般 排序取前 5。演示密度（2026-08-25 起）：近两周 25 条、7 条待处理（危急1/紧急4/一般2），种子在 nursing-erp `scripts/rebuild_demo_data.py` 的 `INCIDENT_BASE + INCIDENT_EXTRA`（外科手术补种：`--seed-incidents-extra`，幂等） |
 | 今日餐食 | ERP `/api/week-menu/?week_start=` | 按 ERP 中文星期（周X）取今日三餐；菜签颜色按 ERP category（主食/汤/素菜/荤菜/小菜） |
 | 今日点餐动态 | ERP `/api/meal-orders/?date=&meal_type=` ×3 | 退餐不计总量但保留计数；特殊餐只数未退单 |
 | 护理等级分布 | ERP `/api/residents/` | care_level 计数，定序 自理→半护→全护→失智→特护、未定兜底；色阶 = 照护强度递进 |

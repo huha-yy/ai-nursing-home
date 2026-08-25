@@ -1722,3 +1722,35 @@ vision 终验三栏正常无破版；右卡 638×300 与告警页同款 min-heig
 1300 行以后的规则漏掉——排除干扰要 `grep -c` 或不 head；(2) 内联
 `<style>` 虽在外链 `<link>` 之后加载，但只覆盖**同名属性**，没写的属性
 （display）由外链同名类兜底——类名撞车时旧值会漏进来。
+
+## 2026-08-25 · 工单页滚动条违和修复（app-shell 锁高 + 全局暖色滚动条）
+
+用户报障：「滑动条违和感太强」。测量定位出**三层滚动嵌套**：body 自身高出
+视口 292px（1192 vs 900，外层滚动条）+ 日期侧栏/工单列表各自内层滚动条，
+全是浏览器默认灰黑粗条，叠在奶油色设计里。body 撑高的根因：列表
+`max-height:calc(100vh - 4.5rem)` 按"列表贴视口顶"估算，实际它在
+y≈306px（顶栏 60 + 标题 + KPI 行 + 筛选条），三栏 grid 整体超出视口。
+
+两刀：
+
+1. **nursing.css 全局暖色细滚动条**（nursing 会话所有页生效，含告警/大屏
+   的外层滚动条）：`::-webkit-scrollbar` 8px 圆角 + thumb #D8BE9F（hover
+   #C6A67E）+ track 透明；Firefox/新 Chromium 走 `scrollbar-width:thin;
+   scrollbar-color`。
+2. **work-orders 改 app-shell**：`.nh-wo` 锁高 `calc(100vh - 60px)` +
+   flex 纵向列，三栏 grid `align-items:stretch` 撑满剩余高——KPI 恒在视野，
+   日期栏/列表/详情各自 `min-height:0` 内滚，外层滚动彻底消失；<860px
+   媒体查询回退自然页滚（锁高取消）。告警页不动——sticky 侧栏+整页滚动
+   是文档式范式（右栏随处理记录自然增长），属有意设计。
+
+复测（wo-verify2.cjs）：bodyScrollH 900=900 外层滚动归零；三栏等高 620
+（256→876 对齐）；dates 993>618、list 1831>564 内滚正常；窄屏 700px
+恢复页滚（2439>900）。smoke 全量 102 passed。
+
+顺手修一个**前 session 遗留红测**：`test_dashboard_api_sql_queries_valid`
+自 c2bba27（周报页改造）起就红——dashboard 新增的 workflow_run/step 查询
+命中的表由平台迁移 0011_workflow_runner.sql 创建，不在 nursing 种子 SQL。
+测试加平台表白名单（事实核实过迁移文件），非放松断言。
+
+教训：视觉模型对截图里滚动条样式会"脑补和谐"（项目里根本没写过滚动条
+样式，它却描述出米色圆角滑块）——滚动条这种小部件以 CSSOM/DOM 测量为准。

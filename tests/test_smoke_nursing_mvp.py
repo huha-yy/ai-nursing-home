@@ -433,6 +433,10 @@ def test_dashboard_api_sql_queries_valid():
     with open(_SEED_SQL, encoding="utf-8") as f:
         seed = f.read()
 
+    # 平台迁移自建的表：由 dl-control migrations/*.sql 在启动时创建，生产库必然
+    # 存在，但不属于 nursing 种子 SQL（如 workflow_run/step ← 0011_workflow_runner.sql）
+    platform_tables = {"workflow_run", "workflow_step"}
+
     for q in queries:
         # Check that table names in each query exist in the seed
         import re
@@ -440,6 +444,8 @@ def test_dashboard_api_sql_queries_valid():
         tables = re.findall(r"FROM\s+(\w+)", q, re.IGNORECASE)
         tables += re.findall(r"JOIN\s+(\w+)", q, re.IGNORECASE)
         for tbl in tables:
+            if tbl in platform_tables:
+                continue
             assert (
                 f"CREATE TABLE IF NOT EXISTS {tbl}" in seed
             ), f"Table '{tbl}' in dashboard query not in seed SQL: {q[:60]}"

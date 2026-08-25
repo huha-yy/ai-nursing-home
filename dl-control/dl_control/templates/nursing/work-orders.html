@@ -3,7 +3,8 @@
 {% block body %}
 
 <style>
-.nh-wo{max-width:1180px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+/* app-shell：页面锁高（顶部栏 60px），KPI 恒在视野，三栏各自内滚 */
+.nh-wo{max-width:1180px;margin:0 auto;padding:1.25rem 1.25rem 1.5rem;height:calc(100vh - 60px);display:flex;flex-direction:column}
 .nh-wo-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
 .nh-wo-back{font-size:.85rem;color:#E67E22;text-decoration:none}
 .nh-wo-total{font-size:.78rem;color:#6B5A45}
@@ -19,11 +20,11 @@
 .nh-wo-prog{height:4px;background:#EDE0D3;border-radius:2px;margin-bottom:.9rem;overflow:hidden}
 .nh-wo-prog i{display:block;height:100%;background:#27AE60;border-radius:2px;transition:width .3s}
 
-/* ── 三栏：日期侧栏 + 工单列表 + 详情 ── */
-.nh-wo-layout{display:grid;grid-template-columns:170px 300px 1fr;gap:1rem;align-items:start}
+/* ── 三栏：日期侧栏 + 工单列表 + 详情（stretch 撑满剩余高度，各自内滚） ── */
+.nh-wo-layout{display:grid;grid-template-columns:170px 300px 1fr;gap:1rem;align-items:stretch;flex:1;min-height:0}
 
 /* 左：日期侧栏 */
-.nh-wo-dates{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.55rem;box-shadow:0 2px 8px rgba(0,0,0,.06);position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow-y:auto}
+.nh-wo-dates{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.55rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:0;overflow-y:auto}
 .nh-wo-dt{display:block;border:1px solid transparent;border-radius:8px;padding:.45rem .55rem;margin-bottom:.3rem;cursor:pointer}
 .nh-wo-dt:hover{background:#FDF6EC}
 .nh-wo-dt.sel{background:#FDEBD0;border-color:#F0D9B8}
@@ -35,11 +36,11 @@
 .nh-wo-empty-dates{font-size:.75rem;color:#6B5A45;text-align:center;padding:1rem .4rem;line-height:1.7}
 
 /* 中：当日工单列表 */
-.nh-wo-mid{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.6rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.nh-wo-mid{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.6rem;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;flex-direction:column;min-height:0}
 .nh-wo-filt{display:flex;gap:.35rem;margin-bottom:.55rem}
 .nh-wo-filt b{border:1px solid #E8D5C4;background:#FFF8F0;color:#6B5A45;padding:.16rem .6rem;border-radius:12px;font-size:.76rem;cursor:pointer;font-weight:600}
 .nh-wo-filt b.on{background:#4A3728;color:#fff;border-color:#4A3728}
-.nh-wo-list{display:flex;flex-direction:column;gap:.35rem;max-height:calc(100vh - 4.5rem);overflow-y:auto}
+.nh-wo-list{display:flex;flex-direction:column;gap:.35rem;flex:1;min-height:0;overflow-y:auto}
 .nh-wo-item{border:1px solid transparent;border-left:3px solid #27AE60;border-radius:8px;padding:.45rem .6rem;cursor:pointer}
 .nh-wo-item:hover{background:#FDF6EC}
 .nh-wo-item.sel{background:#FDEBD0;border-color:#F0D9B8}
@@ -54,8 +55,8 @@
 .nh-wo-i-st.pend{color:#E65100;background:#FFF3E0}
 .nh-wo-empty-list{font-size:.78rem;color:#6B5A45;text-align:center;padding:1rem .5rem;line-height:1.7}
 
-/* 右：详情 */
-.nh-wo-main{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:1.1rem 1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:300px}
+/* 右：详情（撑满列高，内容超长自身内滚） */
+.nh-wo-main{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:1.1rem 1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:0;overflow-y:auto}
 .nh-wo-detail-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem}
 .nh-wo-detail-name{font-size:1.1rem;font-weight:700;color:#4A3728}
 .nh-wo-detail-building{font-size:.8rem;color:#6B5A45}
@@ -70,9 +71,10 @@
 .nh-wo-spin{display:inline-block;width:20px;height:20px;border:2px solid #E8D5C4;border-top-color:#E67E22;border-radius:50%;animation:wospin .6s linear infinite;margin-right:.4rem;vertical-align:middle}
 @keyframes wospin{to{transform:rotate(360deg)}}
 
-/* ── 响应式：窄屏日期变横向 chips，列表/详情纵向堆叠 ── */
+/* ── 响应式：窄屏取消锁高恢复自然页滚，日期变横向 chips，列表/详情纵向堆叠 ── */
 @media (max-width:860px){
-  .nh-wo-layout{grid-template-columns:1fr}
+  .nh-wo{height:auto;display:block}
+  .nh-wo-layout{grid-template-columns:1fr;flex:none}
   .nh-wo-dates{position:static;max-height:none;overflow:visible;display:flex;gap:.35rem;overflow-x:auto;padding-bottom:.25rem}
   .nh-wo-dt{flex-shrink:0;min-width:108px;margin-bottom:0}
   .nh-wo-dt-sub{display:none}

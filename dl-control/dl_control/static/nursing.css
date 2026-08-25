@@ -1317,6 +1317,13 @@ body.login-page::after {
 .nh-session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .nh-session-del { color: var(--nh-text-dim); margin-left: 8px; cursor: pointer; font-size: 16px; }
+
+/* ==== 暖色细滚动条（nursing 页全局，替代浏览器默认灰黑粗条） ==== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D8BE9F; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #C6A67E; }
+html { scrollbar-width: thin; scrollbar-color: #D8BE9F transparent; }
 .nh-session-del:hover { color: var(--nh-danger); }
 
 /* Typing indicator */

@@ -23,15 +23,14 @@
 /* ── 三栏：日期侧栏 + 工单列表 + 详情（stretch 撑满剩余高度，各自内滚） ── */
 .nh-wo-layout{display:grid;grid-template-columns:170px 300px 1fr;gap:1rem;align-items:stretch;flex:1;min-height:0}
 
-/* 左：日期侧栏 */
+/* 左：日期侧栏（单行紧凑：常规 16 个日期一屏装下，不出滚动条） */
 .nh-wo-dates{background:#fff;border:1px solid #E8D5C4;border-radius:10px;padding:.55rem;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:0;overflow-y:auto}
-.nh-wo-dt{display:block;border:1px solid transparent;border-radius:8px;padding:.45rem .55rem;margin-bottom:.3rem;cursor:pointer}
+.nh-wo-dt{display:flex;align-items:center;gap:.3rem;border:1px solid transparent;border-radius:8px;padding:.32rem .45rem;margin-bottom:.18rem;cursor:pointer}
 .nh-wo-dt:hover{background:#FDF6EC}
 .nh-wo-dt.sel{background:#FDEBD0;border-color:#F0D9B8}
-.nh-wo-dt-top{display:flex;align-items:baseline;gap:.35rem}
-.nh-wo-dt-label{font-size:.85rem;font-weight:700;color:#4A3728;flex:1}
-.nh-wo-dt-tag{font-size:.64rem;font-weight:700;color:#B9770E;background:#FDF3DC;border-radius:6px;padding:.05rem .3rem;white-space:nowrap}
-.nh-wo-dt-sub{font-size:.68rem;color:#6B5A45;margin-top:.12rem}
+.nh-wo-dt-label{font-size:.78rem;font-weight:700;color:#4A3728;white-space:nowrap}
+.nh-wo-dt-tag{font-size:.6rem;font-weight:700;color:#B9770E;background:#FDF3DC;border-radius:6px;padding:.04rem .28rem;white-space:nowrap;flex-shrink:0}
+.nh-wo-dt-sub{font-size:.64rem;color:#6B5A45;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nh-wo-dt-sub .pend{color:#E65100;font-weight:700}
 .nh-wo-empty-dates{font-size:.75rem;color:#6B5A45;text-align:center;padding:1rem .4rem;line-height:1.7}
 
@@ -190,10 +189,10 @@ function renderDates(){
     var lab = dateLabel(dt.date);
     html += '<div class="nh-wo-dt' + (dt.date === state.selDate ? ' sel' : '') +
             '" onclick="selectDate(\'' + dt.date + '\')">' +
-            '<div class="nh-wo-dt-top"><span class="nh-wo-dt-label">' + lab.label + '</span>' +
-            '<span class="nh-wo-dt-tag">' + lab.tag + '</span></div>' +
-            '<div class="nh-wo-dt-sub">' + dt.total + ' 单 · 完成 ' + dt.done +
-            (dt.pend ? ' · <span class="pend">待 ' + dt.pend + '</span>' : '') + '</div></div>';
+            '<span class="nh-wo-dt-label">' + lab.label + '</span>' +
+            '<span class="nh-wo-dt-tag">' + lab.tag + '</span>' +
+            '<span class="nh-wo-dt-sub">' + (dt.pend ? '<span class="pend">待' + dt.pend + '</span> · ' : '') +
+            dt.total + ' 单</span></div>';
   });
   box.innerHTML = html;
 }

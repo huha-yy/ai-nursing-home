@@ -248,24 +248,46 @@
       careChart.clear();  // 数据缺席时清空面板，实例保留（30s 刷新自愈）
       return;
     }
+    // 窄面板里外置标签容易被画布边缘裁成残字（"…9"）：edge 对齐 + 图例带人数
+    // + 中心总数，三处都能读到数，谁被挤掉都不丢信息
+    var valMap = {};
+    var total = 0;
+    data.forEach(function(d) { valMap[d.name] = d.value; total += d.value; });
     var palette = ['#E67E22', '#F39C12', '#27AE60', '#8E44AD', '#3498DB', '#E74C3C'];
     var option = {
+      title: {
+        text: total + '人', subtext: '在院分级',
+        left: 'center', top: '28%', itemGap: 4,
+        textStyle: { color: '#4A3728', fontSize: 24, fontWeight: 700 },
+        subtextStyle: { color: '#6B5A45', fontSize: 12 }
+      },
       tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
-      legend: { bottom: 0, itemWidth: 10, itemHeight: 10,
-                textStyle: { color: '#6B5A45', fontSize: 12 } },
+      legend: {
+        bottom: 0, itemWidth: 12, itemHeight: 8, itemGap: 14,
+        textStyle: { color: '#6B5A45', fontSize: 12 },
+        formatter: function(name) { return name + ' ' + (valMap[name] || 0) + '人'; }
+      },
       series: [{
         type: 'pie',
-        radius: ['42%', '68%'],
-        center: ['50%', '42%'],
+        radius: ['44%', '66%'],
+        center: ['50%', '44%'],
+        minAngle: 12,
         avoidLabelOverlap: true,
         itemStyle: { borderRadius: 6, borderColor: '#FFF8F0', borderWidth: 3 },
-        label: { show: true, formatter: '{b}\n{c}人', color: '#4A3728', fontSize: 12 },
+        label: {
+          show: true, alignTo: 'edge', edgeDistance: 6, minMargin: 4,
+          formatter: '{b}\n{c}人',
+          color: '#4A3728', fontSize: 12, lineHeight: 16
+        },
+        labelLine: { length: 14, length2: 8, maxSurfaceAngle: 80,
+                     lineStyle: { color: '#C9B29B' } },
+        labelLayout: { hideOverlap: true },
         data: data.map(function(d, i) {
           return { name: d.name, value: d.value, itemStyle: { color: palette[i % palette.length] } };
         })
       }]
     };
-    careChart.setOption(option);
+    careChart.setOption(option, true);
   }
 
   function updateDate() {

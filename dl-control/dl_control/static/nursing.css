@@ -15,7 +15,7 @@
   --nh-accent: #B9770E; /* 深金=正常/完成；原薄荷绿与暖橙主题违和（2026-08-25 暖色化） */
   --nh-danger: #E74C3C;
   --nh-warning: #F39C12;
-  --nh-info: #3498DB;
+  --nh-info: #8D6E63; /* 常规/提示=暖棕灰；原冷蓝 #3498DB 与暖橙主题违和（2026-08-25 暖色化） */
   --nh-radius: 10px;
   --nh-shadow: 0 2px 8px rgba(0,0,0,0.06);
   --nh-shadow-hover: 0 4px 16px rgba(0,0,0,0.1);
@@ -419,7 +419,7 @@ body.login-page::after {
 
 .nh-alert-item .nh-alert-sev.danger  { background: #FADBD8; color: var(--nh-danger); }
 .nh-alert-item .nh-alert-sev.warning { background: #FCF3CF; color: var(--nh-warning); }
-.nh-alert-item .nh-alert-sev.info    { background: #D6EAF8; color: var(--nh-info); }
+.nh-alert-item .nh-alert-sev.info    { background: #EFE6D9; color: var(--nh-info); }
 
 .nh-resident-list {
   list-style: none;
@@ -917,7 +917,7 @@ body.login-page::after {
 
 .nh-focus-group-head[data-sev="danger"]  { color: var(--nh-danger);  background: #FEF0EF; }
 .nh-focus-group-head[data-sev="warning"] { color: var(--nh-warning); background: #FEF9ED; }
-.nh-focus-group-head[data-sev="info"]    { color: var(--nh-info);    background: #EEF3F9; }
+.nh-focus-group-head[data-sev="info"]    { color: var(--nh-info);    background: #F4EFE9; }
 
 .nh-focus-group-dot {
   width: 8px;
@@ -930,29 +930,11 @@ body.login-page::after {
 .nh-focus-group-head[data-sev="info"] .nh-focus-group-dot    { background: var(--nh-info); }
 
 .nh-focus-icon {
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
   width: 7px;
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
   height: 7px;
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
   border-radius: 50%;
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
   flex-shrink: 0;
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
   margin-top: 0.45em;
-.nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
-.nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }
-.nh-focus-item[data-sev="info"] .nh-focus-icon    { background: var(--nh-info); }
 }
 .nh-focus-item[data-sev="danger"] .nh-focus-icon  { background: var(--nh-danger); }
 .nh-focus-item[data-sev="warning"] .nh-focus-icon { background: var(--nh-warning); }

@@ -985,7 +985,10 @@ body.login-page::after {
   font-size: 0.95rem;
 }
 
-/* -- Stock table -- */
+/* -- Stock table（后勤线第三格：行高跟菜单面板走，超出滚动）-- */
+.nh-stock-panel { display: flex; flex-direction: column; min-height: 0; }
+.nh-stock-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
 .nh-stock-table {
   width: 100%;
   border-collapse: collapse;
@@ -1021,13 +1024,13 @@ body.login-page::after {
   font-size: 0.95rem;
 }
 
-/* -- Shift handover -- */
+/* -- Shift handover（上移到 KPI 行下方的时间锚点）-- */
 .nh-dash-handover {
   background: linear-gradient(135deg, #FDF8F0, #FBF2E4);
   border: 1px solid #E8D5C4;
   border-radius: var(--nh-radius);
   padding: 1rem 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   box-shadow: var(--nh-shadow);
 }
 
@@ -1100,6 +1103,39 @@ body.login-page::after {
   color: var(--nh-text-dim);
   margin-top: 0.25rem;
   min-height: 1em;
+}
+
+/* 在院老人卡里的各楼栋迷你条形（原独立柱状图降格并入；
+   默认隐藏，JS 拿到数据才 display:flex，首帧不留空块）*/
+.nh-kpi-buildings {
+  display: none;
+  align-items: flex-end;
+  gap: 4px;
+  height: 46px;          /* 条区 32px + 楼号 10px，卡不至于撑太高 */
+  margin: 0.6rem auto 0;
+  max-width: 150px;
+}
+.nh-kpi-bcol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  height: 100%;
+  cursor: default;
+}
+.nh-kpi-bbar {
+  width: 68%;
+  max-width: 20px;
+  min-height: 4px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #E67E22, #FAD7A1);
+}
+.nh-kpi-bcol span {
+  font-size: 0.62rem;
+  color: var(--nh-text-dim);
+  line-height: 1;
 }
 
 .nh-dash-bottom {

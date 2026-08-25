@@ -18,14 +18,27 @@
     <span class="nh-status-badge" id="status-badge"></span>
   </div>
 
-  {# -- KPI row -- #}
+  {# -- KPI row（行动优先：身份锚 → 红色告警 → 今日待办 → 两个背景数）-- #}
   <div class="nh-dash-kpis" id="kpi-row">
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-people"></div>
       <div class="nh-kpi-val" id="kpi-residents">--</div>
       <div class="nh-kpi-label">在院老人</div>
       <div class="nh-kpi-sub" id="sub-occupancy"></div>
+      <div class="nh-kpi-buildings" id="kpi-buildings"></div>
       <div class="nh-kpi-trend" id="trend-residents"></div>
+    </div>
+    <div class="nh-kpi-card">
+      <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
+      <a href="/alerts" class="nh-kpi-link"><div class="nh-kpi-val" id="kpi-alerts">--</div></a>
+      <div class="nh-kpi-label">未处理告警</div>
+      <div class="nh-kpi-trend" id="trend-alerts"></div>
+    </div>
+    <div class="nh-kpi-card">
+      <div class="nh-kpi-icon nh-kpi-icon-assess"></div>
+      <div class="nh-kpi-val" id="kpi-assess">--</div>
+      <div class="nh-kpi-label">评估待办</div>
+      <div class="nh-kpi-trend" id="trend-assess"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-duty"></div>
@@ -39,21 +52,18 @@
       <div class="nh-kpi-label">库存预警</div>
       <div class="nh-kpi-trend" id="trend-inventory"></div>
     </div>
-    <div class="nh-kpi-card">
-      <div class="nh-kpi-icon nh-kpi-icon-assess"></div>
-      <div class="nh-kpi-val" id="kpi-assess">--</div>
-      <div class="nh-kpi-label">评估待办</div>
-      <div class="nh-kpi-trend" id="trend-assess"></div>
-    </div>
-    <div class="nh-kpi-card">
-      <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
-      <a href="/alerts" class="nh-kpi-link"><div class="nh-kpi-val" id="kpi-alerts">--</div></a>
-      <div class="nh-kpi-label">未处理告警</div>
-      <div class="nh-kpi-trend" id="trend-alerts"></div>
-    </div>
   </div>
 
-  {# -- Middle row -- #}
+  {# -- Shift handover（时间锚点上移：现在几点/哪个班/还剩多久）-- #}
+  <div class="nh-dash-handover" id="handover-panel">
+    <div class="nh-handover-top">
+      <span class="nh-handover-shift" id="handover-shift">--</span>
+      <span class="nh-handover-countdown" id="handover-countdown"></span>
+    </div>
+    <div class="nh-handover-summary" id="handover-summary"></div>
+  </div>
+
+  {# -- Middle row: 照护线 -- #}
   <div class="nh-dash-mid">
     <div class="nh-dash-panel nh-focus-panel">
       <h3 class="nh-dash-panel-title">今日重点关注老人</h3>
@@ -69,32 +79,12 @@
       <div id="completion-chart" style="width:100%;height:280px"></div>
     </div>
     <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">各楼栋在院人数</h3>
-      <div id="building-chart" style="width:100%;height:280px"></div>
+      <h3 class="nh-dash-panel-title">护理等级分布</h3>
+      <div id="care-chart" style="width:100%;height:280px"></div>
     </div>
   </div>
 
-  {# -- Shift handover -- #}
-  <div class="nh-dash-handover" id="handover-panel">
-    <div class="nh-handover-top">
-      <span class="nh-handover-shift" id="handover-shift">--</span>
-      <span class="nh-handover-countdown" id="handover-countdown"></span>
-    </div>
-    <div class="nh-handover-summary" id="handover-summary"></div>
-  </div>
-
-  {# -- Low stock table -- #}
-  <div class="nh-dash-panel nh-stock-panel">
-    <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
-    <table class="nh-stock-table">
-      <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
-      <tbody id="stock-tbody">
-        <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  {# -- 2026-08-25 大屏增强：餐食 / 点餐动态 / 护理等级 -- #}
+  {# -- Bottom row: 后勤线（餐食 / 点餐 / 库存）-- #}
   <div class="nh-dash-bottom">
     <div class="nh-dash-panel nh-menu-panel">
       <h3 class="nh-dash-panel-title">今日餐食 <span class="nh-dash-panel-sub" id="menu-day"></span></h3>
@@ -115,9 +105,16 @@
         <div class="nh-focus-empty">加载中…</div>
       </div>
     </div>
-    <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">护理等级分布</h3>
-      <div id="care-chart" style="width:100%;height:280px"></div>
+    <div class="nh-dash-panel nh-stock-panel">
+      <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
+      <div class="nh-stock-scroll">
+        <table class="nh-stock-table">
+          <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
+          <tbody id="stock-tbody">
+            <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -136,7 +133,6 @@
 <script>
 (function() {
   var completionChart = null;
-  var buildingChart = null;
   var careChart = null;
   var woDetailOpen = false;
 
@@ -170,11 +166,9 @@
 
   function initCharts() {
     completionChart = echarts.init(document.getElementById('completion-chart'));
-    buildingChart = echarts.init(document.getElementById('building-chart'));
     careChart = echarts.init(document.getElementById('care-chart'));
     window.addEventListener('resize', function() {
       completionChart && completionChart.resize();
-      buildingChart && buildingChart.resize();
       careChart && careChart.resize();
     });
   }
@@ -336,53 +330,24 @@
     completionChart.setOption(option);
   }
 
-  function updateBuildingChart(data) {
-    if (!buildingChart) return;
-    var buildings = [];
-    var counts = [];
+  // 各楼栋在院人数 → 在院老人 KPI 卡里的迷你条形（楼长作用域下只有一根，
+  // 不再配独立面板；悬停 title 看 "楼栋 N人"）
+  function renderKpiBuildings(data) {
+    var el = document.getElementById('kpi-buildings');
+    if (!el) return;
+    if (!data || !data.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    var max = 1;
+    data.forEach(function(d) { if (d.count > max) max = d.count; });
+    var html = '';
     data.forEach(function(d) {
-      buildings.push(d.building);
-      counts.push(d.count);
+      var h = Math.max(4, Math.round(d.count / max * 32));  // 32px 满格，配 CSS 条区
+      var label = (d.building || '?').replace('号楼', '').replace('栋', '');
+      html += '<div class="nh-kpi-bcol" title="' + d.building + '：' + d.count + '人">' +
+              '<div class="nh-kpi-bbar" style="height:' + h + '%"></div>' +
+              '<span>' + label + '</span></div>';
     });
-    var option = {
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: '3%', right: '8%', top: 30, bottom: 25, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: buildings,
-        axisLabel: { color: '#8B7355', fontSize: 12 },
-        axisLine: { lineStyle: { color: '#E8D5C4' } },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: 'value',
-        minInterval: 1,
-        axisLabel: { color: '#8B7355', fontSize: 12 },
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { lineStyle: { color: '#F0E6D6' } }
-      },
-      series: [{
-        type: 'bar',
-        data: counts,
-        barWidth: '50%',
-        itemStyle: {
-          borderRadius: [6, 6, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#E67E22' },
-            { offset: 1, color: '#FAD7A1' }
-          ])
-        },
-        label: {
-          show: true,
-          position: 'top',
-          color: '#4A3728',
-          fontSize: 13,
-          fontWeight: 'bold'
-        }
-      }]
-    };
-    buildingChart.setOption(option);
+    el.innerHTML = html;
   }
 
   function renderFocusList(items) {
@@ -595,7 +560,7 @@
         updateCompletionChart(data.completion_rate);
         updateShiftHandover(data);
         document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
-        updateBuildingChart(data.building_distribution);
+        renderKpiBuildings(data.building_distribution);
 
         // 大屏增强：餐食 / 点餐动态 / 护理等级
         renderTodayMenu(data.today_menu);

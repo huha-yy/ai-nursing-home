@@ -39,6 +39,14 @@
         file_server
     }
 
+    # Pitch deck — 对外宣传单页（同一路径内外网均可访问）
+    @pitch path /intro /intro/*
+    handle @pitch {
+        encode zstd gzip
+        root * /srv/pitch
+        file_server
+    }
+
     # All other traffic → dl-control. Strip client-supplied forwarding
     # headers and overwrite X-Forwarded-For with the real peer so
     # uvicorn --proxy-headers cannot be fed a spoofed client IP.
@@ -52,8 +60,17 @@
 }
 
 # Dev HTTP fallback — no TLS, for localhost use when self-signed cert
-# warnings are inconvenient.
+# warnings are inconvenient. Also the tunnel endpoint for the public
+# chat.eldcare.cn:8443 entry (cloud frps :19080 → frpc → this port).
 :9080 {
+    # Pitch deck — 对外宣传单页（公网入口 chat.eldcare.cn:8443/intro/）
+    @pitch path /intro /intro/*
+    handle @pitch {
+        encode zstd gzip
+        root * /srv/pitch
+        file_server
+    }
+
     handle {
         reverse_proxy dato-control:8080 {
             header_up -X-Forwarded-Proto
@@ -63,7 +80,15 @@
 }
 
 # nursing-erp: 养老院业务管理系统（开发环境）
+# Also the tunnel endpoint for the public admin.eldcare.cn:8443 entry.
 :9081 {
+    @pitch path /intro /intro/*
+    handle @pitch {
+        encode zstd gzip
+        root * /srv/pitch
+        file_server
+    }
+
     handle {
         reverse_proxy 172.19.0.1:8765 {
             header_up X-Forwarded-For {remote_host}

@@ -40,6 +40,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./Caddyfile.tls:/etc/caddy/Caddyfile.tls:ro
       - ./healthcheck:/srv/healthcheck:ro
+      - ./pitch-site:/srv/pitch:ro
       - caddy_data:/data:rw
     tmpfs:
       - /tmp:exec

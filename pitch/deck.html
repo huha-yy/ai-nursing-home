@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 养老院院长</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFF8F0;          /* 奶油底（产品 token --nh-bg） */
+  --surface:#FFFFFF;
+  --border:#E8D5C4;
+  --ink:#4A3728;         /* 暖棕正文 */
+  --ink-dim:#6B5A45;
+  --primary:#E67E22;     /* 品牌橙 */
+  --primary-deep:#D35400;
+  --primary-wash:#FDEBD0;
+  --gold:#B9770E;        /* 深金 */
+  --danger:#E74C3C;
+  --dark:#1A1614;        /* 暖棕近黑（产品暗色后台） */
+  --dark-ink:#F4EDE4;
+  --dark-dim:#C9AE8C;
+  --serif:'Noto Serif SC',serif;
+  --sans:'Noto Sans SC',sans-serif;
+  --mono:'IBM Plex Mono','Noto Sans SC',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  overflow:hidden;
+  transition:background .5s ease;
+}
+body.dark-bg{background:var(--dark)}
+/* ===== 16:9 画布 ===== */
+.deck{
+  position:relative;
+  width:100vw;height:100vh;
+  overflow:hidden;
+}
+@media (min-width:769px){
+  .deck{
+    max-width:calc(100vh * 16 / 9);
+    max-height:calc(100vw * 9 / 16);
+    margin:auto;position:absolute;inset:0;
+    box-shadow:0 0 80px rgba(74,55,40,.10);
+  }
+}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  padding:56px 72px 72px;
+  opacity:0;visibility:hidden;
+  transition:opacity .45s ease;
+  overflow:hidden;
+  background:var(--bg);
+}
+.slide.active{opacity:1;visibility:visible}
+/* 进场动画（尊重 reduced-motion） */
+.anim{opacity:0;transform:translateY(18px)}
+.slide.active .anim{animation:rise .6s cubic-bezier(.22,.61,.36,1) forwards}
+.slide.active .anim.d1{animation-delay:.08s}
+.slide.active .anim.d2{animation-delay:.16s}
+.slide.active .anim.d3{animation-delay:.24s}
+.slide.active .anim.d4{animation-delay:.32s}
+@keyframes rise{to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){
+  .anim{opacity:1;transform:none;animation:none !important}
+  .slide{transition:none}
+}
+/* ===== 版式基元 ===== */
+.eyebrow{
+  font-family:var(--mono);
+  font-size:12px;letter-spacing:.42em;
+  color:var(--gold);
+  margin-bottom:14px;
+}
+.eyebrow::before{
+  content:"";display:inline-block;width:26px;height:2px;
+  background:var(--primary);vertical-align:middle;margin-right:12px;
+}
+h2.stitle{
+  font-family:var(--serif);
+  font-size:clamp(26px,3.1vw,42px);
+  font-weight:700;line-height:1.25;
+  text-wrap:balance;
+  margin-bottom:10px;
+}
+.lede{font-size:clamp(14px,1.25vw,17px);color:var(--ink-dim);max-width:62ch}
+.stitle-row{margin-bottom:26px}
+/* ===== 通用组件 ===== */
+.chip{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--ink-dim);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:999px;padding:6px 14px;
+}
+.chip b{color:var(--ink);font-weight:500}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--primary)}
+/* 截图证物框 */
+.shot{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 14px 36px rgba(74,55,40,.14);
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  min-width:0;
+}
+.shot-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;border-bottom:1px solid var(--border);
+  background:linear-gradient(#fff,#FBF4EA);
+  flex:none;
+}
+.shot-bar .dots{display:flex;gap:6px}
+.shot-bar .dots i{width:9px;height:9px;border-radius:50%;background:#EAD9C6}
+.shot-bar .dots i:first-child{background:#E8B98A}
+.shot-bar .url{
+  flex:1;font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);
+  background:var(--bg);border-radius:6px;padding:3px 10px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.shot img{display:block;width:100%;height:auto}
+.shot-cap{
+  font-size:13px;color:var(--ink-dim);line-height:1.6;
+  padding:10px 14px;border-top:1px solid var(--border);background:#FFFDF9;
+}
+.demo-tag{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  color:var(--gold);border:1px solid #E4C77F;background:#FFF6E3;
+  border-radius:4px;padding:1px 7px;margin-left:8px;white-space:nowrap;
+}
+/* ===== 业务底座页（ERP） ===== */
+.qbody{padding:18px 20px;display:flex;flex-direction:column;gap:14px;flex:1;justify-content:center;background:#FFFDF9}
+.qa .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-dim);margin-bottom:5px}
+.qa .bub{border-radius:11px;padding:11px 15px;font-size:14.5px;line-height:1.7}
+.qa.ask .bub{background:var(--bg);border:1px solid var(--border)}
+.qa.ans .bub{background:#FBE8D3;border:1px solid #F0D5AC}
+.qa .bub b{color:var(--gold);font-weight:600}
+.basisrow{display:flex;gap:16px}
+.basis{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px}
+.basis h4{font-size:14.5px;color:var(--ink);margin-bottom:6px;font-weight:600}
+.basis p{font-size:12.5px;color:var(--ink-dim);line-height:1.65}
+/* ===== 导航 ===== */
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--primary);width:0;transition:width .35s;z-index:1000}
+.nav{
+  position:fixed;bottom:12px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:9px;z-index:1000;
+  background:rgba(255,248,240,.88);backdrop-filter:blur(6px);
+  border:1px solid var(--border);border-radius:999px;padding:4px 9px;
+  box-shadow:0 4px 14px rgba(74,55,40,.12);
+}
+.nav button{
+  width:25px;height:25px;border-radius:50%;border:1px solid var(--border);
+  background:var(--surface);color:var(--ink);font-size:12px;cursor:pointer;
+  transition:all .2s;display:flex;align-items:center;justify-content:center;
+}
+.nav button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.nav button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.nav .reset{
+  width:auto;height:25px;border-radius:999px;padding:0 9px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;gap:4px;
+}
+.nav .reset kbd{
+  font-family:var(--mono);font-size:9px;color:var(--ink-dim);
+  border:1px solid var(--border);border-radius:3px;padding:0 3px;
+  background:var(--bg);line-height:1.5;
+}
+.counter{font-family:var(--mono);font-size:11px;color:var(--ink-dim);min-width:38px;text-align:center}
+/* 暗页时导航跟随深色 */
+body.dark-bg .nav{
+  background:rgba(26,22,20,.88);border-color:#3A322C;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+}
+body.dark-bg .nav button{background:#241F1B;border-color:#3A322C;color:var(--dark-ink)}
+body.dark-bg .nav button:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+body.dark-bg .counter{color:var(--dark-dim)}
+body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3A322C}
+/* ===== 封面 ===== */
+.cover{justify-content:center;background:
+  radial-gradient(1100px 520px at 82% 18%,#FDEBD0 0%,rgba(253,235,208,0) 62%),
+  radial-gradient(900px 480px at 8% 92%,#FBE8D3 0%,rgba(251,232,211,0) 58%),
+  var(--bg)}
+.cover .brandline{display:flex;align-items:center;gap:14px;margin-bottom:38px}
+.cover .brandline .mark{
+  width:44px;height:44px;border-radius:10px;background:var(--primary);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-family:var(--serif);font-size:22px;font-weight:700;
+  box-shadow:0 8px 20px rgba(230,126,34,.35);
+}
+.cover .brandline small{font-family:var(--mono);font-size:12px;letter-spacing:.28em;color:var(--ink-dim)}
+.cover h1{
+  font-family:var(--serif);
+  font-size:clamp(44px,6.4vw,86px);
+  font-weight:700;line-height:1.14;letter-spacing:.02em;
+  text-wrap:balance;
+}
+.cover h1 em{font-style:normal;color:var(--primary)}
+.cover .sub{
+  font-family:var(--serif);
+  font-size:clamp(17px,1.9vw,25px);color:var(--ink-dim);
+  margin-top:20px;font-weight:600;
+}
+.cover .chips{display:flex;gap:12px;flex-wrap:wrap;margin-top:42px}
+.cover .foot{
+  position:absolute;bottom:34px;left:72px;right:72px;
+  display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;color:var(--ink-dim);
+}
+/* ===== 断层页 ===== */
+.gap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;flex:1;min-height:0;align-content:center}
+.gap-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:22px 20px;display:flex;flex-direction:column;gap:10px;
+  border-top:3px solid #C9AE8C;
+}
+.gap-card h3{font-family:var(--serif);font-size:19px;font-weight:700}
+.gap-card p{font-size:13.5px;color:var(--ink-dim);line-height:1.7}
+.thesis{
+  margin-top:24px;text-align:center;
+  font-family:var(--serif);font-size:clamp(17px,1.8vw,23px);font-weight:700;
+  color:var(--ink);
+}
+.thesis em{font-style:normal;color:var(--primary-deep)}
+/* ===== 方案页（组织架构） ===== */
+.sol-wrap{display:grid;grid-template-columns:5fr 7fr;gap:44px;flex:1;min-height:0;align-items:center}
+.tree{display:flex;flex-direction:column;align-items:center;gap:0;font-size:14px}
+.tree .node{
+  background:var(--surface);border:1.5px solid var(--border);border-radius:9px;
+  padding:9px 18px;text-align:center;line-height:1.4;min-width:128px;
+}
+.tree .node b{display:block;font-size:15px}
+.tree .node small{color:var(--ink-dim);font-size:11.5px}
+.tree .node.root{border-color:var(--primary);background:var(--primary-wash)}
+.tree .node.root b{color:var(--primary-deep)}
+.tree .vline{width:2px;height:16px;background:var(--border)}
+.tree .branches{display:flex;gap:14px;position:relative;padding-top:16px}
+.tree .branches::before{
+  content:"";position:absolute;top:0;left:12%;right:12%;height:2px;background:var(--border);
+}
+.tree .branch{display:flex;flex-direction:column;align-items:center}
+.tree .branch .vline{height:14px}
+.tree .leafrow{
+  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.tree .bld{
+  font-family:var(--mono);font-size:12px;color:var(--ink-dim);
+  background:var(--surface);border:1px dashed var(--border);border-radius:7px;
+  padding:6px 14px;
+}
+/* ===== 截图主导页 ===== */
+.shot-hero{display:grid;grid-template-columns:8fr 4fr;gap:34px;flex:1;min-height:0;align-items:center}
+.qlist{display:flex;flex-direction:column;gap:10px}
+.qlist .q{
+  background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--primary);
+  border-radius:8px;padding:10px 14px;font-size:13.5px;line-height:1.55;
+}
+.qlist .q small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--gold);letter-spacing:.14em;margin-bottom:2px}
+.note-p{
+  font-size:13px;color:var(--ink-dim);line-height:1.7;
+  border-top:1px solid var(--border);padding-top:14px;margin-top:18px;
+}
+/* ===== 角色边界页 ===== */
+.scope-wrap{display:grid;grid-template-columns:7fr 5fr;gap:38px;flex:1;min-height:0;align-items:center}
+.scope-rows{display:flex;flex-direction:column;gap:14px}
+.scope-row{
+  display:grid;grid-template-columns:96px 1fr;gap:14px;align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;
+}
+.scope-row .who{
+  font-family:var(--serif);font-weight:700;font-size:16px;text-align:center;
+  color:var(--primary-deep);
+}
+.scope-row .who small{display:block;font-family:var(--mono);font-weight:400;font-size:10px;color:var(--ink-dim);letter-spacing:.1em;margin-top:3px}
+.scope-row .what{font-size:13.5px;color:var(--ink-dim);line-height:1.6}
+.scope-row .what b{color:var(--ink)}
+.punch{
+  margin-top:20px;font-family:var(--serif);font-size:clamp(15px,1.5vw,19px);font-weight:700;line-height:1.6;
+}
+.punch em{font-style:normal;color:var(--primary-deep)}
+/* ===== 大屏页 ===== */
+.dash-wrap{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:12px}
+.dash-wrap .shot{max-width:1000px;margin:0 auto;width:100%}
+.dash-caps{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+/* ===== 周报页 ===== */
+.flow{
+  display:flex;align-items:stretch;gap:0;margin-bottom:22px;
+}
+.flow .step{
+  flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;
+  padding:12px 16px;position:relative;
+}
+.flow .step.hot{border-color:var(--primary);background:var(--primary-wash)}
+.flow .step .no{
+  font-family:var(--mono);font-size:10.5px;color:var(--gold);letter-spacing:.2em;
+}
+.flow .step b{display:block;font-size:14.5px;margin-top:2px}
+.flow .step small{color:var(--ink-dim);font-size:11.5px;display:block;line-height:1.5}
+.flow .arrow{
+  display:flex;align-items:center;padding:0 8px;color:var(--primary);font-size:18px;flex:none;
+}
+.rep-wrap{display:grid;grid-template-columns:7fr 5fr;gap:34px;flex:1;min-height:0;align-items:center}
+.fact{display:flex;gap:14px;align-items:baseline}
+.fact .num{font-family:var(--mono);font-size:34px;font-weight:500;color:var(--primary-deep);font-variant-numeric:tabular-nums}
+.fact .lbl{font-size:13px;color:var(--ink-dim)}
+/* ===== 双图页 ===== */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:26px;flex:1;min-height:0;align-items:center}
+/* ===== 技术页（暗） ===== */
+.slide.dark{background:
+  radial-gradient(1000px 500px at 85% 10%,#2A211B 0%,rgba(42,33,27,0) 60%),
+  var(--dark);
+  color:var(--dark-ink)}
+.slide.dark .eyebrow{color:var(--dark-dim)}
+.slide.dark .eyebrow::before{background:var(--primary)}
+.slide.dark h2.stitle{color:var(--dark-ink)}
+.slide.dark .lede{color:var(--dark-dim)}
+.tech-wrap{display:grid;grid-template-columns:6fr 6fr;gap:48px;flex:1;min-height:0;align-items:center}
+.stack{display:flex;flex-direction:column;gap:8px}
+.layer{
+  border:1px solid #3E3228;border-radius:9px;padding:11px 18px;
+  display:flex;align-items:baseline;gap:16px;background:rgba(255,248,240,.025);
+}
+.layer .lname{
+  font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--primary);
+  min-width:74px;flex:none;
+}
+.layer .ldesc{font-size:13px;color:var(--dark-dim);line-height:1.55}
+.layer .ldesc b{color:var(--dark-ink);font-weight:500}
+.layer.keyl{border-color:var(--primary);background:rgba(230,126,34,.08)}
+.tpoints{display:flex;flex-direction:column;gap:16px}
+.tpoint{border-left:3px solid var(--primary);padding-left:16px}
+.tpoint h4{font-family:var(--serif);font-size:16.5px;font-weight:700;color:var(--dark-ink);margin-bottom:4px}
+.tpoint p{font-size:13px;color:var(--dark-dim);line-height:1.65}
+.tpoint p b{color:var(--dark-ink);font-weight:600}
+/* ===== 规模页 ===== */
+.scale-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin:34px 0 30px}
+.scale{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:26px 18px;text-align:center;
+}
+.scale .num{
+  font-family:var(--mono);font-size:clamp(30px,3.4vw,46px);font-weight:500;
+  color:var(--primary-deep);font-variant-numeric:tabular-nums;line-height:1.1;
+}
+.scale .num small{font-size:.45em;color:var(--gold);margin-left:2px}
+.scale .lbl{margin-top:8px;font-size:13px;color:var(--ink-dim)}
+.disclaim{
+  background:var(--surface);border:1px dashed #E4C77F;border-radius:10px;
+  padding:14px 20px;font-size:12.5px;color:var(--ink-dim);line-height:1.7;
+}
+.disclaim b{color:var(--gold);font-weight:500}
+/* ===== CTA 页 ===== */
+.cta{justify-content:center;align-items:center;text-align:center;background:
+  radial-gradient(1000px 480px at 50% 110%,#FDEBD0 0%,rgba(253,235,208,0) 60%),
+  var(--bg)}
+.cta h2{
+  font-family:var(--serif);font-size:clamp(30px,4.2vw,56px);font-weight:700;
+  line-height:1.3;text-wrap:balance;max-width:20ch;
+}
+.cta h2 em{font-style:normal;color:var(--primary)}
+.cta .sub2{margin-top:22px;font-size:clamp(14px,1.4vw,17px);color:var(--ink-dim);max-width:52ch}
+.cta .contact{
+  margin-top:44px;display:inline-flex;align-items:center;gap:12px;
+  background:var(--primary);color:#fff;border-radius:999px;
+  padding:14px 38px;font-size:16px;font-weight:500;
+  box-shadow:0 12px 28px rgba(230,126,34,.35);
+}
+.cta .brandfoot{
+  position:absolute;bottom:78px;left:0;right:0;text-align:center;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.3em;color:var(--ink-dim);
+}
+/* ===== 响应式 ===== */
+@media (max-width:768px){
+  body{overflow:auto}
+  .deck{position:static;height:auto;max-width:none;box-shadow:none}
+  .slide{position:relative;inset:auto;min-height:100svh;padding:44px 22px 90px;display:none}
+  .slide.active{display:flex}
+  .cover .foot{position:static;margin-top:40px;flex-direction:column;gap:8px}
+  .cta .brandfoot{position:static;margin-top:36px}
+  .gap-grid{grid-template-columns:1fr 1fr}
+  .sol-wrap,.shot-hero,.scope-wrap,.rep-wrap,.tech-wrap,.duo{grid-template-columns:1fr;gap:22px}
+  .scale-grid{grid-template-columns:repeat(2,1fr)}
+  .flow{flex-direction:column}
+  .flow .arrow{transform:rotate(90deg);justify-content:center}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progressBar"></div>
+<div class="deck" id="deck">
+
+<!-- 1 · 封面 -->
+<section class="slide cover active">
+  <div class="brandline anim">
+    <div class="mark">院</div>
+    <small>ON-PREMISE&nbsp;MULTI-AGENT&nbsp;APPLIANCE</small>
+  </div>
+  <h1 class="anim d1">AI 养老院<em>院长</em></h1>
+  <p class="sub anim d2">部署在养老院里的 AI 运营团队</p>
+  <div class="chips anim d3">
+    <span class="chip"><span class="dot"></span><b>10 个</b>角色化数字员工</span>
+    <span class="chip"><span class="dot"></span>业务数据<b>不出院</b></span>
+    <span class="chip"><span class="dot"></span>与院内&nbsp;ERP&nbsp;深度对接</span>
+    <span class="chip"><span class="dot"></span>按<b>1,300 余床</b>机构体量构建</span>
+  </div>
+  <div class="foot">
+    <span>AI&nbsp;NURSING&nbsp;HOME&nbsp;DIRECTOR</span>
+    <span>V0.1&nbsp;·&nbsp;2026-08</span>
+  </div>
+</section>
+
+<!-- 2 · 断层 -->
+<section class="slide">
+  <div class="stitle-row anim">
+    <div class="eyebrow">现状</div>
+    <h2 class="stitle">养老院运营的四个断层</h2>
+    <p class="lede">千人规模养老院的瓶颈不在"缺系统"，而在人和信息对不上。</p>
+  </div>
+  <div class="gap-grid">
+    <div class="gap-card anim d1">
+      <h3>信息散落</h3>
+      <p>排班在 Excel 里、库存在本子上、老人的情况在护理员脑子里。想问"3 号楼今天谁当班"，要打三个电话。</p>
+    </div>
+    <div class="gap-card anim d2">
+      <h3>报表靠人拼</h3>
+      <p>院长周报要护理、总务、财务各自报数，人工汇总大半天，数字还常常对不齐。</p>
+    </div>
+    <div class="gap-card anim d3">
+      <h3>异常靠人报</h3>
+      <p>老人的健康信号藏在日常照护细节里，发现不及时、上报靠自觉、处理无留痕。</p>
+    </div>
+    <div class="gap-card anim d4">
+      <h3>能查不能干</h3>
+      <p>传统 ERP 能存数据，但不会替你干活——查一个数要会系统、坐在电脑前、记得菜单在哪。</p>
+    </div>
+  </div>
+  <p class="thesis anim d4">会用 AI 聊天 <em>≠</em> 运营流程被交付</p>
+</section>
+
+<!-- 3 · 方案：数字员工组织架构 -->
+<section class="slide">
+  <div class="stitle-row anim">
+    <div class="eyebrow">解决方案</div>
+    <h2 class="stitle">一支 7×24 在岗的数字员工团队</h2>
+    <p class="lede">每人以自己的身份对话，Agent 自动携带其科室、楼栋上下文——像真正的组织架构一样各司其职。</p>
+  </div>
+  <div class="sol-wrap">
+    <div class="tree anim d1">
+      <div class="node root"><b>院长助手</b><small>全院视角 · 报表 / 概况 / 批示</small></div>
+      <div class="vline"></div>
+      <div class="branches">
+        <div class="branch">
+          <div class="node"><b>护理科助手</b><small>排班 · 工单 · 评估</small></div>
+        </div>
+        <div class="branch">
+          <div class="node"><b>总务科助手</b><small>库存 · 物资 · 配送</small></div>
+        </div>
+        <div class="branch">
+          <div class="node"><b>通用助手</b><small>菜单 · 活动 · 公开查询</small></div>
+        </div>
+      </div>
+      <div class="leafrow">
+        <div class="node" style="min-width:auto"><b>楼栋助手 × 6</b><small>每栋一个 · 本楼老人 / 当班 / 异常</small></div>
+        <div class="bld">1号楼 · 2号楼 · 3号楼 · 4号楼 · 5号楼 · 6号楼</div>
+      </div>
+    </div>
+    <div class="shot anim d2">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/chat — 院长 · 王建国</span></div>
+      <img src="shots/chat-director.png" alt="院长对话工作台">
+      <div class="shot-cap">院长工作台：左侧为真实会话记录，右侧为当前对话。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · 对话查询 -->
+<section class="slide">
+  <div class="stitle-row anim">
+    <div class="eyebrow">核心能力 · 一</div>
+    <h2 class="stitle">对话式查询：把 ERP 装进一句话里</h2>
+  </div>
+  <div class="shot-hero">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">「库存盘点一下，尿不湿还够吗」</span></div>
+      <img src="shots/chat-director.png" alt="库存盘点问答">
+      <div class="shot-cap">一句提问，得到全院库存报表：L 码告急提醒、低库存清单、补货建议与"院长批示"，并主动提出通知总务科。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+    <div>
+      <div class="qlist anim d2">
+        <div class="q"><small>排班</small>3 号楼本周排班生成</div>
+        <div class="q"><small>评估</small>谁该复评了？还有多少老人没做过评估？</div>
+        <div class="q"><small>财务</small>本月应收多少？这个月谁欠费？</div>
+        <div class="q"><small>档案</small>不健康的老人有多少位</div>
+        <div class="q"><small>多模态</small>拍一张药品盒 / 单据发进对话，自动 OCR 识别</div>
+      </div>
+      <p class="note-p anim d3">九类业务数据（排班 / 库存 / 老人档案 / 菜单 / 活动 / 财务 / 告警 / 评估 / 工单）问一句就出结果，支持表格化呈现——数据全部来自院内 ERP 真实业务库，不靠大模型"编"。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · 角色边界 -->
+<section class="slide">
+  <div class="stitle-row anim">
+    <div class="eyebrow">核心能力 · 二</div>
+    <h2 class="stitle">角色化数据边界：同一个问题，不同的答案</h2>
+  </div>
+  <div class="scope-wrap">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/chat — 1号楼楼长 · 刘主任</span></div>
+      <img src="shots/chat-b1.png" alt="楼长对话工作台">
+      <div class="shot-cap">楼长问"今天谁当班"：助手只汇报 1 号楼排班，主动说明数据边界，并提出可继续查询健康预警。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+    <div>
+      <div class="scope-rows anim d2">
+        <div class="scope-row">
+          <div class="who">楼长<small>BUILDING&nbsp;HEAD</small></div>
+          <div class="what">问"有哪些老人"→ <b>只列本楼名单</b>；大屏 KPI 自动收窄为本楼口径</div>
+        </div>
+        <div class="scope-row">
+          <div class="who">院长<small>DIRECTOR</small></div>
+          <div class="what">同样的问题 → <b>全院口径</b>，并可批示跨部门执行</div>
+        </div>
+        <div class="scope-row">
+          <div class="who">家属<small>FAMILY</small></div>
+          <div class="what">只能看<b>自家老人</b>的近况与用餐，只查不代办，跨家访问被系统拒绝</div>
+        </div>
+      </div>
+      <p class="punch anim d3">这是"数字员工"与"聊天机器人"的本质区别——<em>它知道你是谁、你管什么。</em></p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · 运营大屏 -->
+<section class="slide">
+  <div class="stitle-row anim" style="margin-bottom:12px">
+    <div class="eyebrow">核心能力 · 三</div>
+    <h2 class="stitle">运营大屏：全院一屏</h2>
+  </div>
+  <div class="dash-wrap">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/dashboard — 院长视角</span></div>
+      <img src="shots/dashboard.png" alt="运营大屏">
+    </div>
+    <div class="dash-caps anim d2">
+      <span class="chip"><span class="dot"></span>五项 KPI：在院 / 告警 / 评估待办 / 当班 / 库存预警</span>
+      <span class="chip"><span class="dot"></span>重点关注老人 · 护理完成率 · 等级分布</span>
+      <span class="chip"><span class="dot"></span>餐食 / 点餐 / 库存 / 文娱当日动态</span>
+      <span class="chip"><span class="dot"></span>30 秒自愈刷新，ERP 短暂离线单组件降级</span>
+      <span class="demo-tag" style="margin:0">真实系统 · 演示数据</span>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · 多Agent周报 -->
+<section class="slide">
+  <div class="stitle-row anim" style="margin-bottom:16px">
+    <div class="eyebrow">核心能力 · 四</div>
+    <h2 class="stitle">多 Agent 协作周报：四步流转，全程自动</h2>
+  </div>
+  <div class="flow anim d1">
+    <div class="step hot"><span class="no">TRIGGER</span><b>院长触发</b><small>一句话发起本周运营周报</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="no">STEP 1</span><b>护理科</b><small>生成本周排班</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="no">STEP 2</span><b>总务科</b><small>物资配送计划</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="no">STEP 3</span><b>财务科</b><small>人力物资成本预估</small></div>
+    <div class="arrow">→</div>
+    <div class="step hot"><span class="no">OUTPUT</span><b>院长汇总</b><small>四份产出合成运营周报</small></div>
+  </div>
+  <div class="rep-wrap">
+    <div class="shot anim d2">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/reports — 运营周报</span></div>
+      <img src="shots/reports.png" alt="自动周报">
+      <div class="shot-cap">四份部门产出以标签页同级呈现，执行过程旁白折叠留档、正文干净可读。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+    <div>
+      <div class="fact anim d2"><span class="num">4</span><span class="lbl">个 Agent 接力协作，经内部接口流转</span></div>
+      <div class="fact anim d3" style="margin-top:14px"><span class="num">~4<small>min</small></span><span class="lbl">从触发到成稿，期次列表可回溯历史</span></div>
+      <p class="note-p anim d3">部门之间不共享上下文、各自独立执行——与真实组织协作方式一致，出问题可定位到单一步骤。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · 告警与工单 -->
+<section class="slide">
+  <div class="stitle-row anim" style="margin-bottom:16px">
+    <div class="eyebrow">核心能力 · 五</div>
+    <h2 class="stitle">健康告警与护理工单：异常有分级，处理有留痕</h2>
+  </div>
+  <div class="duo">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/alerts</span></div>
+      <img src="shots/alerts.png" alt="健康告警">
+      <div class="shot-cap">危急 / 紧急 / 一般三级分色，双台账管理；"标记已处理"真实落库，处理人与时间自动署名。</div>
+    </div>
+    <div class="shot anim d2">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/work-orders</span></div>
+      <img src="shots/work-orders.png" alt="护理工单">
+      <div class="shot-cap">工单按日归档：当日总量、完成数、完成率一屏可读，每单关联老人、房号与负责护理员。</div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 · 业务全景：可定制的轻量管理系统 -->
+<section class="slide">
+  <div class="stitle-row anim" style="margin-bottom:16px">
+    <div class="eyebrow">业务底座 · 全</div>
+    <h2 class="stitle">不止 AI：一套可定制的轻量管理系统</h2>
+    <p class="lede">AI 是这套系统最亮的工作面，但不是唯一的工作面——底下是一套完整的院内 ERP。</p>
+  </div>
+  <div class="duo">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">admin.eldcare.cn — 后台全目录</span></div>
+      <img src="shots/erp-home.png" alt="ERP 全目录首页" style="max-height:470px;object-fit:cover;object-position:top">
+      <div class="shot-cap">后台首页：十大业务模块、50+ 功能目录，按养老院的科室与业务流组织——开箱即用，也按机构定制。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+    <div class="shot anim d2">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">admin.eldcare.cn/staff/schedule — 排班台账</span></div>
+      <img src="shots/erp-schedule.png" alt="排班台账">
+      <div class="shot-cap">排班台账：员工、班次、楼栋楼层、任务备注一表可查——对话里问"今天谁当班"，答案就是这张表。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+  </div>
+  <div class="basisrow anim d3" style="margin-top:16px">
+    <div class="basis"><h4>按机构定制</h4><p>目录、字段、流程按科室结构与业务流配置，不是通用软件套壳。</p></div>
+    <div class="basis"><h4>轻量即用</h4><p>浏览器打开即用，无需客户端与专项培训；iPad 床旁可直接操作。</p></div>
+    <div class="basis"><h4>可分可合</h4><p>ERP 独立交付，AI 在其上生长；也可先上 ERP，AI 后续叠加。</p></div>
+  </div>
+</section>
+
+<!-- 10 · 业务底座：一套数据，两个工作面 -->
+<section class="slide">
+  <div class="stitle-row anim" style="margin-bottom:16px">
+    <div class="eyebrow">业务底座 · 真</div>
+    <h2 class="stitle">AI 说的每个数，都来自 ERP 台账</h2>
+    <p class="lede">同一份数据，两个工作面——对话层问出来的，就是业务层记下来的。</p>
+  </div>
+  <div class="duo">
+    <div class="shot anim d1">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">chat.eldcare.cn/chat — 对话层 · 院长问库存</span></div>
+      <div class="qbody">
+        <div class="qa ask"><div class="who">院长 · 王建国</div><div class="bub">库存盘点一下，尿不湿还够吗？</div></div>
+        <div class="qa ans"><div class="who">院长助手</div><div class="bub">尿不湿 L 码库存 <b>28 包</b>，已低于安全库存线 <b>50 包</b>，建议尽快补货；另有医用胶带、消毒液 2 项低于安全线。……需要我通知总务科处理补货吗？</div></div>
+      </div>
+      <div class="shot-cap">对话层：一句问话，得到全院库存结论与补货建议。<span class="demo-tag">真实会话 · 演示数据</span></div>
+    </div>
+    <div class="shot anim d2">
+      <div class="shot-bar"><div class="dots"><i></i><i></i><i></i></div><span class="url">admin.eldcare.cn/operations — 业务层 · 库存台账</span></div>
+      <img src="shots/erp-inventory.png" alt="库存台账">
+      <div class="shot-cap">业务层：同一张台账——L 码 28/50 黄色预警，胶带、消毒液同步亮警。AI 不另建数据。<span class="demo-tag">真实系统 · 演示数据</span></div>
+    </div>
+  </div>
+  <div class="basisrow anim d3" style="margin-top:16px">
+    <div class="basis"><h4>唯一真源</h4><p>Agent 每句回答查自 ERP 真实业务库；查不到就说"暂未查到"，不编数字。</p></div>
+    <div class="basis"><h4>真实落库</h4><p>对话里"标记已处理"直写 ERP 异常台账——处理人、时间自动署名留痕。</p></div>
+    <div class="basis"><h4>双向工作面</h4><p>会用对话的走对话，习惯台账的走后台——一份数据，互不冲突。</p></div>
+  </div>
+</section>
+
+<!-- 11 · 技术底座（暗） -->
+<section class="slide dark">
+  <div class="stitle-row anim">
+    <div class="eyebrow">技术底座</div>
+    <h2 class="stitle">五层架构，跑在院内服务器上</h2>
+  </div>
+  <div class="tech-wrap">
+    <div class="stack anim d1">
+      <div class="layer"><span class="lname">交互层</span><span class="ldesc"><b>对话工作台 · 运营大屏 · 自动周报 · 家属端</b></span></div>
+      <div class="layer"><span class="lname">AGENT 层</span><span class="ldesc"><b>10 个角色 Agent</b> · 多 Agent 工作流引擎</span></div>
+      <div class="layer"><span class="lname">能力层</span><span class="ldesc"><b>11 项护理业务技能</b> · RAG 知识库（向量检索 + 重排序）· 图片 OCR · 健康关键词告警</span></div>
+      <div class="layer"><span class="lname">数据层</span><span class="ldesc">与院内 <b>ERP 深度对接</b>（业务数据唯一真源）· 专属业务库 · 缓存</span></div>
+      <div class="layer keyl"><span class="lname">部署层</span><span class="ldesc"><b>院内一体机 · 本地 Qwen3.8-27B 推理 · 数据不出院</b></span></div>
+    </div>
+    <div class="tpoints">
+      <div class="tpoint anim d2">
+        <h4>业务数据唯一真源</h4>
+        <p>Agent 的每一句回答都查自院内 ERP 真实业务库；数据对不上时宁可说"暂未查到"，不编数字。</p>
+      </div>
+      <div class="tpoint anim d3">
+        <h4>数据不出院</h4>
+        <p>老人的健康与照护数据是最敏感的个人信息——存储与计算全程留在院内；交付版本采用<b>本地部署、特优化的开源大模型 Qwen3.8-27B</b>，推理跑在院内一体机上，从模型到数据整链路不出院。</p>
+      </div>
+      <div class="tpoint anim d4">
+        <h4>权限与审计</h4>
+        <p>每个会话经角色门校验，员工 / 楼长 / 家属分流；全部操作进审计日志，数据库层行级权限控制。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · 落地规模 -->
+<section class="slide">
+  <div class="stitle-row anim">
+    <div class="eyebrow">落地</div>
+    <h2 class="stitle">已在真实规模环境部署</h2>
+    <p class="lede">部署演示环境按对接机构的真实运营体量构建。</p>
+  </div>
+  <div class="scale-grid">
+    <div class="scale anim d1"><div class="num">60<small>亩</small></div><div class="lbl">院区占地（建筑面积 5.4 万㎡）</div></div>
+    <div class="scale anim d1"><div class="num">4<small>区</small></div><div class="lbl">照护分区（自理/介助/介护/认知障碍）</div></div>
+    <div class="scale anim d2"><div class="num">1,300<small>余床</small></div><div class="lbl">床位规模</div></div>
+    <div class="scale anim d2"><div class="num">~300<small>人</small></div><div class="lbl">员工（护理/医疗康复/膳食/社工/安保）</div></div>
+    <div class="scale anim d3"><div class="num">10<small>个</small></div><div class="lbl">角色 Agent 全量上线</div></div>
+  </div>
+  <div class="disclaim anim d4">
+    <b>演示数据声明</b> —— 本文档界面截图来自真实运行系统；演示环境中的机构名、老人与员工信息均为演示数据，非真实个人信息；库存、告警、工单等业务数据为按真实口径构造的演示数据。
+  </div>
+</section>
+
+<!-- 13 · CTA -->
+<section class="slide cta">
+  <h2 class="anim">让 Agent 真正进入<br>养老院<em>经营现场</em></h2>
+  <p class="sub2 anim d1">从环境部署、ERP 数据对接，到 Agent 角色定制，<br>我们提供完整落地服务，欢迎预约现场或线上演示。</p>
+  <div class="contact anim d2">合作咨询</div>
+  <div class="brandfoot anim d3">AI&nbsp;NURSING&nbsp;HOME&nbsp;DIRECTOR&nbsp;·&nbsp;数据不出院</div>
+</section>
+
+</div>
+
+<div class="nav">
+  <button id="prevBtn" aria-label="上一页">←</button>
+  <span class="counter"><span id="current">1</span> / <span id="total">13</span></span>
+  <button id="nextBtn" aria-label="下一页">→</button>
+  <button id="resetBtn" class="reset" aria-label="回到封面">Reset <kbd>R</kbd></button>
+</div>
+
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var total=slides.length,current=1;
+  document.getElementById('total').textContent=total;
+  function showSlide(n){
+    if(n<1)n=1; if(n>total)n=total;
+    current=n;
+    slides.forEach(function(s,i){s.classList.toggle('active',i===n-1);});
+    document.body.classList.toggle('dark-bg',slides[n-1].classList.contains('dark'));
+    document.getElementById('current').textContent=n;
+    document.getElementById('progressBar').style.width=(n/total*100)+'%';
+    if(window.matchMedia('(max-width:768px)').matches){
+      slides[n-1].scrollIntoView({block:'start',behavior:'smooth'});
+    }
+  }
+  function next(){showSlide(current+1);} function prev(){showSlide(current-1);}
+  document.getElementById('nextBtn').addEventListener('click',next);
+  document.getElementById('prevBtn').addEventListener('click',prev);
+  document.getElementById('resetBtn').addEventListener('click',function(){showSlide(1);});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key==='PageDown'||(e.key===' '&&!e.target.closest('input,textarea'))){e.preventDefault();next();}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev();}
+    if(e.key==='Home'){showSlide(1);} if(e.key==='End'){showSlide(total);}
+    if((e.key==='r'||e.key==='R')&&!e.target.closest('input,textarea')){showSlide(1);}
+  });
+  // 触屏滑动
+  var tx=null;
+  document.addEventListener('touchstart',function(e){tx=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(tx===null)return;
+    var dx=e.changedTouches[0].clientX-tx;
+    if(Math.abs(dx)>60){dx<0?next():prev();}
+    tx=null;
+  },{passive:true});
+  showSlide(1);
+})();
+</script>
+</body>
+</html>

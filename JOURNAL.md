@@ -1793,3 +1793,67 @@ flex align-items:center 下不可能不齐）、行高不一（16 行全部 32px
 再证一次口径：视觉模型可作整体氛围参考，**部件级结论（截断/对齐/样式）
 一律以 scrollWidth/getBoundingClientRect/CSSOM 实测为准**——本轮它
 五条扣分四条假、一条漏，恰好正反两面都占。
+
+## 2026-08-26 · 对外介绍 pitch 双形态产出（MD + HTML deck）
+
+用户要一份对外展示介绍文档，参考 ZooWork pitch deck（五段式：断层→方案→
+技术→证明→CTA）。四决策拍板：商务受众 / 演示场景明确标注 / HTML+MD 双形态 /
+不含报价。产出 `pitch/` 目录三件套：`对外介绍文档.md`（内容真源）、`deck.html`
+（16:9 翻页源文件，图片相对路径）、`deck-standalone.html`（2.04MB 单文件，
+图片 base64 内联，可直接发送/双击打开）。11 页：封面→四断层→数字员工组织树
+→对话查询→角色边界→大屏→四步周报→告警工单→暗色技术页→规模+演示声明→CTA。
+设计 token 全部取自 nursing.css（--nh-* 原值），思源宋体+Plex Mono，无
+Chart.js（artifact CSP 拦 CDN，图表全 CSS 手搓）。
+
+截图六张（pitch/shots/，1600×900@1.25x）来自生产演示环境 Playwright 采集：
+dashboard/reports/alerts/work-orders/chat-director(库存问答)/chat-b1(楼长当班)。
+三个坑：① 会话点击绑在内层 .nh-session-title，点外层 div 无效；② "思考中"
+typing-indicator 会把文本长度钉住骗过稳定判据，要等 indicator 消失；
+③ Read 上传 CDN 后视觉 MCP 同路径读旧缓存——本地路径直读才准。顺手清理了
+演示账号测试会话（院长删 19 条、b1_liu 删 5 条，留精选业务会话）。
+
+诚实口径：不编量化结果（无"+20%"类数字）；"数据不出院"表述为业务数据，
+LLM 推理通道加密+可切全本地模型（有 runbook 支撑）；机构名用 PRODUCT.md 的
+"杭州市第三社会福利院"，但系统页脚实际显示"杭州市社会福利中心"——不一致
+已报用户拍板。Artifact 发布因本会话 ANTHROPIC_AUTH_TOKEN 认证被拒，改交付
+standalone 单文件。deck 改动后 `cd /tmp/pw && node inline.cjs` 重建 standalone。
+
+**同日补记（客户机构名纠正）**：用户明确对接客户是**杭州社会福利院**，非
+"杭州市第三社会福利院/市三福院"（旧文档误写）。网检索实 169 亩/皋亭山/设计
+2000 床是市三福院的数据——规模数字**不能**随机构名带到客户头上。全量纠正：
+PRODUCT.md/CLAUDE.md 改客户名并把规模标注"对标口径"；pitch 文档与 deck 第 10
+页规模改为"按大型公办养老机构运营体量构建"，删皋亭山点名；4 个模板页脚
+"杭州市社会福利中心"→"杭州社会福利院"（bind-mount 即时生效）；重截
+dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验过）。
+
+## 2026-08-26 · 对外宣传页上线（/intro/）
+
+- **产物**：`pitch/deck-standalone.html`（2.1MB 单文件，图片 base64 内联）部署为
+  `infra/pitch-site/intro/index.html`，Caddy 静态路由 + zstd/gzip（传输 1.67MB）。
+- **可访问入口**（三域名同路径，`@pitch path /intro /intro/*`）：
+  公网 `https://chat.eldcare.cn:8443/intro/`、`https://admin.eldcare.cn:8443/intro/`，
+  内网 `https://hz-sanfu.eldcare.cn:9443/intro/`，本机 `127.0.0.1:908{0,1}/intro/`。
+- **登录页入口**：AI 登录页（login.html 左下角）与 ERP 后台登录页（login_after 块）
+  各加「产品介绍 ↗」相对链接，target=_blank；家属登录页不加（受众不符）。
+- **运维坑（重要）**：
+  1. compose 必须带 `-p dato -f docker-compose.yml`（从 infra 目录），否则 project
+     名不匹配报容器名冲突；
+  2. Caddyfile 是**单文件 bind-mount**——编辑器替换 inode 后容器内仍是旧文件，
+     `caddy reload` 无效；改完必须 `up -d --force-recreate dato-caddy`（公网闪断数秒）。
+- **Unfold 预编译 CSS**：`opacity-60` 不在包里（家属登录块旧代码即踩此坑未生效），
+  本次透明度改用内联 style；`mt-4/underline/text-xs/text-center` 已 grep 确认在包。
+
+## 2026-08-26 · pitch 增补 ERP 两页（用户决策）
+
+- **背景**：原 11 页只覆盖 AI 侧；用户要求把 nursing-erp 纳入宣传，定稿
+  「两页、广度+深度」形态（全目录首页体现定制化轻量 ERP 服务）。
+- **新页 9**「不止 AI：一套可定制的轻量管理系统」= erp-home（全目录，
+  1600×1300 顶对齐裁显）+ erp-schedule + 三要点卡（按机构定制/轻量即用/可分可合）。
+- **新页 10**「AI 说的每个数，都来自 ERP 台账」= 对话摘录卡（.qbody 气泡，
+  内容与库存台账数字严格同源）↔ erp-inventory + 三要点卡（唯一真源/真实落库/双向工作面）。
+- 总页数 13；旧页注释顺延重编号。erp-incidents 拍了未进 deck，进 md 文档。
+- **截图流程**（ERP 侧 Playwright）：wang_jianguo/123456 登录 admin.eldcare.cn:8443
+  → 单 page 全程（跨 newPage 会丢登录态，踩过）；列表页 rows 验数
+  （schedule 50 / inventory 15 / incidents 25）。
+- 顺带：规模数字已切杭州市社会福利中心真实口径（60 亩/1300 余床/300 人/4 分区）；
+  页脚机构名保持「杭州社会福利院」不重拍截图（用户拍板：差一个字没事）。

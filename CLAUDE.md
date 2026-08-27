@@ -8,7 +8,7 @@ Close a session by appending the session's outcome to `JOURNAL.md`.
 
 ## What this is
 
-**AI 养老院院长** is an AI-powered operations assistant for nursing homes, built on the dato multi-agent appliance platform. MVP targets 杭州市第三社会福利院 (1,752 beds, 350 staff, 26 buildings).
+**AI 养老院院长** is an AI-powered operations assistant for nursing homes, built on the dato multi-agent appliance platform. The customer being engaged is 杭州社会福利院; scale figures (1,752 beds, 350 staff, 26 buildings) are a benchmark from large public nursing homes, not the customer's own data.
 
 The platform is powered by [OpenClaw](https://github.com/openclaw) (v2026.4.8) and ships pre-installed on dedicated hardware — all data stays local.
 

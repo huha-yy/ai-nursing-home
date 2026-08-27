@@ -1816,7 +1816,8 @@ typing-indicator 会把文本长度钉住骗过稳定判据，要等 indicator �
 LLM 推理通道加密+可切全本地模型（有 runbook 支撑）；机构名用 PRODUCT.md 的
 "杭州市第三社会福利院"，但系统页脚实际显示"杭州市社会福利中心"——不一致
 已报用户拍板。Artifact 发布因本会话 ANTHROPIC_AUTH_TOKEN 认证被拒，改交付
-standalone 单文件。deck 改动后 `cd /tmp/pw && node inline.cjs` 重建 standalone。
+standalone 单文件。deck 改动后 `node pitch/inline.cjs` 重建（脚本已入库，
+任意 cwd 可跑，一次产出 standalone + 线上 index.html 两份）。
 
 **同日补记（客户机构名纠正）**：用户明确对接客户是**杭州社会福利院**，非
 "杭州市第三社会福利院/市三福院"（旧文档误写）。网检索实 169 亩/皋亭山/设计

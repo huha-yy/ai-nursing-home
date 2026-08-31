@@ -10,11 +10,11 @@
     "providers": {
 {% if agent.tier == "tier0" or agent.tier == "tier1" %}
       "openai": {
-        "baseUrl": "https://api.moonshot.cn/v1",
+        "baseUrl": "${OPENAI_BASE_URL}",
         "apiKey": "${OPENAI_API_KEY}",
         "api": "openai-completions",
         "models": [
-          { "id": "kimi-k2.6", "name": "Kimi K2.6", "contextWindow": 131072, "maxTokens": 8192 }
+          { "id": "ocicek/Qwen3.6-27B-NVFP4", "name": "Qwen3.6-27B (local)", "reasoning": false, "contextWindow": 32768, "maxTokens": 8192 }
         ]
       }
 {% endif %}

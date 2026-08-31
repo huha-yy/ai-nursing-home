@@ -56,6 +56,13 @@ import json, os
 
 key, base, model = os.environ['KEY'], os.environ['BASE'], os.environ['MODEL']
 
+# 模型能力参数跟供应商走（2026-08-31 本地切换）：
+# 本地 vLLM（http 非加密）服务端已挂 no-think 模板 + --max-model-len 32768，
+# reasoning=False / contextWindow=32768；云端 kimi-k2.6 是思考模型、128K 窗口。
+local_llm = not base.startswith('https://')
+reasoning = not local_llm
+ctx_window = 32768 if local_llm else 131072
+
 # 1. Auth profiles — modern store format (flat shape is rejected).
 auth = {'version': 1, 'profiles': {'openai:default': {
     'type': 'api_key', 'provider': 'openai', 'apiKey': key, 'baseUrl': base}}}
@@ -63,7 +70,7 @@ with open('$AGENT_DIR/auth-profiles.json', 'w') as f: json.dump(auth, f)
 
 # 2. Models — apiKey holds the env MARKER 'OPENAI_API_KEY' (an accepted
 # marker; 'LLM_API_KEY' is not), resolved from process.env at runtime.
-models = {'providers': {'openai': {'baseUrl': base, 'api': 'openai-completions', 'apiKey': 'OPENAI_API_KEY', 'models': [{'id': model, 'name': model, 'reasoning': True, 'input': ['text'], 'contextWindow': 131072, 'maxTokens': 8192, 'compat': {'supportsUsageInStreaming': True}, 'api': 'openai-completions'}]}}}
+models = {'providers': {'openai': {'baseUrl': base, 'api': 'openai-completions', 'apiKey': 'OPENAI_API_KEY', 'models': [{'id': model, 'name': model, 'reasoning': reasoning, 'input': ['text'], 'contextWindow': ctx_window, 'maxTokens': 8192, 'compat': {'supportsUsageInStreaming': True}, 'api': 'openai-completions'}]}}}
 with open('$AGENT_DIR/models.json', 'w') as f: json.dump(models, f, indent=2)
 
 # 3. openclaw.json — primary model, and migrate any stale (deepseek-era)
@@ -72,7 +79,7 @@ with open('$CONFIG') as f: cfg = json.load(f)
 cfg.setdefault('models', {})['mode'] = 'merge'
 cfg['models']['providers'] = {'openai': {
     'baseUrl': base, 'apiKey': '\${OPENAI_API_KEY}', 'api': 'openai-completions',
-    'models': [{'id': model, 'name': model, 'contextWindow': 131072, 'maxTokens': 8192}]}}
+    'models': [{'id': model, 'name': model, 'contextWindow': ctx_window, 'maxTokens': 8192}]}}
 cfg.setdefault('agents', {}).setdefault('defaults', {}).setdefault('model', {})
 cfg['agents']['defaults']['model']['primary'] = 'openai/' + model
 with open('$CONFIG', 'w') as f: json.dump(cfg, f, indent=2)

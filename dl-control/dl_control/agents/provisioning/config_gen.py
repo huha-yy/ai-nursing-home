@@ -8,6 +8,7 @@ and .env are structured writes (spec §6.3, §6.4).
 from __future__ import annotations
 
 import json
+import os
 import secrets  # used by generate_openclaw_token (Task 5)
 from pathlib import Path
 
@@ -48,9 +49,10 @@ def _agent_context(row: dict, *, default_model: str = "qwen3.5:9b") -> dict:
         model_id = model.get("model") or default_model
     else:
         # "openai" is openclaw's built-in OpenAI-compatible provider id — the
-        # vendor (Moonshot) is selected purely via baseUrl/LLM_BASE_URL.
+        # vendor is selected purely via baseUrl/LLM_BASE_URL. Default follows
+        # LLM_MODEL (infra/.env) so vendor switches don't re-pin kimi here.
         provider = model.get("provider") or "openai"
-        model_id = model.get("model") or "kimi-k2.6"
+        model_id = model.get("model") or os.environ.get("LLM_MODEL", "kimi-k2.6")
     return {
         "id": row["id"],
         "display_name": row["display_name"],

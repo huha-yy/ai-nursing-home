@@ -305,7 +305,8 @@ def test_middleware_nursing_roles_exclude_family():
 def test_main_role_gate_split():
     """main.py 门分流钉：对话六门用 _CHAT_ALLOWED（家属放行），
     其余员工路由门保持 _NURSING_ROLES（家属拒）。
-    新增对话路由时同步更新计数；新增员工路由用 _NURSING_ROLES 即可。
+    新增路由（无论对话门还是员工门）都必须同步 bump 计数——08-25 工单改版
+    新增 /api/nursing/work-orders 时漏 bump，就是这个钉子第一次抓到漂移。
     """
     src = (Path(__file__).resolve().parent.parent / "dl_control" / "main.py").read_text(
         encoding="utf-8"
@@ -313,4 +314,4 @@ def test_main_role_gate_split():
     chat_gates = src.count("not in _CHAT_ALLOWED")
     staff_gates = src.count("not in _NURSING_ROLES")
     assert chat_gates == 6, "对话门（chat 页/会话 CRUD×4/发消息）应为 6 处 _CHAT_ALLOWED"
-    assert staff_gates == 8, "员工路由门应保持 8 处 _NURSING_ROLES（家属一律拒）"
+    assert staff_gates == 9, "员工路由门应为 9 处 _NURSING_ROLES（dashboard×2/alerts×3/work-orders×2/workflow×1/reports×1）"

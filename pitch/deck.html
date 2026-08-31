@@ -189,6 +189,10 @@ body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3
   radial-gradient(900px 480px at 8% 92%,#FBE8D3 0%,rgba(251,232,211,0) 58%),
   var(--bg)}
 .cover .brandline{display:flex;align-items:center;gap:14px;margin-bottom:38px}
+/* 公司锁标（出品方）：左上角，logo 字标 + 法定全称 */
+.cover .corp{position:absolute;top:38px;left:72px;display:flex;align-items:center;gap:14px;z-index:2}
+.cover .corp img{height:30px;width:auto;display:block}
+.cover .corp span{font-size:12.5px;color:var(--ink-dim);letter-spacing:.05em;padding-left:14px;border-left:1px solid var(--border)}
 .cover .brandline .mark{
   width:44px;height:44px;border-radius:10px;background:var(--primary);
   display:flex;align-items:center;justify-content:center;
@@ -372,10 +376,15 @@ body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3
   padding:14px 38px;font-size:16px;font-weight:500;
   box-shadow:0 12px 28px rgba(230,126,34,.35);
 }
-.cta .brandfoot{
-  position:absolute;bottom:78px;left:0;right:0;text-align:center;
-  font-family:var(--mono);font-size:11.5px;letter-spacing:.3em;color:var(--ink-dim);
+/* 尾页落款：公司锁标在上，产品线在下 */
+.cta .corpfoot{
+  position:absolute;bottom:62px;left:0;right:0;
+  display:flex;flex-direction:column;align-items:center;gap:9px;
 }
+.cta .corpline{display:flex;align-items:center;gap:12px}
+.cta .corpline img{height:26px;width:auto;display:block}
+.cta .corpline span{font-size:13px;color:var(--ink-dim);letter-spacing:.05em;padding-left:12px;border-left:1px solid var(--border)}
+.cta .brandfoot{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--ink-dim)}
 /* ===== 响应式 ===== */
 @media (max-width:768px){
   body{overflow:auto}
@@ -383,7 +392,8 @@ body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3
   .slide{position:relative;inset:auto;min-height:100svh;padding:44px 22px 90px;display:none}
   .slide.active{display:flex}
   .cover .foot{position:static;margin-top:40px;flex-direction:column;gap:8px}
-  .cta .brandfoot{position:static;margin-top:36px}
+  .cover .corp{position:static;margin-bottom:28px;justify-content:center}
+  .cta .corpfoot{position:static;margin-top:36px}
   .gap-grid{grid-template-columns:1fr 1fr}
   .sol-wrap,.shot-hero,.scope-wrap,.rep-wrap,.tech-wrap,.duo{grid-template-columns:1fr;gap:22px}
   .scale-grid{grid-template-columns:repeat(2,1fr)}
@@ -398,6 +408,10 @@ body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3
 
 <!-- 1 · 封面 -->
 <section class="slide cover active">
+  <div class="corp anim">
+    <img src="shots/logo.png" alt="戴恩医疗 DANCEENON">
+    <span>戴恩医疗科技（浙江）股份有限公司</span>
+  </div>
   <div class="brandline anim">
     <div class="mark">院</div>
     <small>ON-PREMISE&nbsp;MULTI-AGENT&nbsp;APPLIANCE</small>
@@ -718,7 +732,10 @@ body.dark-bg .reset kbd{background:#241F1B;color:var(--dark-dim);border-color:#3
   <h2 class="anim">让 Agent 真正进入<br>养老院<em>经营现场</em></h2>
   <p class="sub2 anim d1">从环境部署、ERP 数据对接，到 Agent 角色定制，<br>我们提供完整落地服务，欢迎预约现场或线上演示。</p>
   <div class="contact anim d2">合作咨询</div>
-  <div class="brandfoot anim d3">AI&nbsp;NURSING&nbsp;HOME&nbsp;DIRECTOR&nbsp;·&nbsp;数据不出院</div>
+  <div class="corpfoot anim d3">
+    <div class="corpline"><img src="shots/logo.png" alt="戴恩医疗 DANCEENON"><span>戴恩医疗科技（浙江）股份有限公司</span></div>
+    <div class="brandfoot">AI&nbsp;NURSING&nbsp;HOME&nbsp;DIRECTOR&nbsp;·&nbsp;数据不出院</div>
+  </div>
 </section>
 
 </div>

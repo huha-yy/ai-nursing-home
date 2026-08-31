@@ -1858,3 +1858,34 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
   （schedule 50 / inventory 15 / incidents 25）。
 - 顺带：规模数字已切杭州市社会福利中心真实口径（60 亩/1300 余床/300 人/4 分区）；
   页脚机构名保持「杭州社会福利院」不重拍截图（用户拍板：差一个字没事）。
+
+## 2026-08-31 · LLM 整体切换本地 Qwen3.6-27B（Moonshot 欠费触发）
+
+- **导火索**：Moonshot 账户欠费停机（429 exceeded_current_quota，org-dee54…），
+  chat/OCR/周报全断。当日按 vendor switch runbook 完成整体切换，生产不再依赖云端余额。
+- **服务端（dato-vision.service，本机 user systemd）**：
+  - `--max-model-len 32768`：KV 池 283,261 tok（0.35util），32K/请求最差并发 8.64x
+    （默认 256K 时仅 1.25x——单跑飞请求可吃 80% 池）
+  - `--chat-template ~/.config/dato/chat-template-nothink.jinja`：该 NVFP4 构建思考是
+    **纯文本**（无 <think> 标签、reasoning-parser 接不住、/no_think 与 chat_template_kwargs
+    都关不掉模板侧思考），模板尾恒注入空思考块后：OCR 14.6s/短答 30.7s（思考态 273s/70s）
+  - `--enable-auto-tool-choice --tool-call-parser qwen3_xml`：openclaw agent 发
+    tool_choice=auto，不开则 400（首次验证抓到）
+- **四站点矩阵执行**：infra/.env + 15 agent .env（LLM_*/OPENAI_* 双写）+ agent 三件套
+  JSON 宿主机直写（/tmp/migrate_agents_qwen.py 逻辑，已并入 switch_llm.sh）+ dato-control
+  force-recreate。**marker 状态机**：容器内还是旧 setup-deepseek.sh，靠 .deepseek-configured
+  marker 挡住；直写 JSON 不碰 marker 即可跨重启存活（现网 kimi 配置当年就是这么落的）
+- **代码点**：openclaw.json.j2 baseUrl→${OPENAI_BASE_URL}+qwen 数组；setup-llm.sh 参数按
+  baseUrl 自适应（http=本地 no-think+32K）；config_gen 回退跟 LLM_MODEL；
+  scripts/switch_llm.sh local|kimi 一键双向（~10 分钟，kimi 方向先充值）
+- **ERP 侧**（nursing-erp commit edddef6）：.env 三值；llm.py qwen 分支带
+  enable_thinking=false 双保险；meals/api.py _repair_truncated_json——no-think 模式
+  finish_reason=stop 却少末尾 }（311 字符缺 1 括号，确定性复现），解析链四候选兜住
+- **坑两枚**：①ERP settings 用 setdefault 读 .env——runserver autoreload 子进程继承
+  父进程环境，**光 touch .py 换不了供应商**，必须整体重启；②chat 员工登录走
+  /auth/nursing-login（nursing_users 表），不是 /login（users 表只有 admin）
+- **性能基线（GB10）**：单流解码 ~12 tok/s（压测 CC1 反推一致）、prefill ~2.8K tok/s、
+  chat 短答 10-30s、OCR 结构化 14.6s、周报级（4.6K in/600 out）~50s——全部优于 kimi 60-90s
+- **备份**：infra/.env.kimi.bak-20260831、nursing-erp/.env.kimi.bak-20260831（均已
+  gitignore）；agent 三件套改前各留 .bak-qwen
+- **待办**：兜底录屏成片仍待录；陈总手册 Q1 口径可升级「现在看到的即纯本地运行」

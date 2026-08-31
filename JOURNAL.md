@@ -1888,4 +1888,9 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
   chat 短答 10-30s、OCR 结构化 14.6s、周报级（4.6K in/600 out）~50s——全部优于 kimi 60-90s
 - **备份**：infra/.env.kimi.bak-20260831、nursing-erp/.env.kimi.bak-20260831（均已
   gitignore）；agent 三件套改前各留 .bak-qwen
+- **阶段 2 E2E 验证（同日通过）**：①chat agent 路径（wang_jianguo「全院现在住着多少位
+  老人？」）84s 出真实库数据（36 位=18男+18女=全护10+半护10+自理12+失智4，数字自洽，
+  qwen3_xml 工具链多轮调用 OK）；②ERP 菜单 OCR 全链路（PIL 合成第 35 周菜单图 →
+  POST /api/menu-ocr/）20.4s，9 餐 29 菜 unmatched=[]，故意埋的错别字全被模糊匹配纠正
+  （麻婆豆付→麻婆豆腐#374、凉扮黄瓜→凉拌黄瓜#290、清蒸鲈渔→清蒸鲈鱼#307）
 - **待办**：兜底录屏成片仍待录；陈总手册 Q1 口径可升级「现在看到的即纯本地运行」

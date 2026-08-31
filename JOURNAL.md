@@ -1894,3 +1894,30 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
   POST /api/menu-ocr/）20.4s，9 餐 29 菜 unmatched=[]，故意埋的错别字全被模糊匹配纠正
   （麻婆豆付→麻婆豆腐#374、凉扮黄瓜→凉拌黄瓜#290、清蒸鲈渔→清蒸鲈鱼#307）
 - **待办**：兜底录屏成片仍待录；陈总手册 Q1 口径可升级「现在看到的即纯本地运行」
+
+## 2026-08-31（下午）· 切换 MiniMax-M3（Token Plan），本地 vLLM 转为兜底
+
+- **选型插曲**：用户原定 M2.7-highspeed，预检发现 M2.x 思考**无法关闭**且 `<think>`
+  混 content（一句话 14.2s/781tok，思考占 700）+ 全栈无剥标签代码；实测 M3
+  `thinking:{"type":"disabled"}` 全面碾压（1.9s/45tok/零代码/半价），AskUserQuestion
+  拍板换 M3。数据与决策记在 docs/llm模型/本地LLM切换验证报告-20260831.md。
+- **key 双轨**：sk-cp（Token Plan Subscription Key，扣订阅额度，**主用**）与
+  sk-api（按量，扣余额）都存 ~/.config/dato/minimax.env（600）。sk-cp 在 OpenAI
+  兼容端点 https://api.minimaxi.com/v1 直接可用（文档级疑虑被实测打消——与 GLM
+  coding plan 不同，MiniMax 明确开放通用调用）。
+- **思考处理的分层策略**：agent 侧不注入参数——openclaw 有
+  stripThinkingTagsFromText 原生剥 `<think>`，M3 跑默认 adaptive（思考有助工具
+  推理）；dl-control 直连兜底与 ERP llm.py 两个自研路径显式 thinking disabled
+  （兜底把 content 原样给用户、结构化要纯 JSON）。
+- **坑两枚**：①pkill/pgrep -f 'manage.py runserver' 自杀——命令行含同字符串会
+  圈中自己，用 'manage[.]py runse''rver' 拆串；②infra/.env 的
+  COMPOSE_FILE=infra/docker-compose.yml 按 CWD 解析，脚本 cd 进 infra 后叠成
+  infra/infra/…，switch_llm.sh 第 6 步改显式 -f 绝对路径修复。
+- **E2E 对比**（同日同库同输入）：chat 19.3s（本地 84s、kimi 60-90s）真实数据
+  零 think 泄漏；OCR 全链路 7.1s（本地 20.4s），结构化输出与本地跑**逐字一致**
+  （菜名/ID/顺序全同）、unmatched=[]。
+- **切换后**：dato-vision 已停（释放 0.35 显存；switch_llm.sh local 会自动拉起）；
+  ERP runserver 已整体重启（/proc/<pid>/environ 验证 MiniMax-M3 生效）。
+- **存量债（非本次引入，stash 验证过）**：test_family_chat.py::test_main_role_gate_split
+  失败——main.py 实有 9 处 _NURSING_ROLES，钉子写 8。家属端安全钉，待专项核对。
+- 提交：ai-nursing-home e9e7cc8、nursing-erp 8cecb63。

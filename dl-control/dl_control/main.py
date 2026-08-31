@@ -1035,18 +1035,23 @@ async def build_app() -> FastAPI:
                 timeout=90.0,
                 transport=httpx.AsyncHTTPTransport(retries=1),
             ) as client:
+                payload = {
+                    "model": s.llm_model,
+                    "messages": messages,
+                    # Reasoning model — the budget must cover reasoning tokens too.
+                    "max_tokens": 2000,
+                }
+                # MiniMax-M3: adaptive thinking puts raw <think> text into content,
+                # which this fallback displays to users verbatim — disable it.
+                if "minimax" in s.llm_model.lower():
+                    payload["thinking"] = {"type": "disabled"}
                 resp = await client.post(
                     f"{s.llm_base_url.rstrip('/')}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
-                    json={
-                        "model": s.llm_model,
-                        "messages": messages,
-                        # Reasoning model — the budget must cover reasoning tokens too.
-                        "max_tokens": 2000,
-                    },
+                    json=payload,
                 )
                 resp.raise_for_status()
                 data = resp.json()

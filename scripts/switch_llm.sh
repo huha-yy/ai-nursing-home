@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# switch_llm.sh local|kimi — 一键切换 LLM 供应商（2026-08-31 本地切换时建）。
+# switch_llm.sh local|kimi|minimax — 一键切换 LLM 供应商（2026-08-31 本地切换时建）。
 #
 # 覆盖四站点矩阵 + ERP 侧，回切 ≈ 10 分钟（含 dato-control 重建与 agent 重启）：
 #   1. infra/.env 三值            4. agent 三件套 JSON（models/auth-profiles/openclaw）
@@ -12,6 +12,9 @@
 # - openclaw env-marker 白名单只认 OPENAI_API_KEY 名字（所以 .env 双写）。
 # - 本地 vLLM（dato-vision.service）服务端已强制 no-think 模板 + --max-model-len 32768，
 #   因此 local profile 的 models.json 写 reasoning:false / contextWindow:32768。
+# - minimax（2026-08-31 接入）：sk-cp Token Plan key 在 OpenAI 兼容端点直接可用；
+#   MiniMax-M3 走默认 adaptive 思考（openclaw 有 stripThinkingTagsFromText 原生剥
+#   <think>）；dl-control 直连兜底与 ERP llm.py 各自的 minimax 分支显式关思考。
 # - kimi 回切前提：Moonshot 账户已充值（2026-08-31 曾因欠费 429 停机）。
 set -euo pipefail
 
@@ -21,13 +24,14 @@ INFRA_ENV="$(dirname "$0")/../infra/.env"
 KIMI_BAK="$(dirname "$0")/../infra/.env.kimi.bak-20260831"
 ERP_ENV="/home/nursing-home/huha-project/nursing-erp/.env"
 ERP_KIMI_BAK="/home/nursing-home/huha-project/nursing-erp/.env.kimi.bak-20260831"
+MINIMAX_ENV="$HOME/.config/dato/minimax.env"
 
 case "$PROFILE" in
   local)
     KEY=$(grep VISION_API_KEY ~/.config/dato/vision.env | cut -d= -f2)
     BASE="http://192.168.10.247:8000/v1"
     MODEL="ocicek/Qwen3.6-27B-NVFP4"
-    CTX=32768; REASONING=false
+    CTX=32768; REASONING=false; COMPAT_USAGE=true
     # 前置：本地 vLLM 必须在跑（平时可能 inactive）
     systemctl --user is-active --quiet dato-vision || {
       echo " dato-vision 未运行，正在启动…"; systemctl --user start dato-vision; }
@@ -37,9 +41,16 @@ case "$PROFILE" in
     KEY=$(grep '^LLM_API_KEY=' "$KIMI_BAK" | head -1 | cut -d= -f2-)
     BASE=$(grep '^LLM_BASE_URL=' "$KIMI_BAK" | head -1 | cut -d= -f2-)
     MODEL=$(grep '^LLM_MODEL=' "$KIMI_BAK" | head -1 | cut -d= -f2-)
-    CTX=131072; REASONING=true
+    CTX=131072; REASONING=true; COMPAT_USAGE=false
     ;;
-  *) echo "用法: $0 local|kimi"; exit 1 ;;
+  minimax)
+    [[ -f "$MINIMAX_ENV" ]] || { echo "找不到 $MINIMAX_ENV"; exit 1; }
+    KEY=$(grep '^MINIMAX_API_KEY=' "$MINIMAX_ENV" | head -1 | cut -d= -f2-)
+    BASE="https://api.minimaxi.com/v1"
+    MODEL="MiniMax-M3"
+    CTX=131072; REASONING=true; COMPAT_USAGE=false
+    ;;
+  *) echo "用法: $0 local|kimi|minimax"; exit 1 ;;
 esac
 
 echo "==> 切到 $PROFILE: model=$MODEL base=${BASE%%/*}/…（key 不打印）"
@@ -62,6 +73,7 @@ echo "    agent .env ×$(ls -d "$AGENTS_ROOT"/*/config/.env 2>/dev/null | wc -l)
 
 # ── 3+4. agent 三件套 JSON（宿主机直写 bind-mount，不碰 marker）──
 KEY="$KEY" BASE="$BASE" MODEL="$MODEL" CTX="$CTX" REASONING="$REASONING" \
+COMPAT_USAGE="$COMPAT_USAGE" \
 python3 - <<'PYEOF'
 import json, os, shutil
 key, base, model = os.environ['KEY'], os.environ['BASE'], os.environ['MODEL']
@@ -76,13 +88,15 @@ for uuid in sorted(os.listdir(root)):
     with open(os.path.join(adir, 'auth-profiles.json'), 'w') as f:
         json.dump({'version': 1, 'profiles': {'openai:default': {
             'type': 'api_key', 'provider': 'openai', 'apiKey': key, 'baseUrl': base}}}, f)
+    # compat.supportsUsageInStreaming 是本地 vLLM 的怪癖开关，云端供应商不带
+    mdl = {'id': model, 'name': model, 'reasoning': reasoning, 'input': ['text'],
+           'contextWindow': ctx, 'maxTokens': 8192, 'api': 'openai-completions'}
+    if os.environ['COMPAT_USAGE'] == 'true':
+        mdl['compat'] = {'supportsUsageInStreaming': True}
     with open(os.path.join(adir, 'models.json'), 'w') as f:
         json.dump({'providers': {'openai': {
             'baseUrl': base, 'api': 'openai-completions', 'apiKey': 'OPENAI_API_KEY',
-            'models': [{'id': model, 'name': model, 'reasoning': reasoning, 'input': ['text'],
-                        'contextWindow': ctx, 'maxTokens': 8192,
-                        'compat': {'supportsUsageInStreaming': True},
-                        'api': 'openai-completions'}]}}}, f, indent=2)
+            'models': [mdl]}}}, f, indent=2)
     shutil.copy2(cfgp, cfgp + '.bak-switch')
     cfg = json.load(open(cfgp))
     cfg.setdefault('models', {})['mode'] = 'merge'
@@ -102,8 +116,11 @@ docker restart $(docker ps --format '{{.Names}}' | grep dato-agent) >/dev/null
 echo "    agent 容器已重启"
 
 # ── 6. dato-control 重建 ──
-cd "$(dirname "$0")/../infra"
-docker compose --project-name dato --project-directory . --env-file .env \
+# 注意：infra/.env 里有 COMPOSE_FILE=infra/docker-compose.yml（Makefile 从仓库根跑的口径），
+# compose 会按 CWD 解析它——所以这里必须显式 -f 绝对路径覆盖，否则 cd 进 infra 后变 infra/infra/…
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+docker compose --project-name dato --project-directory "$REPO_ROOT/infra" \
+  --env-file "$REPO_ROOT/infra/.env" -f "$REPO_ROOT/infra/docker-compose.yml" \
   up -d --force-recreate --build dato-control >/dev/null
 echo "    dato-control 已重建"
 

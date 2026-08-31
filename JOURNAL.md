@@ -1918,6 +1918,8 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
   （菜名/ID/顺序全同）、unmatched=[]。
 - **切换后**：dato-vision 已停（释放 0.35 显存；switch_llm.sh local 会自动拉起）；
   ERP runserver 已整体重启（/proc/<pid>/environ 验证 MiniMax-M3 生效）。
-- **存量债（非本次引入，stash 验证过）**：test_family_chat.py::test_main_role_gate_split
-  失败——main.py 实有 9 处 _NURSING_ROLES，钉子写 8。家属端安全钉，待专项核对。
-- 提交：ai-nursing-home e9e7cc8、nursing-erp 8cecb63。
+- **存量债（已当日专项核对关闭）**：test_main_role_gate_split 失败 = 08-25 工单
+  改版（48d3c60）新增 /api/nursing/work-orders API 带第 9 处 _NURSING_ROLES 门
+  但没 bump 计数钉。门本身正确（工单家属 401，写法与兄弟端点一致），钉子 8→9
+  修复（4165baf），docstring 补「新增路由必须同步 bump」。
+- 提交：ai-nursing-home e9e7cc8、3a752af、4165baf；nursing-erp 8cecb63。

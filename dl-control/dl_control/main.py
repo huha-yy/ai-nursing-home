@@ -265,6 +265,9 @@ def _split_report_text(text: str) -> dict:
                 body = body[: m3.start()].strip()
                 break
     process = "\n\n".join(p for p in (head, tail) if p)
+    # 收尾裸 ``` 围栏线：agent 偶尔把整份报告包进 ```markdown 块——首行围栏
+    # 已随 head 归旁白，尾线会漏进正文渲染成字面反引号，剥掉
+    body = re.sub(r"(?ms)\n?```\s*\Z", "", body).strip()
     return {
         "text": body[:8000] or None,
         "process": process[:3000] if process else None,

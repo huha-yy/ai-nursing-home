@@ -105,7 +105,10 @@ def _prepare_logistics(input: dict[str, Any], outputs: dict[str, Any]) -> AgentT
         + "1. 读取 /opt/openclaw/skills/custom/logistics-inventory/SKILL.md\n"
         + "2. 检查库存水平（重点关注低于安全库存的物资）\n"
         + "3. 根据排班数据制定配送计划（消耗品、餐食、医疗用品）\n"
-        + "4. 输出物资计划和库存预警\n\n"
+        + "4. 输出物资计划和库存预警\n"
+        + "输出格式：Markdown 配送计划报告（标题+分节+表格），禁止输出 JSON 代码块——"
+        + "上游排班数据是 JSON，只作输入用，报告一律用 Markdown 表格呈现"
+        + "（库存预警表 / 逐日配送量表 / 采购建议清单）。\n\n"
         + f"排班数据：{schedule_result}"
     )
     return AgentTask(agent_id=agent_id, message=msg)
@@ -123,7 +126,8 @@ def _prepare_finance(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTas
         + "1. 读取 /opt/openclaw/skills/custom/finance-query/SKILL.md\n"
         + "2. 分析人力成本（根据排班数据估算）\n"
         + "3. 分析物资成本（根据配送计划估算）\n"
-        + "4. 输出运营成本预估报告\n\n"
+        + "4. 输出运营成本预估报告\n"
+        + "输出格式：Markdown 报告（标题+分节+表格），禁止输出 JSON 代码块。\n\n"
         + f"排班数据：{schedule}\n"
         + f"物资数据：{logistics}"
     )
@@ -142,7 +146,8 @@ def _prepare_director_report(input: dict[str, Any], outputs: dict[str, Any]) -> 
         + "操作步骤：\n"
         + "1. 读取 /opt/openclaw/skills/custom/report-generate/SKILL.md\n"
         + "2. 综合排班、物资、成本数据生成周报表\n"
-        + "3. 报表需包含：排班概况、物资配送、成本预估、重点关注事项\n\n"
+        + "3. 报表需包含：排班概况、物资配送、成本预估、重点关注事项\n"
+        + "输出格式：Markdown 报告（标题+分节+表格），禁止输出 JSON 代码块。\n\n"
         + f"排班数据：{schedule}\n"
         + f"物资数据：{logistics}\n"
         + f"成本数据：{finance}"

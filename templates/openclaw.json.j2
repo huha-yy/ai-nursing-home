@@ -9,20 +9,36 @@
     "mode": "merge",
     "providers": {
 {% if agent.tier == "tier0" or agent.tier == "tier1" %}
+{% if llm_vendor_minimax %}
+{# MiniMax 走原生 minimax provider + anthropic-messages 端点：openclaw 只在这条
+   路径自动注入 thinking:disabled（自适应思考不关的话 chat 延迟 10s~90s 摆动，
+   2026-09-03 定位）。models 条目绝不能带 reasoning=true（那会把默认思考级提
+   到 low、payload 带 thinking 后包装器不再覆盖）。 #}
+      "minimax": {
+        "baseUrl": "${MINIMAX_ANTHROPIC_BASE_URL}",
+        "apiKey": "${MINIMAX_API_KEY}",
+        "api": "anthropic-messages",
+        "models": [
+          { "id": "{{ agent.model_id }}", "name": "{{ agent.model_id }}", "reasoning": false, "contextWindow": 131072, "maxTokens": 8192 }
+        ]
+      }
+{% else %}
       "openai": {
         "baseUrl": "${OPENAI_BASE_URL}",
         "apiKey": "${OPENAI_API_KEY}",
         "api": "openai-completions",
         "models": [
-          { "id": "ocicek/Qwen3.6-27B-NVFP4", "name": "Qwen3.6-27B (local)", "reasoning": false, "contextWindow": 32768, "maxTokens": 8192 }
+          { "id": "{{ local_llm_model }}", "name": "{{ local_llm_model }} (local)", "reasoning": false, "contextWindow": 32768, "maxTokens": 8192 }
         ]
       }
+{% endif %}
 {% endif %}
     }
   },
   "agents": {
     "defaults": {
-      "model": { "primary": {{ (agent.model_provider + "/" + agent.model_id) | tojson }} },
+{% set model_provider = "minimax" if (llm_vendor_minimax and agent.tier == "tier0") else agent.model_provider %}
+      "model": { "primary": {{ (model_provider ~ "/" ~ agent.model_id) | tojson }} },
       "compaction": { "mode": "safeguard" },
       "memorySearch": { "provider": "gemini" },
       "timeoutSeconds": 600

@@ -110,6 +110,7 @@ async def reprovision_tier1_agents(
                 site_host=cfg.site_host,
                 existing_json=existing,
                 default_model=cfg.local_llm_default_model,
+                llm_base_url=cfg.llm_base_url,
             )
             new_hash = _hash_rendered(new_text)
 

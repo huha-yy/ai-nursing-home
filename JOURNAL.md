@@ -1923,3 +1923,98 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
   但没 bump 计数钉。门本身正确（工单家属 401，写法与兄弟端点一致），钉子 8→9
   修复（4165baf），docstring 补「新增路由必须同步 bump」。
 - 提交：ai-nursing-home e9e7cc8、3a752af、4165baf；nursing-erp 8cecb63。
+
+## 2026-08-31 演示周数据续灌（食堂看板空 → 两侧全链路补齐）
+
+- **现象**：食堂看板（/kitchen/）无数据。核实根因：ERP MealOrder 断档
+  2026-08-27~09-06（当天 0 单），且 PG 三表全断档——nursing_meals 止于 07-29、
+  nursing_schedules 止于 08-20、nursing_work_orders 止于 08-25。种子 SQL 的
+  「复制到今天」片段只在容器 init 跑，无按日续灌机制 → 每演示周需手动重灌。
+- **ERP 侧**：备份 db.sqlite3.bak-20260831 → systemctl --user stop nursing-erp
+  （发现 runserver 是 user 服务，非 nohup）→ rebuild_demo_data.py 裸跑全量
+  （9363 单/25 异常/3 个月账单，自检全过）→ **顺序坑**：--seed-menus-ahead 是
+  独立子命令（补完即 return），且全量重建会重置 WeekMenu 只留本周+13 周历史，
+  先补后建=白补——正确顺序=全量后再补 4 周（至 09-28）。
+- **PG 侧**：pg_dump 三表备份 /tmp/nursing-demo-tables-bak-20260831.sql；
+  work_orders 重跑 seed_work_orders_demo.py（414 单/14 天含当天）；meals 从
+  ERP WeekMenu 生成 42 行两周（口径拉齐：chat 菜单=看板菜单）；schedules 复制
+  07-13~07-26 两整周 +49 天星期对齐（228 行）。
+- **PG 三坑**：①种子 SQL 声明的三个唯一索引现库没有（ON CONFLICT 直接报错），
+  补建前 work_orders 先去重 11 行历史叠灌重复；②nursing_schedules id 序列落后
+  max(id)，setval 校准；③docker exec psql 的 \i 找容器内路径，SQL 得从宿主机
+  管道送。
+- **验证**：/kitchen/ 早 32/午 34/晚 33 份（张国栋、李秀兰在单）；chat
+  「今天的菜单」18.1s 全链路返回真实菜单，菜品与看板/PG 逐项一致；告警未处理
+  9 条（≥2 达标）。
+- 操作卡沉淀至持久记忆 demo-week-data-refresh.md（每周演示前照抄执行）。
+
+## 2026-09-03 演示前一天重锚：食堂看板二次归零 → 两个数据生成器 bug 修复
+
+- **现象**：09-03 打开 /kitchen/ 数据全 0。根因不是新故障——rebuild_demo_data 的
+  点餐窗口 `span_end = anchor + timedelta(days=2)` 只灌到锚定日+2，08-31 灌的
+  09-03 正好掉窗外。结论：**演示前一天/当天早上必须重锚一次**（操作卡已更新）。
+- **重锚时炸出真 bug**：改餐 swap 从素菜池换菜不查本单已有菜，(order,dish) 撞
+  meals_mealorder_dishes 唯一约束中途崩库（08-31 没炸是 d.day 旋转起点运气）。
+  生产库当场回滚 bak-20260903 恢复服务，/tmp 排练库复现修复后重上。
+  修复：pool_pick 加 avoid 参数顺位下移（nursing-erp c6cabf9）。
+- **连环雷**：PG 工单重灌撞 08-31 补建的 uq_work_orders_res_date_type——
+  seed_work_orders_demo 的 rng.choice 组合每日 ~30 单抽 10 类型必有生日碰撞，
+  08-31 去重清掉的 11 行重复即同源（当时误判为历史叠灌）。按 (date,rid,type)
+  去重修复（ai-nursing-home 79a5175），连跑两遍幂等验证。
+- **重锚后验证**：食堂看板 早30/午34/晚35 份（09-03 当天菜单+点单明细）；
+  工单 397 单/14 天（08-21~09-03）；PG 菜单/排班 09-13 前覆盖未动；周报已按
+  09-03 重触发（顶期次生成时间=演示当天）。
+- **流程沉淀**：改数据脚本先排练再上生产（cp 库到 /tmp + NURSING_DB 环境变量），
+  这次把崩库拦在了生产外。失败现场存 db.sqlite3.failed-20260903 备查。
+
+## 2026-09-03 演示数据整月覆盖（--cover-until 2026-09-30）
+
+- **需求**：演示不定期，+2 天窗口隔几天看板就空——数据一次铺满 9 月。
+- **ERP**：rebuild_demo_data 加 `--cover-until YYYY-MM-DD`（nursing-erp 7aa9d5e），
+  只前铺语义合理的数据面：点餐（未来=ordered 预点餐，2653 单）、周菜单
+  （自动随 span 延到 10-04 周）、ERP 排班（做六休一模式延到 09-30）；考勤/
+  出入库/绩效保持过去式。实测 9152 单 / 自检全过 / 排练库先行。
+- **PG**：meals 从 ERP WeekMenu 补 09-14/21/28 三周 63 行（9 月 90 行整月）；
+  schedules 先踩一坑——按 +49 直铺用的源区 07-27 后稀疏（4 行/天），"3号楼
+  今天谁当班"会偶发空，改用稠密源周 07-13~07-26 按 +63/+70 复制（星期对齐），
+  09-14~10-04 共 342 行、3号楼每天 2-3 人在岗。工单保持过去 14 天窗口，
+  演示当天重跑种子（完成率语义不宜前铺）。
+- **兜底语义变化**：现在就算演示前忘了重锚，任何 9 月日期打开系统都有量
+  （状态是"预点餐"而非当日进行时）；要当日进行时状态仍按操作卡当天重锚。
+
+## 2026-09-03 --demo-free 演示留白（用户抓到的 cover-until 副作用）
+
+- **问题**（用户发现）：整月预点后，防重约束 (老人,日期,餐次)（API
+  `_assert_no_active_duplicate` 批量路径**整批拒绝**）让"周选点餐/家属代点"
+  演示必 400——录屏脚本分镜 3（楼长周选点餐·张国栋）和分镜 6（家属代点
+  下周餐·张国栋）都没位可点。
+- **方案**：rebuild_demo_data 加 `--demo-free`（nursing-erp 156588f），留白
+  老人锚定日后不预点；默认 {1,2}=张国栋/李秀兰（两处演示主角+家属双绑），
+  可传名单或 none。当日与历史照旧 → 看板有量、档案完整。
+- **权衡说明**（已向用户交代）：留白只有名单内老人可"从零点餐"；想临时换
+  别的老人演示 → 改 --demo-free 名单重灌（1 分钟）。
+- 生产部署：9002 单（张国栋/李秀兰未来 0、今日 99 单在板）、自检全过、
+  备份 db.sqlite3.bak-20260903-pre-demofree。
+
+## 2026-09-03 家属端默认周对齐「周五点下周」+ 演示位复盘
+- 用户问"点餐原则不是每周五点下周吗"→ 核对两端：ERP 周选点餐本来就是（日期框默认跳最近周五、目标周=周五+3=下周一~周日，weekly_order.html:46/94）；**家属端 family_order.html 默认 monday(now)=本周，是唯一偏差**。李秀兰"08-31 早餐已送达"400 即从家属端按默认周（本周）提交撞上已送达历史天。已改默认=下周一（nursing-erp ffcfd5b）。
+- 复盘发现：当天 02:24 有人（用户自测）从页面成功给张国栋提交了 09-07 整周 21 餐——证明下周路径本来就通，但也占掉了张国栋该周演示位；已逐单走退餐 API 清掉（status=cancelled 留痕），张国栋+李秀兰未来有效订单归 0。
+- 判别脚本灌单 vs 页面提交的方法：created_at 带 +00:00 时区后缀=脚本 bulk_create；朴素时间戳=API 路径；再看时间是否晚于重灌批次。
+- 新增 `nursing-erp/scripts/restore_demo.sh`（b298f32）：用户测试弄脏库后自助一键恢复——备份→停服→全量重灌（锚定当天、cover-until 默认 2026-09-30、demo-free 1,2）→补菜单→起服→验证（服务/HTTP/今日订单/演示位=0），当天全流程实跑通过。测试只脏 ERP 动态层；PG 侧 chat 只读不受影响，工单仍演示当天早重跑。
+
+## 2026-09-03 排班生成明细展示 + 生成器三处口径修复（f3bd22f）
+- 用户测工作流发现"护理科—排班生成"只有汇总卡格（楼栋/人数/班次数），看不出谁在哪个班。根因是四层都掐：技能只回 6 个数 → 提示词要 schedules 数组但技能不返回 → _extract_step_summary 白名单只放 6 键 → 页面无正文退化卡格。
+- 生成器三个真 bug：①名册从 nursing_users 取 building/floor 只得楼长+组长 2 人（护理员真名册在排班史里）；②写"白班(7-19)"带后缀——大屏 main.py 按裸字符串统计，后缀行不可见却污染 chat/报表（历史积了 108 行已清，pg_dump 备份 /tmp/nursing_schedules-bak-20260903.sql）；③"简单轮转"=每人每天白班夜班全上，做六休一没实现。
+- 新生成器：名册=本楼近 28 天排班在册人员；按 (天,班次) 缺口补人（缺口大的班先补——09-05 夜班真空被误补进白班的教训）；覆盖优先于轮休；返回值库内回读 + schedule 逐日明细。
+- 权限坑：dl_control_app 有表级 INSERT 却无序列 USAGE，nextval 即 InsufficientPrivilege——GRANT USAGE ON ALL SEQUENCES IN public 已补（10 个序列）。
+- 部署：handler+SKILL.md docker cp 进护理科容器（37a5de62）重启；main.py/reports.html/nursing_ops.py 走 dato-control --build 重建。E2E：nursing.ops 全绿，API schedule 7 天明细，19 班=库内实数。
+- ERP 侧同日：家属端默认周对齐周五点下周（nursing-erp ffcfd5b）+ 一键恢复脚本 restore_demo.sh（b298f32），见上条目。
+- 总务科步骤"格式不对"复盘：护理科 JSON 输出传染下游（LLM 模仿输入格式），报告类三步骤提示词钉死 Markdown + _split_report_text 剥尾部围栏（ai 上一条 commit）。要点：extract 是读时计算，改完渲染逻辑不用重跑工作流，直接刷报表页即可复验。
+
+## 2026-09-03 AI chat 延迟不稳定：MiniMax 思考未关是主因（agent 路径切原生 minimax provider）
+- 销售反馈"ai 回复时快时慢"。定位链：厂商侧直测同一句话——无思考参数 7.8s/158tok vs thinking:disabled 3.4s/26tok；MiniMax-M3 自适应思考默认全开，思考量随问题难度浮动（难题烧几千 token ≈ 60-90s），这就是摆动主因。直连路径（家属端）早已在 payload 里 thinking disabled；**agent 路径没关**。
+- 机制层根因：openclaw 只在 `anthropic-messages + provider=minimax` 路径上自动注入 thinking:disabled（/app/dist/proxy-stream-wrappers 的 createMinimaxThinkingDisabledWrapper）。我们的 agent 走 `openai-completions + provider:openai`（baseUrl 指向 minimaxi.com/v1）→ 包装器永不生效，且 openai-completions 传输层只会发 reasoning_effort（要求 model.reasoning=true 才发），从不发 MiniMax 原生的 thinking 参数。
+- 修复：10 个护理 agent 全部切原生 minimax provider——models.json/openclaw.json 的 providers 换成 `minimax + https://api.minimaxi.com/anthropic + api:anthropic-messages`，agent config/.env 加 MINIMAX_API_KEY，primary=minimax/MiniMax-M3。**models 条目绝不能带 reasoning=true**（那会把默认思考级提到 low、payload 带 thinking 后包装器不再覆盖）。anthropic 端点实测：key 通用、tool_use 正常、prompt caching 生效（20K 上下文 cacheRead）。
+- 验证：楼长路径 6 连发 6.0-9.9s（改前 9.6-16.9s，重启后首发 17.6s 是冷启动）；会话 JSONL 切换后 assistant 条目 0 thinking 块；nursing.ops E2E 3分18秒全绿（原 ~4min），四步报告 Markdown 无格式回归。
+- 管线持久化（防重建/key 轮换回滚）：config_gen render_env_file 按 base_url 含 minimax 导出 MINIMAX_API_KEY+MINIMAX_ANTHROPIC_BASE_URL；setup-llm.sh 加 minimax 分支写 anthropic 配置；openclaw.json.j2 按 llm_vendor_minimax 分支渲染 minimax 块（primary 同步跟随，tier1 local 不受影响）。顺手修：service.py 调 render_env_file 原先没传 llm_base_url/llm_model（会回落 moonshot 默认值，重新供应即写错地址）。启动 reprovision 只扫 tier1（护理 agent 全 tier0），重建 dato-control 不触发全量重渲。
+- 已知残留（未动）：①院长 agent 自己的工具连环调用返回 disabled/空，多轮往返 20s+ 且接收端只回传第一段 [[reply_to_current]] 文字（provider 无关旧病）；②dl-control 对 agent 的 60s 超时后会静默再走 90s 直连（最坏 ~150s 双等待），思考关掉后基本不触发；③legacy 5 个 agent（运营助手×2/知识库/内容运营/Agent Manager）仍是 openai-completions，不在 chat 路由里。

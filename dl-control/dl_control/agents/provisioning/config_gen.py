@@ -77,9 +77,15 @@ def render_openclaw_json(
     existing_json: str | None,
     default_model: str = "qwen3.5:9b",
     comfyui_configured: bool = False,
+    llm_base_url: str = "",
 ) -> str:
     """Render openclaw.json for a registry row. If `existing_json` is given,
-    its `meta` block is carried forward unchanged (spec §6.1)."""
+    its `meta` block is carried forward unchanged (spec §6.1).
+
+    `llm_base_url` carries the stack-level vendor (from infra/.env via
+    settings): MiniMax renders the native `minimax` provider (anthropic-
+    messages) so openclaw's thinking-disabled stream wrapper applies; any
+    other vendor renders the generic openai-compatible block."""
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
         undefined=StrictUndefined,
@@ -94,6 +100,7 @@ def render_openclaw_json(
         caddy_domain=site_host,
         local_llm_proxy_url=agent_ctx["local_llm_proxy_url"],
         local_llm_model=(model.get("model") or default_model),
+        llm_vendor_minimax=("minimax" in llm_base_url),
     )
     try:
         doc = json.loads(rendered)
@@ -217,6 +224,18 @@ def render_env_file(
         + tier1_env_lines
         + cognee_env_lines
     )
+    # MiniMax 走 openclaw 原生 minimax provider（anthropic-messages 端点）才会命中
+    # 内置的 thinking 自动禁用包装器（proxy-stream-wrappers 里只对
+    # anthropic-messages + minimax provider 注入 thinking:disabled）——不关思考
+    # 时 MiniMax-M3 服务端自适应思考是 chat 延迟 10s~90s 摆动的主因（09-03 定位）。
+    # 这里导出同名 env，供 models.json 的 env marker 与 j2 的 ${...} 插值解析。
+    if "minimax" in llm_base_url:
+        minimax_anthropic_base = llm_base_url.rstrip("/")
+        if minimax_anthropic_base.endswith("/v1"):
+            minimax_anthropic_base = minimax_anthropic_base[: -len("/v1")]
+        result += f"MINIMAX_API_KEY={_sh_single_quote(llm_api_key)}\n"
+        minimax_anthropic = _sh_single_quote(minimax_anthropic_base + "/anthropic")
+        result += f"MINIMAX_ANTHROPIC_BASE_URL={minimax_anthropic}\n"
     if pexels_api_key:
         result += f"PEXELS_API_KEY={_sh_single_quote(pexels_api_key)}\n"
     if tavily_api_key:
@@ -288,6 +307,7 @@ def regenerate_openclaw_json(cfg, row: dict) -> None:
         site_host=cfg.site_host,
         existing_json=existing,
         default_model=cfg.local_llm_default_model,
+        llm_base_url=cfg.llm_base_url,
     )
     atomic_write_with_fsync(
         openclaw_path,

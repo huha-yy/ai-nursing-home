@@ -265,12 +265,17 @@ def _generate_config_set(
         existing_json=existing,
         default_model=cfg.local_llm_default_model,
         comfyui_configured=bool(cfg.comfyui_url or comfyui_lines),
+        llm_base_url=cfg.llm_base_url,
     )
     atomic_write_text(
         config_dir / ".env",
         config_gen.render_env_file(
             openclaw_token=token,
             llm_api_key=cfg.llm_api_key,
+            # 显式传供应商三元组：不传会落到函数签名的 moonshot 默认值，
+            # 重新供应时把 agent .env 的 LLM 地址写错（2026-09-03 顺手修）。
+            llm_base_url=cfg.llm_base_url,
+            llm_model=cfg.llm_model,
             pexels_api_key=cfg.pexels_api_key if cfg.pexels_api_key else "",
             tavily_api_key=cfg.tavily_api_key if cfg.tavily_api_key else "",
             xiaomi_mimo_api_key=cfg.xiaomi_mimo_api_key if cfg.xiaomi_mimo_api_key else "",

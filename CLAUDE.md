@@ -402,6 +402,25 @@ built-in `openai` provider id; the vendor (Moonshot) is selected purely via
 accepted (never send a custom temperature), and `max_tokens` must budget for
 reasoning tokens (dl-control chat uses 2000).
 
+**MiniMax thinking MUST stay disabled on the agent path (2026-09-03):**
+MiniMax-M3 runs adaptive thinking server-side by default; on hard questions it
+burns thousands of tokens ≈ 60-90s replies (the "chat 时快时慢" sales complaint).
+openclaw only injects `thinking:{"type":"disabled"}` when the provider is the
+native `minimax` id over `api:"anthropic-messages"` (baseUrl
+`https://api.minimaxi.com/anthropic`) — the wrapper never fires on
+`openai-completions`. Consequences:
+
+- Agent `models.json`/`openclaw.json` carry a `minimax` provider block (NOT
+  `openai`), apiKey env marker `MINIMAX_API_KEY` (exported in agent
+  `config/.env` alongside `LLM_*`/`OPENAI_*`), primary `minimax/MiniMax-M3`.
+- Never add `"reasoning": true` to the MiniMax models entry — it raises the
+  default thinking level, the payload then carries `thinking`, and the
+  disable-wrapper stops overriding it.
+- `setup-llm.sh`, `config_gen.render_env_file`, and `openclaw.json.j2` all
+  branch on the minimax base URL; `switch_llm.sh` (pre-09-03) still writes the
+  openai-completions triple — after switching back to minimax with it, redo the
+  provider by hand per the runbook in JOURNAL.md 2026-09-03.
+
 **Correct order for a new environment:**
 
 1. **Edit `infra/.env`** — set `LLM_API_KEY=sk-your-real-key` **before anything else**

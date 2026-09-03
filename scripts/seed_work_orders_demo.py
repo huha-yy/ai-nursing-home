@@ -80,6 +80,10 @@ def day_rate(days_ago: int, rng: random.Random) -> float:
 def build_rows(today: date) -> list[tuple]:
     rng = random.Random(SEED)
     rows: list[tuple] = []
+    # (date, resident_id, type) 去重：rng.choice 组合会重样（每日 ~30 单抽 10 类型
+    # 的生日碰撞），旧库无唯一索引时静默落成重复行；08-31 补建
+    # uq_work_orders_res_date_type 后 09-03 重灌即 INSERT 失败。
+    seen: set[tuple[str, str, str]] = set()
     for days_ago in range(DAYS - 1, -1, -1):
         d = today - timedelta(days=days_ago)
         n = rng.randint(24, 34)
@@ -87,6 +91,10 @@ def build_rows(today: date) -> list[tuple]:
         for _ in range(n):
             rid, building = rng.choice(RESIDENTS)
             otype = rng.choice(TYPES)
+            key = (d.isoformat(), rid, otype)
+            if key in seen:
+                continue
+            seen.add(key)
             rows.append((
                 rid,
                 d.isoformat(),

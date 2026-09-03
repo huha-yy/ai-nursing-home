@@ -625,6 +625,7 @@ async def build_app() -> FastAPI:
                 "day_shifts": output.get("day_shifts"),
                 "night_shifts": output.get("night_shifts"),
                 "week": output.get("week"),
+                "schedule": output.get("schedule"),  # 逐日明细，报表页渲染排班表
             }
         if step_key == "logistics-step":
             return {

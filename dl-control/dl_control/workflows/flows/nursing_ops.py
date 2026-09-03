@@ -82,9 +82,11 @@ def _prepare_nursing_schedule(input: dict[str, Any], outputs: dict[str, Any]) ->
         + "操作步骤：\n"
         + "1. 读取 /opt/openclaw/skills/custom/nursing-schedule/SKILL.md\n"
         + "2. 使用 process 工具调用 handler.generate_weekly_schedule\n"
-        + "3. 输出排班结果 — staff_count, total_shifts, day_shifts, night_shifts\n"
-        + "输出格式：JSON 对象，包含 week, building, staff_count, total_shifts, "
-        + "day_shifts, night_shifts, schedules 数组。"
+        + "3. 输出排班结果 — staff_count, total_shifts, day_shifts, night_shifts, schedule\n"
+        + "输出格式：JSON 对象，键为 week, building, staff_count, total_shifts, "
+        + "day_shifts, night_shifts, schedule。schedule 是逐日明细数组（每天 "
+        + '{"date","白班","夜班"}，人名顿号分隔），必须逐字复制技能返回值，'
+        + "不得改写、缩写或省略人名/日期。"
     )
     if week_start:
         msg += f"\n周起始日期：{week_start}"

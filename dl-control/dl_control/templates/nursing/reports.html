@@ -259,7 +259,21 @@ function renderDoc(k, s){
     }
     if (sum['period']) html += '<div class="nh-rp-meta">' + sum['period'] + '</div>';
   } else {
-    var keys = Object.keys(sum).filter(function(kk){ return kk !== 'process' && sum[kk] !== null && sum[kk] !== undefined; });
+    var sched = Array.isArray(sum.schedule) ? sum.schedule : null;
+    var keys = Object.keys(sum).filter(function(kk){ return kk !== 'process' && kk !== 'schedule' && sum[kk] !== null && sum[kk] !== undefined; });
+    if (sched && sched.length) {
+      // 排班逐日明细表（2026-09-03 前只有汇总卡格，看不出谁在哪个班）
+      var wd = ['日','一','二','三','四','五','六'];
+      html += '<div class="nh-rp-md" style="margin-bottom:.6rem"><table><thead><tr>' +
+              '<th>日期</th><th>白班 7:00-19:00</th><th>夜班 19:00-7:00</th></tr></thead><tbody>';
+      sched.forEach(function(d){
+        var dt = new Date(String(d.date).replace(/-/g,'/'));
+        var w = isNaN(dt.getTime()) ? '' : ' 周' + wd[dt.getDay()];
+        html += '<tr><td>' + esc(d.date) + w + '</td><td>' + esc(d['白班'] || '—') +
+                '</td><td>' + esc(d['夜班'] || '—') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
     if (keys.length) {
       // 护理科排班等结构化产出：键值卡格
       var cnLabels = {
@@ -281,7 +295,7 @@ function renderDoc(k, s){
         html += '<div class="nh-rp-sec-cell"><span class="lbl">' + label + '</span><span class="val">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>';
       });
       html += '</div>';
-    } else {
+    } else if (!sched) {
       html += '<div class="nh-rp-doc-missing">本期未生成' + (stepNames[k] || '该步骤') + '的产出（步骤未执行或输出为空）</div>';
     }
   }

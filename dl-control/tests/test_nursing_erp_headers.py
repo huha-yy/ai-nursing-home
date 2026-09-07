@@ -225,6 +225,71 @@ def test_skill_queries_no_keyword_collateral():
     assert hit("老人的评估结果") == "assessment-query"
 
 
+# ---- 意图第三轮（2026-09-07：当班/食堂/真实人名/投诉/组合问句）----
+
+
+def test_skill_queries_round3_new_keywords():
+    """第三轮口语补齐：
+    - 「当班」归排班行（护理台快速按钮「某楼栋当班人员」）
+    - 「食堂」归菜单行
+    - 真实人名（张国栋等 8 人）归 resident 行；陈旧种子名"张建国"不再是关键词
+    - 「投诉」命中投诉 SQL 行
+    """
+    rows = _skill_queries()
+
+    def hit(msg):
+        return next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+
+    assert hit("3号楼当班人员") == "nursing-schedule"
+    assert hit("食堂今天做了什么") == "meal-query"
+    assert hit("今天谁照顾张国栋") == "resident-query"
+    assert hit("李秀兰住哪个房间") == "resident-query"
+    assert hit("张建国是谁") is None  # 库里没有这个人的关键词兜底（陈旧名已删）
+    assert hit("有人投诉吗") == "complaint-query"
+    assert hit("家属有什么意见") == "complaint-query"
+    # 组合问句的人名+事件仍走前行（异常口语在 resident 之前）
+    assert hit("吴桂英欠费三个月了吗") == "finance-query"
+
+
+def test_skill_queries_round3_no_collateral():
+    """第三轮新词不引入新撞车：
+    - 「当班」不得吞掉排班外的当班类问句之外的场景（员工行"值班人员"仍后于排班行）
+    - 投诉行不吞「食堂投诉了什么」——投诉优先于菜单（更贴问题意图），
+      此为有意行为，钉住
+    """
+    rows = _skill_queries()
+
+    def hit(msg):
+        return next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+
+    assert hit("值班人员有哪些") == "nursing-schedule"  # "值班"在排班行，先于员工行
+    assert hit("食堂有投诉吗") == "complaint-query"
+
+
+def test_match_skill_rows_combo_whitelist():
+    """组合问句：白名单对（菜单+活动）双行；非白名单对仍单行。
+
+    「本日菜单和活动」快速按钮此前只注一半数据；「评估盘点」这类
+    assessment×logistics 撞车对必须保持单行（否则莫名注入库存）。
+    """
+    from dl_control.main import _match_skill_rows
+
+    rows = _skill_queries()
+    combo = _match_skill_rows("本日菜单和活动", rows)
+    assert [s for s, _q in combo] == ["meal-query", "activity-query"]
+    # 纯单意图仍单行
+    single = _match_skill_rows("晚饭吃什么", rows)
+    assert [s for s, _q in single] == ["meal-query"]
+    # 非白名单组合：评估盘点（assessment + logistics 撞车）恒单行
+    collision = _match_skill_rows("做个评估盘点", rows)
+    assert [s for s, _q in collision] == ["assessment-query"]
+    # 组合词序无关：活动在前也凑齐白名单对
+    combo2 = _match_skill_rows("今天有什么活动和菜单", rows)
+    assert {s for s, _q in combo2} == {"meal-query", "activity-query"}
+    # 无命中 → 空列表
+    assert _match_skill_rows("院内通知", rows) == []
+
+
 # ---- _schedule_window（2026-09-07 排班范围预取）----
 
 

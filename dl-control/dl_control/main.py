@@ -292,7 +292,9 @@ def _skill_queries() -> list:
     review 三态盘点，泛评估词 → 评估单列表。
     """
     return [
-        (["排班", "值班", "谁当班", "排班表"], "nursing-schedule",
+        # 「当班」收进排班行（09-07 三轮：护理台快速按钮「某楼栋当班人员」原先
+        # 半命中员工行——排班行在前，注入的是排班表而非花名册，正是该问句要的）
+        (["排班", "值班", "谁当班", "当班", "排班表"], "nursing-schedule",
          "API:/api/schedules/?date=" + datetime.now().strftime("%Y-%m-%d")),
         (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
          "API:/api/incidents/"),
@@ -308,31 +310,52 @@ def _skill_queries() -> list:
         # "有老人摔倒吗"同时含"老人"，先命中这里才拿得到 incidents 而非老人名单
         (["摔倒", "走失", "坠床", "噎食", "发烧", "发热"], "alert-query",
          "API:/api/incidents/?handled=false"),
+        # 财务三行 + 投诉行必须在 resident 行之前（09-07 三轮重排：resident 行
+        # 收进真实人名后，「吴桂英欠费」「家属有意见」这类 人名/名词+意图 组合
+        # 问句会被 resident 行吞掉——欠费/费用/投诉是更具体的意图，前置）；
+        # 行内序：欠费 → 餐费/月结 → 泛财务（首匹配 break，欠费须最先）
+        (["欠费", "没交", "未缴", "未交", "催缴"], "finance-query",
+         "API:/api/billing/arrears/"),
+        (["餐费", "月结"], "finance-query", "API:/api/meal-finance/"),
+        (["费用", "结算", "缴费", "账单", "应收", "出账", "收费", "收了"], "finance-query",
+         "API:/api/billing/summary/"),
+        # 投诉/意见（09-07 三轮：「有人投诉吗」未命中任何行；表在本地 PG，
+        # 3 行真实演示数据，无日期列按 id 倒序）。须在 meal（"食堂"）行
+        # 之前——「食堂有投诉吗」该给投诉数据而非菜单
+        (["投诉", "抱怨", "意见"], "complaint-query",
+         "SELECT id, content, source, status FROM nursing_complaints "
+         "ORDER BY id DESC LIMIT 20"),
         # 「入住」这类短词刻意不收：会先于后行吞掉"入住率/床位"类问句。
         # 收长词组（09-07 实测坑：销售问「院里住了多少人」未命中任何行，
         # agent 拿系统 prompt 里的对标口径编出 1100 人）；「入住情况/入住动态」
         # 走 residents 列表（自带 admission_date，可判断近期新入住；离院
-        # 台账 ERP 未暴露 API，回答由 agent 如实说明）
-        (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案",
+        # 台账 ERP 未暴露 API，回答由 agent 如实说明）。
+        # 人名（09-07 三轮：原"张建国"是陈旧种子名，库里根本没有——换成
+        # nursing_residents 实有 8 人；组合问句由前方的 欠费/摔倒 行优先，
+        # 人名行只兜纯人名问句「张国栋住哪」）
+        (["老人", "张国栋", "李秀兰", "陈永发", "赵玉芬", "王淑珍", "刘明德",
+          "吴桂英", "周德胜", "301", "302", "303", "108", "205", "老人档案", "健康档案",
           "住了多少人", "多少入住", "入住人数", "在院人数", "在院老人数",
           "入住情况", "入住动态"],
          "resident-query", "API:/api/residents/"),
         # 床位/入住率走 beds occupancy（resident 行刻意不收裸"入住"给它让路）
         (["床位", "入住率", "空床", "满床", "几床", "空着"], "beds-occupancy",
          "API:/api/beds/occupancy/"),
-        # 早/午/晚饭口语（"晚饭吃什么"此前未命中任何行）
+        # 早/午/晚饭口语（"晚饭吃什么"此前未命中任何行）；「食堂」（09-07
+        # 三轮：「食堂今天做了什么」未命中任何行）
         (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐",
-          "早饭", "午饭", "晚饭", "夜宵", "晚上吃什么", "早上吃什么", "中午吃什么"],
+          "早饭", "午饭", "晚饭", "夜宵", "晚上吃什么", "早上吃什么", "中午吃什么",
+          "食堂"],
          "meal-query",
          f"API:/api/week-menu/?week_start={_week_start()}"),
         (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
+         # 口径对齐 dashboard _eff_date 兜底：演示活动数据常停在最近一天，
+         # 纯 date >= CURRENT_DATE 会空手（09-07 三轮实测「菜单和活动」答
+         # "活动数据为空"）。今天或未来有数据取之；否则取最近一天那天起。
          "SELECT title, date, time, location FROM nursing_activities "
-         "WHERE date >= CURRENT_DATE ORDER BY date LIMIT 10"),
-        (["欠费", "没交", "未缴", "未交", "催缴"], "finance-query",
-         "API:/api/billing/arrears/"),
-        (["餐费", "月结"], "finance-query", "API:/api/meal-finance/"),
-        (["费用", "结算", "缴费", "账单", "应收", "出账", "收费", "收了"], "finance-query",
-         "API:/api/billing/summary/"),
+         "WHERE date >= COALESCE((SELECT MIN(date) FROM nursing_activities "
+         "WHERE date >= CURRENT_DATE), (SELECT MAX(date) FROM nursing_activities)) "
+         "ORDER BY date, time LIMIT 10"),
         (["预警", "告警", "重点关注", "异常"], "alert-query",
          "API:/api/incidents/?handled=false"),
         # 员工口语（护工/护士/医生/护理员——"护理员"不含"护理等级"，评估行不吞）
@@ -370,6 +393,34 @@ def _schedule_window(message: str) -> list[str] | None:
     if any(w in message for w in ("三天", "3天", "最近", "过去", "几天", "昨天", "前天")):
         return [(today - timedelta(days=2 - i)).isoformat() for i in range(3)]
     return None
+
+
+# 组合问句白名单（09-07 三轮）：快速按钮「本日菜单和活动」类问句同时含
+# 两组关键词，此前首匹配 break 只注入一半数据。只放行已观察到的组合对——
+# 任意两行并注会带来撞车噪声（「评估盘点」assessment 行 + "盘点"子串命中
+# logistics 行 → 莫名注入一页库存），新组合确认无撞车再进白名单。
+_COMBO_SKILL_PAIRS = {frozenset({"meal-query", "activity-query"})}
+_COMBO_LABELS = {"meal-query": "菜单数据", "activity-query": "活动数据"}
+
+
+def _match_skill_rows(message: str, table: list) -> list[tuple[str, str]]:
+    """意图匹配：返回 (skill_name, sql) 列表——首匹配行 + 白名单组合的第二行。
+
+    单意图问句恒只返回 1 行（与旧 first-match-break 行为一致）；组合问句
+    最多 2 行，且第二行必须与首行构成白名单组合对。
+    """
+    matches: list[tuple[str, str]] = []
+    for keywords, skill_name, sql in table:
+        if not any(kw in message for kw in keywords):
+            continue
+        if not matches:
+            matches.append((skill_name, sql))
+        elif len(matches) == 1 and frozenset(
+            (matches[0][0], skill_name)
+        ) in _COMBO_SKILL_PAIRS:
+            matches.append((skill_name, sql))
+            break
+    return matches
 
 
 async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | None:
@@ -417,6 +468,25 @@ async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | Non
     except Exception as e:
         logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {e}")
         return None
+
+
+async def _collect_skill_data(message: str, sess, db, is_family: bool):
+    """两个 chat 端点共用的意图匹配+预取（09-07 三轮统一入口）。
+
+    单意图 → 该行数据的列表；组合问句 → {中文标签: 行} dict（两个意图
+    的数据并排可辨）；未命中或全部拉取失败 → None。
+    """
+    table = _family_skill_queries() if is_family else _skill_queries()
+    results: list[tuple[str, list]] = []
+    for sname, ssql in _match_skill_rows(message, table):
+        r = await _prefetch_skill_data(ssql, sname, message, sess, db)
+        if r is not None:
+            results.append((sname, r))
+    if not results:
+        return None
+    if len(results) == 1:
+        return results[0][1]
+    return {_COMBO_LABELS.get(s, s): r for s, r in results}
 
 
 def _family_skill_queries() -> list:
@@ -989,13 +1059,7 @@ async def build_app() -> FastAPI:
                 logging.getLogger(__name__).warning(f"workflow trigger failed: {_we}")
 
         # ── Skill intent detection (run first) ────────────────────
-        skill_result = None
-        matched_skill = None
-        for keywords, skill_name, sql in (_family_skill_queries() if is_family else _skill_queries()):
-            if any(kw in message for kw in keywords):
-                matched_skill = skill_name
-                skill_result = await _prefetch_skill_data(sql, skill_name, message, sess, db)
-                break
+        skill_result = await _collect_skill_data(message, sess, db, is_family)
 
         # ── Agent routing (with skill data injected) ──────────────
         agent_reply = None
@@ -1258,13 +1322,8 @@ async def build_app() -> FastAPI:
             async for chunk in _chat_gen():
                 yield chunk
 
-        # ── Skill intent detection（与非流式端点同款预取） ──
-        skill_result = None
-        _skill_table = _family_skill_queries() if is_family else _skill_queries()
-        for keywords, skill_name, sql in _skill_table:
-            if any(kw in message for kw in keywords):
-                skill_result = await _prefetch_skill_data(sql, skill_name, message, sess, db)
-                break
+        # ── Skill intent detection（与非流式端点同款预取，组合问句双行注入） ──
+        skill_result = await _collect_skill_data(message, sess, db, is_family)
 
         agent_msg = message
         if skill_result is not None:

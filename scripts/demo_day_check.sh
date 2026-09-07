@@ -72,14 +72,15 @@ fi
 
 # ── 3. 数据新鲜度 ───────────────────────────────────────────────
 section "数据新鲜度（今天 $TODAY）"
-days_ago() { python3 -c "from datetime import date;import sys;d=date.fromisoformat(sys.argv[1]);print((date.today()-d).days)" "$1"; }
+days_ago() { python3 -c "from datetime import date;import sys;print((date.today()-date.fromisoformat(sys.argv[1])).days)" "$1"; }
+ago() { if [ "$1" -lt 0 ]; then echo "未来$((-$1))天"; else echo "$1天前"; fi; }
 
 if [ -n "$ERP_KEY" ]; then
   # 未处理告警：最新一条距今
   latest=$(curl -s -m 10 -H "X-API-Key: $ERP_KEY" "$ERP/api/incidents/?handled=false" | python3 -c "import sys,json;d=json.load(sys.stdin);items=d.get('items',d);print(max((i['created_at'][:10] for i in items),default='') if items else '')" 2>/dev/null)
   if [ -n "$latest" ]; then
     n=$(days_ago "$latest")
-    if [ "$n" -le 1 ]; then ok "未处理告警最新 $latest（${n}天前）"
+    if [ "$n" -le 1 ]; then ok "未处理告警最新 $latest（$(ago "$n")）"
     elif [ "$n" -le 3 ]; then warn "告警最新 $latest 已 ${n} 天——演示前重锚（restore_demo.sh / seed-incidents-extra）"
     else bad "告警最新 $latest 已 ${n} 天，演示会显得陈旧"; fi
   else bad "未处理告警为 0（演示撑不起告警页）"; fi
@@ -104,7 +105,7 @@ for t in nursing_work_orders nursing_activities; do
   latest=$(pg_q "SELECT MAX(date) FROM $t" | tr -d ' ')
   if [ -n "$latest" ]; then
     n=$(days_ago "$latest")
-    if [ "$n" -le 1 ]; then ok "$t 最新 $latest（${n}天前）"
+    if [ "$n" -le 1 ]; then ok "$t 最新 $latest（$(ago "$n")）"
     elif [ "$n" -le 3 ]; then warn "$t 最新 $latest 已 ${n} 天"
     else bad "$t 最新 $latest 已 ${n} 天（工单→python3 scripts/seed_work_orders_demo.py；活动→活动表续期）"; fi
   else bad "$t 查不到（dato-postgres 容器或表缺失）"; fi
@@ -114,7 +115,7 @@ done
 rpt=$(pg_q "SELECT MAX(created_at)::date FROM workflow_run WHERE workflow_id='nursing.ops' AND status='succeeded'" | tr -d ' ')
 if [ -n "$rpt" ]; then
   n=$(days_ago "$rpt")
-  if [ "$n" -le 1 ]; then ok "周报最新期次 $rpt（${n}天前）"
+  if [ "$n" -le 1 ]; then ok "周报最新期次 $rpt（$(ago "$n")）"
   elif [ "$n" -le 3 ]; then warn "周报最新期次 $rpt 已 ${n} 天——演示当天让院长在 chat 里说「生成周报」现场触发"
   else warn "周报最新期次 $rpt 已 ${n} 天（现场触发一条即可，~4 分钟出）"; fi
 else bad "周报无成功期次——演示前必须触发一次 nursing.ops"; fi

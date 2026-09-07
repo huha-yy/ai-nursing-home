@@ -238,6 +238,14 @@ var LABEL = '{{ role_label }}';
     div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + html;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
+    return div;
+  }
+
+  // 流式增量更新：复用同一气泡重渲染（simpleMarkdown 是纯函数，整段重跑）
+  function updateMessage(div, text) {
+    var label = '{{ role_label }}';
+    div.innerHTML = '<div class="nh-msg-meta">AI ' + label + '助手</div>' + simpleMarkdown(text);
+    msgs.scrollTop = msgs.scrollHeight;
   }
 
   function loadChatList() {
@@ -322,21 +330,85 @@ var LABEL = '{{ role_label }}';
     if (att) { payload.file = att.base64; payload.filename = att.filename; payload.filetype = att.type; }
     if (currentChatId) payload.chat_id = currentChatId;
 
-    fetch('/api/nursing/chat', {
+    if (att) {
+      // 附件（图片 OCR/文件解析）仍走非流式端点
+      fetch('/api/nursing/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          var t = document.getElementById('typing-indicator'); if (t) t.remove();
+          addMessage(data.reply || '（无响应）', false);
+          if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
+        })
+        .catch(function(err) {
+          var t = document.getElementById('typing-indicator'); if (t) t.remove();
+          addMessage('网络错误：' + err.message, false);
+        })
+        .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
+      return;
+    }
+
+    // ── 流式路径（2026-09-07）：SSE 增量渲染，首个字 ≈1-2s 即出现 ──
+    fetch('/api/nursing/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(function(r) { return r.json(); })
-      .then(function(data) {
+    }).then(function(r) {
+      if (!r.ok || !r.body || !r.body.getReader) {
+        // 流式端点不可用（旧版 dl-control）→ 回落非流式
+        return r.json().then(function(data) {
+          var t = document.getElementById('typing-indicator'); if (t) t.remove();
+          addMessage(data.reply || '（无响应）', false);
+          if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
+        });
+      }
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      var bubble = null, acc = '', buf = '';
+      function ensureBubble() {
+        if (bubble) return;
         var t = document.getElementById('typing-indicator'); if (t) t.remove();
-        addMessage(data.reply || '（无响应）', false);
-        if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
-      })
-      .catch(function(err) {
-        var t = document.getElementById('typing-indicator'); if (t) t.remove();
-        addMessage('网络错误：' + err.message, false);
-      })
-      .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
+        bubble = addMessage('', false);  // 空 AI 气泡，增量填充
+      }
+      function handleEvent(ev) {
+        if (ev.type === 'delta' && ev.content) {
+          ensureBubble();
+          acc += ev.content;
+          updateMessage(bubble, acc);
+        } else if (ev.type === 'done') {
+          ensureBubble();
+          if (ev.reply) { acc = ev.reply; updateMessage(bubble, acc); }
+          if (ev.chat_id && !currentChatId) { currentChatId = ev.chat_id; loadChatList(); }
+        } else if (ev.type === 'error') {
+          ensureBubble();
+          updateMessage(bubble, ev.message || 'AI 服务暂时不可用');
+        }
+      }
+      function pump() {
+        return reader.read().then(function(res) {
+          if (res.done) { ensureBubble(); if (!acc) updateMessage(bubble, '（无响应）'); return; }
+          buf += dec.decode(res.value, { stream: true });
+          // SSE 事件以空行分隔；逐段解析缓冲
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          for (var i = 0; i < parts.length; i++) {
+            var line = parts[i];
+            if (line.indexOf('data:') !== 0) continue;
+            try { handleEvent(JSON.parse(line.slice(5).trim())); } catch (e) { /* skip */ }
+          }
+          return pump();
+        });
+      }
+      return pump().catch(function(err) {
+        ensureBubble();
+        if (!acc) updateMessage(bubble, '网络错误：' + err.message);
+      });
+    }).finally(function() {
+      var t = document.getElementById('typing-indicator'); if (t) t.remove();
+      btn.disabled = false; btn.textContent = '发送';
+    });
   }
 
   btn.addEventListener('click', sendMsg);

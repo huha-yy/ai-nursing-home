@@ -2025,3 +2025,11 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
 - 部署：10 个护理 agent 全部热补+重启，sessions.json 均确认 warmup-YYYYMMDD 会话生成（首轮 ~35s 内完成含 healthz 等待）。重启后楼长 chat 4.8-5.9s（此前重启后首发 ~10-17s）。
 - 顺带发现（未动，均为既有行为）：①6 个楼栋 agent 的 config/.env 本就没有 DATABASE_URL（只有院长/护理科/总务科/通用助手有）——楼栋 agent 依赖 dl-control 的技能预取注入，一旦 agent 自己翻工具就报"DATABASE_URL 未注入"，且该报错会污染同会话后续轮次（agent 复读"结果没变"）；②接收端只回传第一段文字，工具轮回合用户只能看到"我帮你查一下…"（见 09-03 残留①）。
 
+## 2026-09-07 chat 流式输出：agent 网关 /v1/chat/completions SSE 透传
+- 原计划要逆向 openclaw 网关 WS RPC 协议（cli `openclaw agent` 只输出终态 JSON、无流式），后来在镜像内 docs/gateway/openai-http-api.md 发现**网关自带 OpenAI 兼容 HTTP 端点** `POST /v1/chat/completions`（默认关闭）：与 `openclaw agent` 同一条 agent 运行路径（技能/工具/权限完全一致），支持 `stream:true` SSE 和 `x-openclaw-session-key` 头做会话路由——零协议逆向。`gateway.http.endpoints.chatCompletions.enabled=true` 开启，鉴权复用 gateway.auth token（openclaw.json 里是明文，dl-control 直接读 agents_root）。
+- 会话键实测：头值 = 字面 session key；传 `agent:main:explicit:nursing-<sid>` 能接上 receiver `--session-id` 时代的旧会话历史（大小写不敏感）。首 token 实测 1.8-2.0s（同会话第 2 轮起），整轮 2.7-3.4s。
+- 实现：dl-control 新增 `POST /api/nursing/chat/stream`（SSE：delta/done/error 事件）——预取/路由/周报触发与非流式端点同款；agent 路径流式转发网关，家属/未路由角色流式转发厂商直连（thinking disabled 保留）；网关端点挂掉自动回落 receiver 旧路径。旧端点原样保留（附件 OCR/文件仍走它）。前端 chat.html：无附件走流式 + fetch reader 增量渲染（同一气泡整段 simpleMarkdown 重渲染），有附件/流式端点 404 回落旧端点。
+- 部署：10 个 agent 的 openclaw.json（host 侧 agents_root，bind-mount 到容器）启用端点 + 重启；openclaw.json.j2 gateway 块同步加 http.endpoints（重建/重供应不丢）；dato-control 重建。
+- 钉子：test_family_chat 门计数 6→7（流式发消息是对话门第 7 处）；新增 test_stream_endpoint_session_key_pin 钉会话键格式 + receiver 回落链。121 测试全绿。
+- 注意：client 中途断开（head 截断/关页面）时 done 事件未送达、该轮历史不落 Redis——agent 侧会话已有完整记录，仅 dl-control 聊天记录缺该轮，可接受。
+

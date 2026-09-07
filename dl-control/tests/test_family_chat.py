@@ -313,5 +313,20 @@ def test_main_role_gate_split():
     )
     chat_gates = src.count("not in _CHAT_ALLOWED")
     staff_gates = src.count("not in _NURSING_ROLES")
-    assert chat_gates == 6, "对话门（chat 页/会话 CRUD×4/发消息）应为 6 处 _CHAT_ALLOWED"
+    assert chat_gates == 7, (
+        "对话门（chat 页/会话 CRUD×4/发消息/流式发消息）应为 7 处 _CHAT_ALLOWED"
+    )
     assert staff_gates == 9, "员工路由门应为 9 处 _NURSING_ROLES（dashboard×2/alerts×3/work-orders×2/workflow×1/reports×1）"
+
+
+def test_stream_endpoint_session_key_pin():
+    """流式端点（2026-09-07）钉：agent 网关会话键必须沿用 receiver 时代的
+    agent:main:explicit:nursing-<sid> 格式——换了格式会静默开新会话，旧对话
+    历史全部断档（dl-control 侧聊天记录不受影响，agent 侧上下文丢失）。"""
+    src = (Path(__file__).resolve().parent.parent / "dl_control" / "main.py").read_text(
+        encoding="utf-8"
+    )
+    assert "/api/nursing/chat/stream" in src, "流式发消息端点必须存在"
+    assert "agent:main:explicit:nursing-" in src, "agent 网关会话键格式不能改"
+    # 回落链必须保留：网关端点挂了 → receiver 旧路径，用户不至于拿到空回复
+    assert "18790/dato/chat" in src, "receiver 回落路径必须保留"

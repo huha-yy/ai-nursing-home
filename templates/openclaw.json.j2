@@ -93,7 +93,15 @@
     "bind": "lan",
     "controlUi": { "allowedOrigins": [{{ ("https://" + caddy_domain) | tojson }}] },
     "auth": { "mode": "token", "token": "${OPENCLAW_TOKEN}" },
-    "mode": "local"
+    "mode": "local",
+    {# 2026-09-07：OpenAI 兼容 HTTP 端点——dl-control /api/nursing/chat/stream
+       由此流式转发 agent 回合（stream:true SSE + x-openclaw-session-key
+       会话路由）。仅 docker 内网可达 + Bearer 网关 token 鉴权。 #}
+    "http": {
+      "endpoints": {
+        "chatCompletions": { "enabled": true }
+      }
+    }
   },
   "mcp": {
 {% if agent.comfyui_configured %}

@@ -16,7 +16,7 @@ import structlog
 from dl_shared.rate_limit import RateLimitMiddleware
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -756,8 +756,12 @@ async def build_app() -> FastAPI:
     # ── Chat send ────────────────────────────────────────────────────
     @app.post("/api/nursing/chat")
     async def nursing_chat_post(request: _Request):
-        import httpx, json, time, logging, shlex
+        import json
+        import logging
+        import time
         from datetime import datetime
+
+        import httpx
         raw = request.cookies.get(_NURSING_COOKIE, "")
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
@@ -813,8 +817,9 @@ async def build_app() -> FastAPI:
                 _ocr_image = file_b64
                 if len(file_b64) > 300000:  # ~225KB raw — likely high-res
                     try:
-                        from PIL import Image as _PILImage
                         import io as _io
+
+                        from PIL import Image as _PILImage
                         _raw = _b64.b64decode(file_b64)
                         _img = _PILImage.open(_io.BytesIO(_raw))
                         if max(_img.size) > 1500:
@@ -999,7 +1004,10 @@ async def build_app() -> FastAPI:
 
         if file_b64 and not file_type.startswith("image/"):
             try:
-                import base64, io, zipfile, re
+                import base64
+                import io
+                import re
+                import zipfile
                 raw = base64.b64decode(file_b64)
 
                 # .docx = ZIP of XML files — extract text from word/document.xml
@@ -1083,6 +1091,329 @@ async def build_app() -> FastAPI:
             pass
 
         return JSONResponse({"reply": reply, "chat_id": chat_id}, 200)
+
+    @app.post("/api/nursing/chat/stream")
+    async def nursing_chat_stream_post(request: _Request):
+        """SSE 版 /api/nursing/chat（2026-09-07）：同样的预取/路由，文字流式回传。
+
+        agent 路径走各 agent 网关自带的 OpenAI 兼容端点 /v1/chat/completions
+        （stream:true + x-openclaw-session-key，会话键沿用 receiver 时代的
+        agent:main:explicit:nursing-<sid>，历史无缝续接）；家属/未路由角色走
+        厂商直连 stream。事件：delta(增量) / done(终态含 chat_id) / error。
+        附件（图片 OCR / 文件解析）不走本端点——前端有附件时仍调非流式端点。
+        网关端点未启用或连接失败时自动回落 receiver 旧路径（一次性吐全文）。
+        """
+        import json
+        import logging
+        import time
+
+        import httpx
+
+        raw = request.cookies.get(_NURSING_COOKIE, "")
+        sid = sessions.unsign(raw) if raw else None
+        sess = await sessions.load(sid) if sid else None
+        if sess is None or sess.role not in _CHAT_ALLOWED:
+            return JSONResponse({"error": "unauthorized"}, 401)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "bad request"}, 400)
+        message = (body.get("message") or "").strip()
+        chat_id = (body.get("chat_id") or "").strip()
+        if not message:
+            return JSONResponse({"error": "empty message"}, 400)
+        if not chat_id:
+            import uuid
+            chat_id = str(uuid.uuid4())[:8]
+            chats = await _get_user_chats(sess.user_id)
+            chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
+            await _save_user_chats(sess.user_id, chats)
+
+        is_family = sess.role == "family"
+
+        async def _sse(obj) -> str:
+            return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+        async def _save_history(reply: str):
+            try:
+                history = await _get_chat_msgs(chat_id)
+                history.append({"role": "user", "content": message})
+                history.append({"role": "assistant", "content": reply})
+                await _save_chat_msgs(chat_id, history[-40:])
+                chats = await _get_user_chats(sess.user_id)
+                for c in chats:
+                    if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
+                        c["title"] = message[:20]
+                        await _save_user_chats(sess.user_id, chats)
+                        break
+            except Exception:
+                pass
+
+        # ── Weekly report workflow trigger（与非流式端点同款；生成器定义在
+        #    _chat_gen 之后，闭包按名字解析，触发失败回落正常问答） ──
+        async def _workflow_gen():
+            from dl_control.workflows import runs as _wfruns
+            from dl_control.workflows.wake import publish_wake as _wfpw
+
+            try:
+                _run_input = {"building": getattr(sess, "building", None) or "3号楼"}
+                async with db.conn(user_id=None, role="system") as _wconn:
+                    await _wfruns.start_run(
+                        _wconn, workflow_id="nursing.ops", trigger="manual",
+                        run_input=_run_input, actor_user_id=None,
+                    )
+                await _wfpw(redis, reason="nursing_workflow_chat")
+                reply = (
+                    "已启动本周运营报表生成，正在协调护理科、总务科、财务科等 AI 助手协作。"
+                    "请稍后到顶部「周报」页面查看结果。"
+                )
+            except _wfruns.DuplicateActiveRunError:
+                reply = "本周运营报表正在生成中，请稍后到顶部「周报」页面查看结果。"
+            except Exception:
+                reply = ""  # 未触发成功则继续正常问答（见下方回落）
+            if reply:
+                await _save_history(reply)
+                yield await _sse({"type": "delta", "content": reply})
+                yield await _sse({"type": "done", "chat_id": chat_id, "reply": reply})
+                return
+            # 工作流触发失败 → 不吞掉消息，走正常问答
+            async for chunk in _chat_gen():
+                yield chunk
+
+        # ── Skill intent detection（与非流式端点同款预取） ──
+        skill_result = None
+        _skill_table = _family_skill_queries() if is_family else _skill_queries()
+        for keywords, skill_name, sql in _skill_table:
+            if any(kw in message for kw in keywords):
+                try:
+                    if sql.startswith("API:"):
+                        _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+                        _cli_h = {"timeout": 10.0, "headers": _erp_headers(sess)}
+                        async with httpx.AsyncClient(**_cli_h) as _cli:
+                            _resp = await _cli.get(f"{_erp}{sql[4:]}")
+                        ok = _resp.status_code == 200
+                        skill_result = _erp_items(_resp.json())[:50] if ok else None
+                    else:
+                        async with db.conn(user_id=None, role="system") as conn:
+                            cur = await conn.execute(sql)
+                            rows = await cur.fetchall()
+                            cols = [d[0] for d in cur.description]
+                        skill_result = [dict(zip(cols, r, strict=False)) for r in rows][:50]
+                except Exception as _e:
+                    logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
+                    skill_result = None
+                break
+
+        agent_msg = message
+        if skill_result is not None:
+            data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+            agent_msg = (
+                f"系统数据库查询结果：{data_json}\n\n用户问题：{message}\n"
+                "请根据以上真实数据回答，不要编造。"
+            )
+
+        # ── Agent 路由信息（同非流式端点） ──
+        ROLE_TO_AGENT = {
+            "director": "director", "nursing_dept": "nursing-dept",
+            "logistics_dept": "logistics-dept", "general": "general-assistant",
+        }
+        if sess.building and sess.building[0].isdigit():
+            ROLE_TO_AGENT["building"] = f"building-{sess.building[0]}"
+            ROLE_TO_AGENT["floor"] = f"building-{sess.building[0]}"
+        precreated_id = ROLE_TO_AGENT.get(sess.role)
+        agent_id = None
+        gw_token = ""
+        if precreated_id:
+            try:
+                async with db.conn(user_id=None, role="system") as conn:
+                    cur = await conn.execute(
+                        "SELECT id FROM agents WHERE precreated_id = %s LIMIT 1", (precreated_id,)
+                    )
+                    row = await cur.fetchone()
+                    if row:
+                        agent_id = str(row[0])
+                        # 网关 token：openclaw.json 里是明文（供应时从 ${OPENCLAW_TOKEN}
+                        # 插值而来）；读不到则回落 config/.env 的 OPENCLAW_TOKEN。
+                        try:
+                            with open(f"/data/agents/{agent_id}/openclaw.json") as f:
+                                _doc = json.load(f)
+                            _auth = (_doc.get("gateway") or {}).get("auth") or {}
+                            gw_token = _auth.get("token", "")
+                        except Exception:
+                            gw_token = ""
+                        if not gw_token:
+                            try:
+                                with open(f"/data/agents/{agent_id}/config/.env") as f:
+                                    for line in f:
+                                        if line.startswith("OPENCLAW_TOKEN="):
+                                            gw_token = line.strip().split("=", 1)[1].strip("'\"")
+                                            break
+                            except Exception:
+                                pass
+            except Exception:
+                agent_id = None
+
+        async def _relay_sse(lines_iter, reply_holder):
+            """把上游 SSE 的 data: 行转成 delta 事件，聚合全文到 reply_holder。"""
+            buf = ""
+            async for raw_line in lines_iter:
+                if isinstance(raw_line, bytes):
+                    line = raw_line.decode("utf-8", errors="replace").rstrip("\n")
+                else:
+                    line = raw_line.rstrip("\n")
+                if line.startswith("data:"):
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(payload)
+                    except Exception:
+                        continue
+                    choices = chunk.get("choices") or [{}]
+                    delta = (choices[0].get("delta") or {}).get("content") or ""
+                    if not delta:
+                        # 非流式收尾（网关偶尔回整段 chat.completion）
+                        delta = (choices[0].get("message") or {}).get("content") or ""
+                    if delta:
+                        buf += delta
+                        yield await _sse({"type": "delta", "content": delta})
+            reply_holder.append(buf)
+
+        async def _receiver_fallback() -> str:
+            """网关端点不可用时回落 receiver 旧路径（一次性全文）。"""
+            token = ""
+            try:
+                with open(f"/data/agents/{agent_id}/config/.env") as f:
+                    for line in f:
+                        if line.startswith("DL_INTERNAL_TOKEN="):
+                            token = line.strip().split("=", 1)[1].strip("'\"")
+                            break
+            except Exception:
+                pass
+            recv_timeout = httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0)
+            recv_payload = {"message": agent_msg, "session_id": f"nursing-{sess.sid[:16]}"}
+            async with httpx.AsyncClient(timeout=recv_timeout) as client:
+                resp = await client.post(
+                    f"http://dato-agent-{agent_id}:18790/dato/chat",
+                    headers={"Authorization": f"Bearer {token}",
+                             "Content-Type": "application/json"},
+                    json=recv_payload)
+                if resp.status_code == 200:
+                    return resp.json().get("reply", "") or ""
+            return ""
+
+        async def _direct_llm_stream(messages):
+            """厂商直连流式（家属/未路由角色）。"""
+            payload = {"model": s.llm_model, "messages": messages,
+                       "max_tokens": 2000, "stream": True}
+            if "minimax" in s.llm_model.lower():
+                payload["thinking"] = {"type": "disabled"}
+            llm_timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+            async with httpx.AsyncClient(timeout=llm_timeout) as client, client.stream(
+                "POST",
+                f"{s.llm_base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {s.llm_api_key.get_secret_value()}"},
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                holder = []
+                async for ev in _relay_sse(resp.aiter_lines(), holder):
+                    yield ev
+            if holder:
+                yield await _sse({"type": "done", "chat_id": chat_id, "reply": holder[0]})
+                await _save_history(holder[0])
+                return
+            yield await _sse({"type": "error", "message": "空响应"})
+
+        async def _chat_gen():
+            reply_holder = []
+            try:
+                if agent_id and gw_token:
+                    try:
+                        # agent 路径：网关 OpenAI 兼容端点，流式转发
+                        sess_key = f"agent:main:explicit:nursing-{sess.sid[:16]}"
+                        gw_timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+                        async with httpx.AsyncClient(timeout=gw_timeout) as client, client.stream(
+                            "POST",
+                            f"http://dato-agent-{agent_id}:18789/v1/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {gw_token}",
+                                "Content-Type": "application/json",
+                                "x-openclaw-session-key": sess_key,
+                            },
+                            json={
+                                "model": "openclaw/main",
+                                "stream": True,
+                                "messages": [{"role": "user", "content": agent_msg}],
+                            },
+                        ) as resp:
+                            if resp.status_code != 200:
+                                raise RuntimeError(f"gateway http {resp.status_code}")
+                            async for ev in _relay_sse(resp.aiter_lines(), reply_holder):
+                                yield ev
+                    except Exception as _ge:
+                        log = logging.getLogger(__name__)
+                        log.warning(f"chat stream gateway failed, fallback receiver: {_ge}")
+                        if not reply_holder:
+                            fb = await _receiver_fallback()
+                            if fb:
+                                reply_holder.append(fb)
+                                yield await _sse({"type": "delta", "content": fb})
+                elif agent_id:
+                    fb = await _receiver_fallback()
+                    if fb:
+                        reply_holder.append(fb)
+                        yield await _sse({"type": "delta", "content": fb})
+
+                if reply_holder:
+                    reply = reply_holder[0]
+                    yield await _sse({"type": "done", "chat_id": chat_id, "reply": reply})
+                    await _save_history(reply)
+                    return
+
+                # ── 非 agent 角色：直连 LLM 流式（系统提示词同非流式端点） ──
+                today_str = datetime.now().strftime("%Y年%m月%d日 %A")
+                if is_family:
+                    system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+                else:
+                    context_parts = [
+                        f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，"
+                        f"占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），"
+                        f"约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"
+                    ]
+                    if sess.dept:
+                        context_parts.append(f"科室：{sess.dept}")
+                    if sess.building:
+                        context_parts.append(f"楼栋：{sess.building}")
+                    if sess.floor:
+                        context_parts.append(f"楼层：{sess.floor}")
+                    context_parts.append("请用中文简洁回答用户的问题。")
+                    system_prompt = "。".join(context_parts)
+                    if skill_result is not None:
+                        data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+                        system_prompt = (
+                            f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n"
+                            f"用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
+                        )
+                if not s.llm_api_key.get_secret_value():
+                    yield await _sse({"type": "error", "message": "LLM API Key 未配置"})
+                    return
+                history = await _get_chat_msgs(chat_id)
+                messages = [{"role": "system", "content": system_prompt}]
+                messages.extend(history[-20:])
+                messages.append({"role": "user", "content": message})
+                async for ev in _direct_llm_stream(messages):
+                    yield ev
+            except Exception as exc:
+                logging.getLogger(__name__).warning(f"chat stream error: {exc}")
+                msg = f"抱歉，AI 服务暂时不可用：{str(exc)[:200]}"
+                yield await _sse({"type": "error", "message": msg})
+
+        # 注：_workflow_gen 引用 _chat_gen（闭包按名字解析，此处定义已就绪）
+        if not is_family and any(kw in message for kw in ("报表", "周报", "运营报表")):
+            return StreamingResponse(_workflow_gen(), media_type="text/event-stream")
+        return StreamingResponse(_chat_gen(), media_type="text/event-stream")
 
     @app.get("/nursing/test-roles", response_class=HTMLResponse)
     async def nursing_test_roles(request: _Request):
@@ -1189,7 +1520,7 @@ async def build_app() -> FastAPI:
         sess = await sessions.load(sid) if sid else None
         if sess is None or sess.role not in _NURSING_ROLES:
             return JSONResponse({"error": "unauthorized"}, 401)
-        operator = ((getattr(sess, "name", None) or sess.user_id or ""))[:30]
+        operator = (getattr(sess, "name", None) or sess.user_id or "")[:30]
         try:
             import httpx as _hx_h
             _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")

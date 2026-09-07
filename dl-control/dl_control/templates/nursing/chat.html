@@ -367,28 +367,57 @@ var LABEL = '{{ role_label }}';
       var reader = r.body.getReader();
       var dec = new TextDecoder();
       var bubble = null, acc = '', buf = '';
+      var shown = 0, drainTimer = null;
       function ensureBubble() {
         if (bubble) return;
         var t = document.getElementById('typing-indicator'); if (t) t.remove();
         bubble = addMessage('', false);  // 空 AI 气泡，增量填充
       }
+      // 平滑排空（2026-09-07）：上游出块节奏实测不均（中位 97ms、p90 314ms、
+      // 偶发 2.8s 停顿），"到多少显多少"会一阵一阵跳字。这里按 33fps 匀速
+      // 吐字，积压越多步长越大（≤6 帧≈0.2s 内追平），既顺滑又不明显拖后。
+      function startDrain() {
+        if (drainTimer) return;
+        drainTimer = setInterval(function() {
+          if (!bubble) return;
+          var remain = acc.length - shown;
+          if (remain <= 0) return;
+          var step = Math.max(1, Math.ceil(remain / 6));
+          shown = Math.min(acc.length, shown + step);
+          updateMessage(bubble, acc.slice(0, shown));
+        }, 30);
+      }
+      function stopDrain() {
+        if (drainTimer) { clearInterval(drainTimer); drainTimer = null; }
+      }
       function handleEvent(ev) {
         if (ev.type === 'delta' && ev.content) {
           ensureBubble();
           acc += ev.content;
-          updateMessage(bubble, acc);
+          startDrain();
         } else if (ev.type === 'done') {
           ensureBubble();
-          if (ev.reply) { acc = ev.reply; updateMessage(bubble, acc); }
+          stopDrain();
+          if (ev.reply) acc = ev.reply;
+          shown = acc.length;
+          updateMessage(bubble, acc);
           if (ev.chat_id && !currentChatId) { currentChatId = ev.chat_id; loadChatList(); }
         } else if (ev.type === 'error') {
           ensureBubble();
+          stopDrain();
+          shown = acc.length;
           updateMessage(bubble, ev.message || 'AI 服务暂时不可用');
         }
       }
       function pump() {
         return reader.read().then(function(res) {
-          if (res.done) { ensureBubble(); if (!acc) updateMessage(bubble, '（无响应）'); return; }
+          if (res.done) {
+            ensureBubble();
+            stopDrain();
+            if (acc && shown < acc.length) { shown = acc.length; updateMessage(bubble, acc); }
+            if (!acc) updateMessage(bubble, '（无响应）');
+            return;
+          }
           buf += dec.decode(res.value, { stream: true });
           // SSE 事件以空行分隔；逐段解析缓冲
           var parts = buf.split('\n\n');

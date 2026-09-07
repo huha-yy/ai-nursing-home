@@ -2045,3 +2045,28 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
 - E2E（院长会话，流式端点）：「院里住了多少人」→ 36 人 + 护理等级占比表；
   「院里多少入住」→ 36 人 + 楼栋分布表，均来自真实 ERP 数据。
 
+## 2026-09-07 排班范围预取 + 入住情况接入（假阴性与「查不到」双修）
+
+- 复盘销售问法发现两个新缺口：「最近三天排班情况」命中排班行但**只注入
+  今天** → agent 把 09-05/06 断言成"没有数据"（假阴性——ERP 有 24/23 条、
+  PG 有 17/17 条，两边都有，它只是没去查）；「最近三天入住情况」什么都没
+  命中 → agent 诚实但残缺地说"没有流水记录"（residents 其实带
+  admission_date，只是 detail-only 列表拿不到）。
+- 修复一（ai 63dc324）：`_schedule_window()` 检测范围词（三天/3天/最近/
+  过去/几天/昨天/前天 → 3 天窗口；本周/这周/一周/7天 → 周一起算；**上周
+  刻意不展开**——自然周语义，trailing 窗口会给错日期）；`/api/schedules/`
+  只支持单日参数，预取层逐日拉取合并，字段精简到
+  date/employee_name/shift/building；**合并结果置顶每日汇总行**（欠费行
+  同款范式——实测注入数据无误但 LLM 自己数 24 行表格漏人报 23/22，汇总行
+  后 24/23/24 与 ERP 分毫不差）。两端点预取逻辑抽成共用
+  `_prefetch_skill_data()`（注意 db 实例在 app 工厂闭包，helper 要传参，
+  模块级引用会 F821）。
+- 修复二（ai 63dc324 + erp bb68655）：resident 行加「入住情况/入住动态」
+  关键词；ERP format_resident 把 admission_date 从 detail-only 提进列表
+  投影（非 PII，id_card/notes 仍留 detail）。E2E 新会话：答「最近三天
+  0 新入住 + 最近一次入住 2026-04-10 + 12 个月入住节奏表」全出自真实
+  admission_date。
+- 残留（未动）：LLM 偶发内部不一致（"最近一次入住 4-10"与月度表 5/6 月
+  有入住并存）；床位使用率/空床数有 /api/beds/occupancy/ 端点但预取
+  只注第一命中行，agent 不知道它存在；离院 DischargeRecord 无 API。
+

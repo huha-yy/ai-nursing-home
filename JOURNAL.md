@@ -2018,3 +2018,10 @@ dashboard/chat-director/chat-b1 三图并重建 standalone（视觉+DOM 双验�
 - 验证：楼长路径 6 连发 6.0-9.9s（改前 9.6-16.9s，重启后首发 17.6s 是冷启动）；会话 JSONL 切换后 assistant 条目 0 thinking 块；nursing.ops E2E 3分18秒全绿（原 ~4min），四步报告 Markdown 无格式回归。
 - 管线持久化（防重建/key 轮换回滚）：config_gen render_env_file 按 base_url 含 minimax 导出 MINIMAX_API_KEY+MINIMAX_ANTHROPIC_BASE_URL；setup-llm.sh 加 minimax 分支写 anthropic 配置；openclaw.json.j2 按 llm_vendor_minimax 分支渲染 minimax 块（primary 同步跟随，tier1 local 不受影响）。顺手修：service.py 调 render_env_file 原先没传 llm_base_url/llm_model（会回落 moonshot 默认值，重新供应即写错地址）。启动 reprovision 只扫 tier1（护理 agent 全 tier0），重建 dato-control 不触发全量重渲。
 - 已知残留（未动）：①院长 agent 自己的工具连环调用返回 disabled/空，多轮往返 20s+ 且接收端只回传第一段 [[reply_to_current]] 文字（provider 无关旧病）；②dl-control 对 agent 的 60s 超时后会静默再走 90s 直连（最坏 ~150s 双等待），思考关掉后基本不触发；③legacy 5 个 agent（运营助手×2/知识库/内容运营/Agent Manager）仍是 openai-completions，不在 chat 路由里。
+
+## 2026-09-07 chat 冷启动预热：agent 容器启动时后台跑一轮 warmup
+- 前置测量：MiniMax prompt cache 是**显式 cache_control、按会话**——跨会话只有 ~128 tok 命中（跨会话预热无效），同会话第 2 轮起 ~18K cacheRead、1-2s 应答；真正的冷启动是**容器重启后网关首轮 init ~8s**（重启后首发 9.7s vs 次发 1.7s）。⇒ 预热点应放在 entrypoint（每次重启跑一轮），而不是定时心跳（会白白烧 10 个 agent × 20K token 额度）。
+- 实现：docker-entrypoint-wrapper.sh 在 exec 主进程前起后台子 shell——轮询 18789/healthz（≤40×3s），就绪后跑 `openclaw agent --json --session-id warmup-$(date +%Y%m%d) --message ping`（≤3 次，session 按天轮转防历史累积）。失败不影响主进程。镜像已 COPY 该脚本（Dockerfile:46），重建自带；存量容器用 docker cp + chmod 755（**cp 会丢执行位，丢了容器起不来**）+ docker restart 热补。
+- 部署：10 个护理 agent 全部热补+重启，sessions.json 均确认 warmup-YYYYMMDD 会话生成（首轮 ~35s 内完成含 healthz 等待）。重启后楼长 chat 4.8-5.9s（此前重启后首发 ~10-17s）。
+- 顺带发现（未动，均为既有行为）：①6 个楼栋 agent 的 config/.env 本就没有 DATABASE_URL（只有院长/护理科/总务科/通用助手有）——楼栋 agent 依赖 dl-control 的技能预取注入，一旦 agent 自己翻工具就报"DATABASE_URL 未注入"，且该报错会污染同会话后续轮次（agent 复读"结果没变"）；②接收端只回传第一段文字，工具轮回合用户只能看到"我帮你查一下…"（见 09-03 残留①）。
+

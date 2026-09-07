@@ -90,4 +90,29 @@ if [ -n "${FEISHU_APP_ID:-}" ] && [ -n "${AUTO_SEND_CHAT_ID:-}" ]; then
   python3 /opt/openclaw/scripts/auto_send_image.py &
 fi
 
+# Chat 预热（2026-09-07）：容器（重）启动后网关的首轮 agent 转换要额外
+# ~5-8s 初始化（配置/插件加载 + 供应商连接）。起容器时后台先跑一轮把
+# 初始化成本吃掉，用户第一句 chat 就不用等冷启动。session 按天轮转，
+# 避免预热历史在同一会话里无限累积。预热失败不影响主进程。
+(
+  _n=0
+  while [ $_n -lt 40 ]; do
+    if curl -sf -o /dev/null http://127.0.0.1:18789/healthz 2>/dev/null; then break; fi
+    sleep 3
+    _n=$((_n + 1))
+  done
+  if [ $_n -lt 40 ]; then
+    _tries=0
+    while [ $_tries -lt 3 ]; do
+      if openclaw agent --json --session-id "warmup-$(date +%Y%m%d)" \
+          --message 'ping' >/dev/null 2>&1; then
+        echo "[entrypoint] chat warmup done"
+        break
+      fi
+      _tries=$((_tries + 1))
+      sleep 5
+    done
+  fi
+) &
+
 exec docker-entrypoint.sh "$@"

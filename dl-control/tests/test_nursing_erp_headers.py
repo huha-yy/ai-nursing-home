@@ -154,6 +154,23 @@ def test_skill_queries_assessment_rows_precede_logistics_and_resident():
     assert i_review < i_generic < i_logi < i_res
 
 
+def test_skill_queries_resident_count_synonyms():
+    """人数类同义问句钉（2026-09-07）：销售问「院里住了多少人」「院里多少入住」
+    此前未命中任何行 → agent 拿系统 prompt 对标口径编数（1100 人）。
+    长词组并入 resident 行；且不得先于更高优先级行误吞（首匹配 break）。
+    """
+    rows = _skill_queries()
+    res_row = next(r for r in rows if r[1] == "resident-query")
+    for kw in ("住了多少人", "多少入住", "入住人数", "在院人数"):
+        assert kw in res_row[0], kw
+    # 模拟首匹配：这些问法必须落到 resident 行（拿到真实 /api/residents/ 数据）
+    for msg in ("院里住了多少人", "院里多少入住", "现在入住人数是多少", "在院人数有多少"):
+        hit = next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+        assert hit == "resident-query", (msg, hit)
+    # 刻意不收裸"入住"：防止"入住率"问句被 resident 行吞掉（留给床位/大屏口径）
+    assert "入住" not in res_row[0]
+
+
 # ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----
 
 

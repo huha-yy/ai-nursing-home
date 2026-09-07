@@ -341,6 +341,18 @@ def _skill_queries() -> list:
     ]
 
 
+# 注入提示词的回答风格契约（2026-09-07 收紧）：问事实答事实，问分析才分析。
+# 此前无任何简洁约束，「晚饭吃什么」答 1350 字/7 张表/结尾"请院长指示"——
+# 未要求的展开与固定邀约在演示里是冷场点，也拖垮流式节奏（紧回答 ~3s 完事）。
+_PROMPT_ANSWER_RULES = (
+    "请根据以上真实数据回答，不要编造。回答风格要求："
+    "第一句话直接给出答案；数据是多行时用一张简洁表格呈现；"
+    "只回答用户问到的内容，不要主动展开没问到的分析、建议或延伸话题；"
+    "结尾不要询问是否需要进一步帮助、不要罗列可代办事项；"
+    "仅当用户明确要求建议或分析时才展开。"
+)
+
+
 def _schedule_window(message: str) -> list[str] | None:
     """排班问句的时间范围词 → 日期列表（升序、含今天）；None=只查当天。
 
@@ -450,6 +462,8 @@ def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> s
             f"你是养老院的家属服务助手。今天是{today_str}。当前用户是家属{sess.name}。"
             f"以下是家属绑定老人的真实照护数据：\n{data_json}\n\n"
             "请根据以上数据用中文直接回答用户问题，只谈数据中出现的老人，不要编造。"
+            "回答风格：第一句话直接给出答案，只回答问到的内容，不要主动展开没问到的"
+            "分析或建议，结尾不要询问是否需要进一步帮助；仅当家属明确要求建议时才展开。"
             "你不能代家属点餐、退餐或修改数据；家属需要操作时引导使用「家属服务」页面。语气温暖亲切。"
         )
     return (
@@ -1012,7 +1026,7 @@ async def build_app() -> FastAPI:
                         # Inject skill data into message for Agent
                         agent_msg = message
                         if skill_result is not None:
-                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]}\n\n用户问题：{message}\n请根据以上真实数据回答，不要编造。"
+                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]}\n\n用户问题：{message}\n" + _PROMPT_ANSWER_RULES
                         async with httpx.AsyncClient(timeout=60.0) as client:
                             resp = await client.post(
                                 f"http://dato-agent-{agent_id}:18790/dato/chat",
@@ -1257,7 +1271,7 @@ async def build_app() -> FastAPI:
             data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
             agent_msg = (
                 f"系统数据库查询结果：{data_json}\n\n用户问题：{message}\n"
-                "请根据以上真实数据回答，不要编造。"
+                + _PROMPT_ANSWER_RULES
             )
 
         # ── Agent 路由信息（同非流式端点） ──

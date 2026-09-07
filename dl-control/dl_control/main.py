@@ -306,9 +306,12 @@ def _skill_queries() -> list:
          "logistics-inventory", "API:/api/inventory/"),
         # 「入住」这类短词刻意不收：会先于后行吞掉"入住率/床位"类问句。
         # 收长词组（09-07 实测坑：销售问「院里住了多少人」未命中任何行，
-        # agent 拿系统 prompt 里的对标口径编出 1100 人）
+        # agent 拿系统 prompt 里的对标口径编出 1100 人）；「入住情况/入住动态」
+        # 走 residents 列表（自带 admission_date，可判断近期新入住；离院
+        # 台账 ERP 未暴露 API，回答由 agent 如实说明）
         (["老人", "张建国", "301", "302", "303", "108", "205", "老人档案", "健康档案",
-          "住了多少人", "多少入住", "入住人数", "在院人数", "在院老人数"],
+          "住了多少人", "多少入住", "入住人数", "在院人数", "在院老人数",
+          "入住情况", "入住动态"],
          "resident-query", "API:/api/residents/"),
         (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
          f"API:/api/week-menu/?week_start={_week_start()}"),
@@ -325,6 +328,72 @@ def _skill_queries() -> list:
         (["员工", "谁负责", "人员", "值班人员"], "staff-query",
          "API:/api/employees/"),
     ]
+
+
+def _schedule_window(message: str) -> list[str] | None:
+    """排班问句的时间范围词 → 日期列表（升序、含今天）；None=只查当天。
+
+    2026-09-07 实测坑：「最近三天排班情况」原先只注入当天数据，agent 把
+    其余天数断言成"没有数据"（假阴性——ERP/PG 两边其实都有）。ERP
+    /api/schedules/ 只支持单日参数，这里在预取层把范围问句展开成多日。
+    「上周」刻意不展开（语义是上一个自然周， trailing 窗口会给错日期，
+    交给 agent 自己的工具查）。
+    """
+    today = datetime.now().date()
+    if any(w in message for w in ("本周", "这周", "一周", "7天")):
+        monday = today - timedelta(days=today.weekday())
+        days = (today - monday).days + 1
+        return [(monday + timedelta(days=i)).isoformat() for i in range(days)]
+    if any(w in message for w in ("三天", "3天", "最近", "过去", "几天", "昨天", "前天")):
+        return [(today - timedelta(days=2 - i)).isoformat() for i in range(3)]
+    return None
+
+
+async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | None:
+    """单个意图行的预取执行（非流式/流式两个消费点共用的 helper）。
+
+    排班行命中时间范围词 → 多日逐日拉取合并（字段精简到
+    date/employee_name/shift/building，7 天窗口 ~168 行不至于撑爆注入上限）。
+    其余行走原单查询路径（API:→ERP，SQL→本侧 PG）。任何失败返回 None。
+    """
+    import httpx
+
+    erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
+    try:
+        if skill_name == "nursing-schedule" and sql.startswith("API:/api/schedules/"):
+            dates = _schedule_window(message)
+            if dates:
+                rows: list = []
+                per_day: dict = {}
+                async with httpx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as cli:
+                    for d in dates:
+                        resp = await cli.get(f"{erp}/api/schedules/?date={d}")
+                        if resp.status_code == 200:
+                            items = [
+                                {k: it.get(k) for k in ("date", "employee_name", "shift", "building")}
+                                for it in _erp_items(resp.json())
+                            ]
+                            rows.extend(items)
+                            cnt: dict = {"total": len(items)}
+                            for it in items:
+                                cnt[it["shift"]] = cnt.get(it["shift"], 0) + 1
+                            per_day[d] = cnt
+                # 汇总置顶一行（欠费行同款范式）：LLM 自己数多行表格会漏人
+                # （实测 09-07：3 天 × 24 行注入无误，回答却报 23/22）
+                summary = {"每日排班汇总": per_day}
+                return [summary] + rows[:99] if rows else None
+        if sql.startswith("API:"):
+            async with httpx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as cli:
+                resp = await cli.get(f"{erp}{sql[4:]}")
+            return _erp_items(resp.json())[:50] if resp.status_code == 200 else None
+        async with db.conn(user_id=None, role="system") as conn:
+            cur = await conn.execute(sql)
+            rows2 = await cur.fetchall()
+            cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, r, strict=False)) for r in rows2][:50]
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {e}")
+        return None
 
 
 def _family_skill_queries() -> list:
@@ -900,28 +969,7 @@ async def build_app() -> FastAPI:
         for keywords, skill_name, sql in (_family_skill_queries() if is_family else _skill_queries()):
             if any(kw in message for kw in keywords):
                 matched_skill = skill_name
-                try:
-                    if sql.startswith("API:"):
-                        # Query nursing-erp API instead of database
-                        import httpx as _hx
-                        _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-                        _path = sql[4:]  # strip "API:"
-                        async with _hx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as _cli:
-                            _resp = await _cli.get(f"{_erp}{_path}")
-                            if _resp.status_code == 200:
-                                skill_result = _erp_items(_resp.json())[:50]
-                            else:
-                                skill_result = None
-                    else:
-                        async with db.conn(user_id=None, role="system") as conn:
-                            cur = await conn.execute(sql)
-                            rows = await cur.fetchall()
-                            cols = [d[0] for d in cur.description]
-                            skill_result = [dict(zip(cols, r)) for r in rows][:50]
-                except Exception as _e:
-                    import logging
-                    logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
-                    skill_result = None
+                skill_result = await _prefetch_skill_data(sql, skill_name, message, sess, db)
                 break
 
         # ── Agent routing (with skill data injected) ──────────────
@@ -1190,23 +1238,7 @@ async def build_app() -> FastAPI:
         _skill_table = _family_skill_queries() if is_family else _skill_queries()
         for keywords, skill_name, sql in _skill_table:
             if any(kw in message for kw in keywords):
-                try:
-                    if sql.startswith("API:"):
-                        _erp = os.environ.get("NURSING_ERP_URL", "http://192.168.10.247:9081")
-                        _cli_h = {"timeout": 10.0, "headers": _erp_headers(sess)}
-                        async with httpx.AsyncClient(**_cli_h) as _cli:
-                            _resp = await _cli.get(f"{_erp}{sql[4:]}")
-                        ok = _resp.status_code == 200
-                        skill_result = _erp_items(_resp.json())[:50] if ok else None
-                    else:
-                        async with db.conn(user_id=None, role="system") as conn:
-                            cur = await conn.execute(sql)
-                            rows = await cur.fetchall()
-                            cols = [d[0] for d in cur.description]
-                        skill_result = [dict(zip(cols, r, strict=False)) for r in rows][:50]
-                except Exception as _e:
-                    logging.getLogger(__name__).warning(f"Skill {skill_name} query failed: {_e}")
-                    skill_result = None
+                skill_result = await _prefetch_skill_data(sql, skill_name, message, sess, db)
                 break
 
         agent_msg = message

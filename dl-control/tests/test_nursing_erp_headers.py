@@ -171,6 +171,54 @@ def test_skill_queries_resident_count_synonyms():
     assert "入住" not in res_row[0]
 
 
+def test_skill_queries_admission_status_phrasings():
+    """入住情况/入住动态钉（2026-09-07）：「最近三天入住情况」此前未命中
+    任何行，agent 谎称"没有流水记录"（residents 实际自带 admission_date）。
+    """
+    rows = _skill_queries()
+    res_row = next(r for r in rows if r[1] == "resident-query")
+    for kw in ("入住情况", "入住动态"):
+        assert kw in res_row[0], kw
+    for msg in ("最近三天入住情况", "最近入住动态怎么样"):
+        hit = next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+        assert hit == "resident-query", (msg, hit)
+
+
+# ---- _schedule_window（2026-09-07 排班范围预取）----
+
+
+def test_schedule_window_three_days():
+    """「最近三天排班」→ 3 天窗口（含今天，升序）——修复 agent 假阴性
+    "其余天数没有数据"（ERP/PG 实际都有）"""
+    from dl_control.main import _schedule_window
+
+    days = _schedule_window("最近三天排班情况")
+    assert days is not None and len(days) == 3
+    today = datetime.now().date().isoformat()
+    assert days[-1] == today
+    assert days == sorted(days)
+
+
+def test_schedule_window_week_starts_monday():
+    from dl_control.main import _schedule_window
+
+    days = _schedule_window("本周排班")
+    assert days is not None and 1 <= len(days) <= 7
+    monday = datetime.now().date() - __import__("datetime").timedelta(
+        days=datetime.now().date().weekday()
+    )
+    assert days[0] == monday.isoformat()
+
+
+def test_schedule_window_today_and_lastweek_none():
+    """「今天谁当班」保持单日预取；「上周」刻意不展开（自然周语义，
+    trailing 窗口会给错日期）"""
+    from dl_control.main import _schedule_window
+
+    assert _schedule_window("今天谁当班") is None
+    assert _schedule_window("上周排班") is None
+
+
 # ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----
 
 

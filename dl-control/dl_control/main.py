@@ -345,7 +345,7 @@ def _skill_queries() -> list:
         # 三轮：「食堂今天做了什么」未命中任何行）
         (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐",
           "早饭", "午饭", "晚饭", "夜宵", "晚上吃什么", "早上吃什么", "中午吃什么",
-          "食堂"],
+          "吃什么", "食堂"],
          "meal-query",
          f"API:/api/week-menu/?week_start={_week_start()}"),
         (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
@@ -384,8 +384,21 @@ def _schedule_window(message: str) -> list[str] | None:
     /api/schedules/ 只支持单日参数，这里在预取层把范围问句展开成多日。
     「上周」刻意不展开（语义是上一个自然周， trailing 窗口会给错日期，
     交给 agent 自己的工具查）。
+
+    2026-09-07 用户实测「明天后天呢」失败：ERP 排班已铺到 09-30
+    （--cover-until），但这里没有未来词 → 只注入当天 → agent 诚实报
+    "不含明天的数据"（假阴性，数据其实在）。未来词分支放在过去词之前
+    （「明后天」同时含"明/后天"子串，先整词后单词）。
     """
     today = datetime.now().date()
+    if any(w in message for w in ("明天后天", "明后天")):
+        return [(today + timedelta(days=i)).isoformat() for i in (1, 2)]
+    if "明天" in message:
+        return [(today + timedelta(days=1)).isoformat()]
+    if "后天" in message:
+        return [(today + timedelta(days=2)).isoformat()]
+    if any(w in message for w in ("未来", "接下来")):
+        return [(today + timedelta(days=i)).isoformat() for i in range(3)]
     if any(w in message for w in ("本周", "这周", "一周", "7天")):
         monday = today - timedelta(days=today.weekday())
         days = (today - monday).days + 1
@@ -470,15 +483,35 @@ async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | Non
         return None
 
 
-async def _collect_skill_data(message: str, sess, db, is_family: bool):
+# 追问碎片时间词：当前句一个意图关键词都不含、但含时间指代——典型如
+# 「明天后天呢」（对着上一句排班问句的追问）。此时沿用上一句用户消息的
+# 意图、用本句的时间词重新取数；没有这层，追问轮零注入，agent 只能拿
+# 上一轮的旧注入诚实说"查不到"（09-07 用户实测踩中）。
+# 护栏：仅当本句无任何命中时才回退——「明天吃什么」自己命中菜单行，
+# 不会被带回排班。
+_FOLLOWUP_TIME_WORDS = (
+    "明天", "后天", "今天", "今晚", "本周", "这周", "上周", "下周",
+    "最近", "前几天", "接下来",
+)
+
+
+async def _collect_skill_data(
+    message: str, sess, db, is_family: bool, history: list | None = None
+):
     """两个 chat 端点共用的意图匹配+预取（09-07 三轮统一入口）。
 
     单意图 → 该行数据的列表；组合问句 → {中文标签: 行} dict（两个意图
     的数据并排可辨）；未命中或全部拉取失败 → None。
     """
     table = _family_skill_queries() if is_family else _skill_queries()
+    matched = _match_skill_rows(message, table)
+    if not matched and history and any(w in message for w in _FOLLOWUP_TIME_WORDS):
+        for entry in reversed(history):
+            if entry.get("role") == "user":
+                matched = _match_skill_rows(entry.get("content", ""), table)
+                break
     results: list[tuple[str, list]] = []
-    for sname, ssql in _match_skill_rows(message, table):
+    for sname, ssql in matched:
         r = await _prefetch_skill_data(ssql, sname, message, sess, db)
         if r is not None:
             results.append((sname, r))
@@ -1059,7 +1092,9 @@ async def build_app() -> FastAPI:
                 logging.getLogger(__name__).warning(f"workflow trigger failed: {_we}")
 
         # ── Skill intent detection (run first) ────────────────────
-        skill_result = await _collect_skill_data(message, sess, db, is_family)
+        skill_result = await _collect_skill_data(
+            message, sess, db, is_family, history=await _get_chat_msgs(chat_id)
+        )
 
         # ── Agent routing (with skill data injected) ──────────────
         agent_reply = None
@@ -1323,7 +1358,9 @@ async def build_app() -> FastAPI:
                 yield chunk
 
         # ── Skill intent detection（与非流式端点同款预取，组合问句双行注入） ──
-        skill_result = await _collect_skill_data(message, sess, db, is_family)
+        skill_result = await _collect_skill_data(
+            message, sess, db, is_family, history=await _get_chat_msgs(chat_id)
+        )
 
         agent_msg = message
         if skill_result is not None:

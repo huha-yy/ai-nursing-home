@@ -11,6 +11,7 @@
 - _load_nursing_sess：cookie 缺失/无效/有效三分支
 """
 
+import asyncio
 from datetime import datetime
 
 from dl_control.auth.middleware import COOKIE_NAME
@@ -323,6 +324,62 @@ def test_schedule_window_today_and_lastweek_none():
 
     assert _schedule_window("今天谁当班") is None
     assert _schedule_window("上周排班") is None
+
+
+def test_schedule_window_future_days():
+    """明天/后天问句展开到未来日期——09-07 用户实测「明天后天呢」假阴性：
+    ERP 排班已铺到 09-30，但窗口只认过去词，预取只注当天。"""
+    from datetime import date, timedelta
+
+    from dl_control.main import _schedule_window
+
+    today = date.today()
+    assert _schedule_window("明天谁当班") == [(today + timedelta(days=1)).isoformat()]
+    assert _schedule_window("后天的排班") == [(today + timedelta(days=2)).isoformat()]
+    both = _schedule_window("明天后天呢")
+    assert both == [(today + timedelta(days=1)).isoformat(), (today + timedelta(days=2)).isoformat()]
+    both2 = _schedule_window("明后天排班")
+    assert both2 == both
+    future3 = _schedule_window("接下来几天排班")
+    assert future3 == [(today + timedelta(days=i)).isoformat() for i in range(3)]
+
+
+def test_followup_time_fragment_reuses_prev_intent(monkeypatch):
+    """追问碎片带上下文：本句无任何意图关键词但含时间词（「明天后天呢」），
+    沿用上一句用户消息的意图（排班）+ 本句时间词取数。「明天吃什么」
+    自己命中菜单行，不触发回退。"""
+    from dl_control import main as m
+
+    rows = _skill_queries()
+    # 「明天后天呢」自身零命中
+    assert m._match_skill_rows("明天后天呢", rows) == []
+    # 命中在即不回退：仍是菜单行
+    assert [s for s, _q in m._match_skill_rows("明天吃什么", rows)] == ["meal-query"]
+    # 回退逻辑：直接验 _collect_skill_data 的匹配段——用 monkeypatch 把预取
+    # 换成记录器，避免真发 HTTP
+    captured: list = []
+
+    async def fake_prefetch(sql, skill_name, message, sess, db):
+        captured.append((skill_name, message, sql))
+        return [{"stub": True}]
+
+    history = [
+        {"role": "user", "content": "最近三天排班情况"},
+        {"role": "assistant", "content": "……"},
+    ]
+    monkeypatch.setattr(m, "_prefetch_skill_data", fake_prefetch)
+    out = asyncio.run(
+        m._collect_skill_data("明天后天呢", None, None, is_family=False, history=history)
+    )
+    assert out == [{"stub": True}]
+    assert captured[0][0] == "nursing-schedule"  # 沿用上一句意图
+    assert captured[0][1] == "明天后天呢"  # 时间词取自本句
+    # 无时间词的追问碎片不回退（零注入保持）
+    captured.clear()
+    out2 = asyncio.run(
+        m._collect_skill_data("然后呢", None, None, is_family=False, history=history)
+    )
+    assert out2 is None and not captured
 
 
 # ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----

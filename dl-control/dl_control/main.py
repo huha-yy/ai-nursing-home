@@ -304,6 +304,10 @@ def _skill_queries() -> list:
          "API:/api/assessments/"),
         (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"],
          "logistics-inventory", "API:/api/inventory/"),
+        # 异常事件口语（摔倒/走失/发烧…）必须在 resident（"老人"）行之前：
+        # "有老人摔倒吗"同时含"老人"，先命中这里才拿得到 incidents 而非老人名单
+        (["摔倒", "走失", "坠床", "噎食", "发烧", "发热"], "alert-query",
+         "API:/api/incidents/?handled=false"),
         # 「入住」这类短词刻意不收：会先于后行吞掉"入住率/床位"类问句。
         # 收长词组（09-07 实测坑：销售问「院里住了多少人」未命中任何行，
         # agent 拿系统 prompt 里的对标口径编出 1100 人）；「入住情况/入住动态」
@@ -313,7 +317,13 @@ def _skill_queries() -> list:
           "住了多少人", "多少入住", "入住人数", "在院人数", "在院老人数",
           "入住情况", "入住动态"],
          "resident-query", "API:/api/residents/"),
-        (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐"], "meal-query",
+        # 床位/入住率走 beds occupancy（resident 行刻意不收裸"入住"给它让路）
+        (["床位", "入住率", "空床", "满床", "几床", "空着"], "beds-occupancy",
+         "API:/api/beds/occupancy/"),
+        # 早/午/晚饭口语（"晚饭吃什么"此前未命中任何行）
+        (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐",
+          "早饭", "午饭", "晚饭", "夜宵", "晚上吃什么", "早上吃什么", "中午吃什么"],
+         "meal-query",
          f"API:/api/week-menu/?week_start={_week_start()}"),
         (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
          "SELECT title, date, time, location FROM nursing_activities "
@@ -321,12 +331,13 @@ def _skill_queries() -> list:
         (["欠费", "没交", "未缴", "未交", "催缴"], "finance-query",
          "API:/api/billing/arrears/"),
         (["餐费", "月结"], "finance-query", "API:/api/meal-finance/"),
-        (["费用", "结算", "缴费", "账单", "应收", "出账"], "finance-query",
+        (["费用", "结算", "缴费", "账单", "应收", "出账", "收费", "收了"], "finance-query",
          "API:/api/billing/summary/"),
         (["预警", "告警", "重点关注", "异常"], "alert-query",
          "API:/api/incidents/?handled=false"),
-        (["员工", "谁负责", "人员", "值班人员"], "staff-query",
-         "API:/api/employees/"),
+        # 员工口语（护工/护士/医生/护理员——"护理员"不含"护理等级"，评估行不吞）
+        (["员工", "谁负责", "人员", "值班人员", "护工", "护士", "医生", "护理员"],
+         "staff-query", "API:/api/employees/"),
     ]
 
 

@@ -184,6 +184,47 @@ def test_skill_queries_admission_status_phrasings():
         assert hit == "resident-query", (msg, hit)
 
 
+def test_skill_queries_colloquial_battery():
+    """口语问法批量钉（2026-09-07 二轮盘点）：四组此前全部漏网。"""
+    rows = _skill_queries()
+
+    def hit(msg):
+        return next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+
+    # 菜单口语（晚饭/早饭/晚上吃什么——"晚上吃什么"必须整短语，裸"晚上"
+    # 会吞掉"晚上有什么活动"）
+    for msg in ("晚饭吃什么", "早饭吃什么", "今天晚上吃什么"):
+        assert hit(msg) == "meal-query", msg
+    # 员工口语（护工/护士/医生/护理员）
+    for msg in ("院里有多少护工", "护士够不够", "医生有几位", "护理员多少人"):
+        assert hit(msg) == "staff-query", msg
+    # 异常事件口语：必须在 resident（"老人"）行之前命中（否则拿到老人名单）
+    for msg in ("最近有老人摔倒吗", "有没有走失的情况", "谁发烧了"):
+        assert hit(msg) == "alert-query", msg
+    # 财务口语
+    for msg in ("这个月收了多少钱", "收费情况怎么样"):
+        assert hit(msg) == "finance-query", msg
+    # 床位/入住率（beds occupancy；resident 行不收裸"入住"给它让路）
+    for msg in ("现在空着几床", "入住率多少", "还有床位吗"):
+        assert hit(msg) == "beds-occupancy", msg
+
+
+def test_skill_queries_no_keyword_collateral():
+    """新关键词不误伤既有优先级行（易撞问句防回归）：
+    - 「晚上有什么活动」不得被 meal 行吞掉
+    - 「尿不湿多少钱」不得被 finance 行的"收了"吞掉（库存行在前）
+    - 「老人的评估」仍归评估行（评估行在 resident 行之前）
+    """
+    rows = _skill_queries()
+
+    def hit(msg):
+        return next((s for kws, s, _q in rows if any(kw in msg for kw in kws)), None)
+
+    assert hit("晚上有什么活动") == "activity-query"
+    assert hit("尿不湿多少钱") == "logistics-inventory"
+    assert hit("老人的评估结果") == "assessment-query"
+
+
 # ---- _schedule_window（2026-09-07 排班范围预取）----
 
 

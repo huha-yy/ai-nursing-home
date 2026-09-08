@@ -34,8 +34,9 @@ dato_overview_report.md
 # Generated logs
 logs/
 
-# Docs (not tracked in repo)
-docs/
+# Docs (not tracked in repo; 手册例外保留跟踪)
+docs/*
+!docs/演示问句手册.md
 GBrain一线知识平台实施计划.md
 scripts/.env
 scripts/.ddns_state.json

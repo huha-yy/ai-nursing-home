@@ -2206,3 +2206,31 @@ done/error/流中断三处停表并整段终渲染。Playwright 采样验证：�
 按钮 .login-btn、聊天框 #chat-input/#chat-send（/auth/nursing-login
 GET 是 405，页面在 /login）。
 
+
+## 2026-09-12 · dl-ocr 收编：生产 Unlimited-OCR 源码落回仓库，纳入 compose 管理
+
+- **背景**：生产 OCR 一直是手动 `docker run` 的容器 `dl-ocr-unlimited`（镜像
+  `dl-ocr:codex-ocr-pipeline-v8`，别处构建），而仓库 `dl-ocr/` 里是从未上线的
+  EasyOCR 旧代码——compose 里的 dl-ocr 服务（18081）在跑但零调用方。本次把
+  真正在用的源码（容器 /app/dl_ocr/ 4 个文件 docker cp 出来）替换进仓库。
+- **改动**：dl_ocr/{startup,routes,settings}.py 换 Unlimited-OCR 版（transformers
+  CUDA bfloat16 + trust_remote_code、Bearer 认证、Lock 串行推理）；pyproject 删
+  easyocr/opencv、钉 `transformers==4.57.1`（生产镜像热修层验证过的版本，容器内
+  pyproject 写 <4.50 是过时的）；compose init 容器 FILES 补 tokenizer 三件套
+  （此前 08-03 手动补的，全新 volume 会缺件起不来）。
+- **命名决策（四个调用方零改动）**：compose 服务名保持 `dl-ocr` +
+  `container_name: dl-ocr-unlimited` → dato_net 上两个 DNS 名同时可解析
+  （infra/.env 的 DL_OCR_URL 与 vision-ocr skill 的默认 http://dl-ocr:8080
+  都生效）；宿主端口发布 192.168.10.247:18080 不变（nursing-erp 宿主进程 +
+  config_gen agent env 默认值继续工作）。nursing-erp/.env 的 token 本就配好。
+- **运行时要点**：`gpus: all`（模型强制 CUDA）、read_only + tmpfs /tmp:exec
+  （triton 编译 kernel）、HF_MODULES_CACHE/MPLCONFIGDIR 指 /tmp（transformers
+  动态模块要可写）、TRITON_CACHE_DIR/TORCH_DISABLE_NATIVE_JIT 在 startup.py
+  代码内 setdefault。torch 经 PyPI CUDA 轮自带 runtime，无需 apt。
+- **切换**：旧手动容器 `docker stop + rename dl-ocr-unlimited-manual-bak` 留作
+  回滚（稳定几天后连同 `dl-ocr-unlimited-pre-lan-20260804` 一并清理）；旧
+  EasyOCR 容器 dl-ocr 直接被替换。
+- **验证全绿**：health ok（模型加载 ~1 分钟）；无 token 401；带 token 合成菜单
+  图 5/5 行全对（含 blocks bbox，3.3s）；dato-control 容器内双 DNS 名可达；
+  chat 附件 E2E（b1_liu，「这张图片里写了什么菜」→ 菜品表格，走
+  dl-ocr-unlimited DNS + token + MiniMax）；GPU 9.8GB 归属新容器。

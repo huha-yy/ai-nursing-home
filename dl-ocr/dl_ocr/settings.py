@@ -11,12 +11,17 @@ class Settings(BaseSettings, frozen=True):
     """All configuration via environment variables.  No defaults for secrets."""
 
     # --- Model ---
-    # Directory where EasyOCR model files are cached.
-    model_dir: str = "/models"
+    # HuggingFace model id for baidu/Unlimited-OCR.
+    model_name: str = "baidu/Unlimited-OCR"
+    # Local directory where model files are stored.
+    model_dir: str = "/models/baidu--Unlimited-OCR"
 
     # --- Auth ---
     # Shared secret used to call dl-control's agent-verify endpoint.
     dl_internal_api_key: str = ""
+    # Optional bearer token required by the OCR HTTP endpoint.  This is used
+    # when the model service is exposed to another appliance host on the LAN.
+    api_token: str = ""
 
     # --- Service ---
     # dl-control's base URL (for agent token verification).

@@ -377,7 +377,9 @@ services:
         MODEL_DIR = "/models/baidu--Unlimited-OCR"
         os.makedirs(MODEL_DIR, exist_ok=True)
 
-        # Files to download (safetensors + minimal config)
+        # Files to download (safetensors + code + tokenizer trio — the
+        # tokenizer files are required by AutoTokenizer; without them a
+        # fresh volume cannot start)
         FILES = [
             "config.json",
             "configuration_deepseek_v2.py",
@@ -387,6 +389,9 @@ services:
             "modeling_unlimitedocr.py",
             "model.safetensors.index.json",
             "model-00001-of-000001.safetensors",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "special_tokens_map.json",
         ]
 
         all_ok = True
@@ -420,20 +425,29 @@ services:
     volumes:
       - ocr_models:/models
 
+  # Unlimited-OCR 推理服务（2026-09-12 收编手动容器 dl-ocr-unlimited）。
+  # container_name 保持 dl-ocr-unlimited：infra/.env 的 DL_OCR_URL 与各调用方
+  # 零改动；服务名 dl-ocr 在 dato_net 上同样是可解析 DNS 名（dl-control /
+  # vision-ocr skill 的默认值 http://dl-ocr:8080 由此生效）。
   dl-ocr:
     image: dl-ocr:latest
     build:
       context: ../dl-ocr
-    container_name: dl-ocr
+    container_name: dl-ocr-unlimited
     restart: unless-stopped
     read_only: true
+    gpus: all
     expose:
       - "8080"
     ports:
-      - "192.168.10.247:18081:8080"
+      - "192.168.10.247:18080:8080"
     environment:
-      DL_OCR_MODEL_DIR: /models
+      DL_OCR_MODEL_DIR: /models/baidu--Unlimited-OCR
+      DL_OCR_MODEL_NAME: baidu/Unlimited-OCR
+      DL_OCR_API_TOKEN: ${DL_OCR_API_TOKEN:-}
       HOME: /tmp
+      HF_MODULES_CACHE: /tmp/hf-modules
+      MPLCONFIGDIR: /tmp/matplotlib
     tmpfs:
       - /tmp:exec
     volumes:

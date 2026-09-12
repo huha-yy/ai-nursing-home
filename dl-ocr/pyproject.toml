@@ -1,7 +1,7 @@
 [project]
 name = "dl-ocr"
 version = "0.0.0"
-description = "dato OCR service — EasyOCR for nursing home document scanning"
+description = "dato OCR service — Baidu Unlimited-OCR for nursing home document scanning"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -10,11 +10,17 @@ dependencies = [
     "pydantic-settings>=2.6",
     "httpx>=0.27",
     "structlog>=24.4",
-    "easyocr>=1.7",
     "pillow>=10.0",
-    "opencv-python-headless>=4.8",
+    # Unlimited-OCR runtime (transformers pinned to the version validated on
+    # the production image dl-ocr:codex-ocr-pipeline-v8 hotfix layer).
+    "transformers==4.57.1",
+    "accelerate>=0.30",
+    "einops>=0.8",
     "torchvision>=0.18",
-    "torch>=2.5",
+    "addict>=2.4",
+    "matplotlib>=3.8",
+    "requests>=2.31",
+    "easydict>=1.13",
 ]
 
 [tool.ruff]

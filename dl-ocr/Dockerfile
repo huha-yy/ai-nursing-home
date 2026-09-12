@@ -11,8 +11,11 @@ ENV UV_EXTRA_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
 ENV UV_HTTP_TIMEOUT=300
 RUN uv sync --no-dev
 
-# PaddleOCR model is loaded from Docker named volume at /models (set via
-# PADDLEOCR_HOME).  The model is NOT baked into this image.
+# Unlimited-OCR model is loaded from Docker named volume at
+# /models/baidu--Unlimited-OCR (set via DL_OCR_MODEL_DIR).  The ~6.3GB
+# model is NOT baked into this image — the dl-ocr-model-download init
+# container populates the ocr_models volume.  CUDA is mandatory at runtime;
+# PyPI torch wheels bundle the CUDA runtime, so no apt packages needed.
 
 COPY dl_ocr/ ./dl_ocr/
 

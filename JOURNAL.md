@@ -2234,3 +2234,21 @@ GET 是 405，页面在 /login）。
   图 5/5 行全对（含 blocks bbox，3.3s）；dato-control 容器内双 DNS 名可达；
   chat 附件 E2E（b1_liu，「这张图片里写了什么菜」→ 菜品表格，走
   dl-ocr-unlimited DNS + token + MiniMax）；GPU 9.8GB 归属新容器。
+
+## 2026-09-12 · 演示数据九月铺满 + 每日自动保鲜（告别"每次演示前重灌"）
+
+- **数据重锚**：restore_demo.sh 全量重灌（备份 db.sqlite3.bak-20260912-173029，
+  9055 单、当日 102 单、演示位 张国栋/李秀兰未来 0、菜单至 10-05）；PG 工单
+  重播 397 单/14 天（当日 30 单 16 完成）；活动表铺到 09-30（generate_series
+  + 星期轮换主题，共 105 行）。
+- **两块数据语义锚定运行日、次日就旧**：ERP 告警（近两周）与 PG 工单（完成率
+  不可前铺）。新增 `rebuild_demo_data.py --refresh-incidents` 外科手术模式
+  （nursing-erp 17b8624，删全量重播 25 条锚定今天，与 runserver 并行安全）。
+- **自动化**：`scripts/demo_data_keepfresh.sh`（ai d109e2d）+ 宿主机 crontab
+  `23 6 * * *` 每日执行，日志 logs/demo-keepfresh.log。两步各自 fault-isolated。
+- **其余数据面铺到 09-30 不会陈旧**：ERP 点餐/周菜单/排班（cover-until）、
+  PG meals/schedules/activities。
+- **仍需人工**：周报现场触发（~4 分钟，语义最真实）；测试污染后跑
+  restore_demo.sh 一键恢复。
+- **demo_day_check 全量：18 绿 / 1 黄 / 0 红「可以演示」**（黄=周报 5 天前，
+  现场触发即消）。记忆文件 demo-week-data-refresh.md 已改写为保鲜体系版。

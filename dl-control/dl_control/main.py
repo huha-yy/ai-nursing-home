@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
+import json
 import logging
 import os
 import re
@@ -473,6 +474,11 @@ async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | Non
             async with httpx.AsyncClient(timeout=10.0, headers=_erp_headers(sess)) as cli:
                 resp = await cli.get(f"{erp}{sql[4:]}")
             return _erp_items(resp.json())[:50] if resp.status_code == 200 else None
+        if sql.startswith("CRM:"):
+            crm = os.environ.get("CRM_API_URL", "http://192.168.10.247:8766").rstrip("/")
+            async with httpx.AsyncClient(timeout=10.0, headers=_crm_headers(sess)) as cli:
+                resp = await cli.get(f"{crm}{sql[4:]}")
+            return _erp_items(resp.json())[:50] if resp.status_code == 200 else None
         async with db.conn(user_id=None, role="system") as conn:
             cur = await conn.execute(sql)
             rows2 = await cur.fetchall()
@@ -503,7 +509,12 @@ async def _collect_skill_data(
     单意图 → 该行数据的列表；组合问句 → {中文标签: 行} dict（两个意图
     的数据并排可辨）；未命中或全部拉取失败 → None。
     """
-    table = _family_skill_queries() if is_family else _skill_queries()
+    if is_family:
+        table = _family_skill_queries()
+    elif sess is not None and getattr(sess, "role", "") == "company":
+        table = _crm_skill_queries()
+    else:
+        table = _skill_queries()
     matched = _match_skill_rows(message, table)
     if not matched and history and any(w in message for w in _FOLLOWUP_TIME_WORDS):
         for entry in reversed(history):
@@ -575,6 +586,62 @@ def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> s
         "用户询问其他老人、员工事务或院内管理事务时，温暖而礼貌地说明这超出家属服务范围。"
         "你只能查询和转述信息，不能代家属点餐、退餐或修改任何数据；家属需要操作时，"
         "引导使用顶栏「家属服务」页面。回答用中文，语气温暖亲切。"
+    )
+
+
+# ── 公司 CRM 会话（role="company"，2026-09-14 二期对话查数）────────
+# 账号真源在 huha-crm（宿主机 Django，:8766）：chat 登录委托 CRM
+# POST /api/auth 校验（/auth/crm-login），本侧不落库。预取走 CRM 只读
+# API；销售归属靠 X-CRM-User 头（CRM 侧过滤 owner），经理会话不带头=全量。
+
+
+def _crm_headers(sess=None) -> dict:
+    """huha-crm /api/ 调用头：X-API-Key 必带；销售会话带 X-CRM-User 收窄归属。
+
+    注意 crm_manager 存的是 "1"/"0" 字符串——"0" 在 Python 里是真值，
+    判经理必须显式比对 "1"，否则销售会话会被当成经理漏发归属头。
+    """
+    key = os.environ.get("CRM_API_KEY", "")
+    headers = {"X-API-Key": key} if key else {}
+    crm_user = ((getattr(sess, "username", "") or "") if sess else "").strip()
+    is_manager = (getattr(sess, "crm_manager", "") or "") == "1"
+    if crm_user and not is_manager:
+        headers["X-CRM-User"] = crm_user
+    return headers
+
+
+def _crm_skill_queries() -> list:
+    """公司会话（role="company"）专用意图映射 —— 全部走 huha-crm /api/*。
+
+    与家属版同款护栏：只有 CRM: 行，不注本侧 SQL/ERP 行（公司会话不该
+    触达养老院数据）；行序即优先级，泛词「客户」兜底最后。
+    """
+    return [
+        (["商机", "漏斗", "赢单", "输单", "谈判", "报价", "线索"], "crm-pipeline",
+         "CRM:/api/opportunities"),
+        (["业绩", "销售额", "统计", "客户数", "本月", "这个月"], "crm-stats",
+         "CRM:/api/stats"),
+        (["跟进", "拜访", "回访"], "crm-followups", "CRM:/api/followups?days=7"),
+        (["客户", "联系人"], "crm-customers", "CRM:/api/customers"),
+    ]
+
+
+def _crm_system_prompt(sess, today_str: str, skill_result, message: str) -> str:
+    """公司会话的 system prompt（模块级，便于单测）。"""
+    scope = "全部销售数据" if (getattr(sess, "crm_manager", "") or "") == "1" else "本人负责的客户与商机"
+    if skill_result is not None:
+        data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+        return (
+            f"你是公司销售管理助手。今天是{today_str}。当前用户：{sess.name}。"
+            f"以下是 CRM 系统查询到的真实销售数据（{scope}）：\n{data_json}\n\n"
+            "请根据以上数据用中文直接回答用户问题，不要编造。回答风格：第一句话直接给出"
+            "答案，金额用元并带千分位，只回答问到的内容，结尾不要询问是否需要进一步帮助。"
+        )
+    return (
+        f"你是公司销售管理助手。今天是{today_str}。当前用户：{sess.name}。"
+        "你可以回答公司 CRM 中客户、商机、跟进记录相关的问题；当用户的问题需要查询"
+        "数据而系统未提供查询结果时，请诚实说明暂时查不到，不要编造数字。"
+        "回答用中文，简洁专业。"
     )
 
 
@@ -755,10 +822,14 @@ async def build_app() -> FastAPI:
     _NURSING_ROLES = frozenset(
         {"director", "nursing_dept", "logistics_dept", "building", "floor", "general"}
     )
+    # 周报工作流触发词（仅养老院员工角色可触发，家属/公司不碰 nursing.ops）
+    _REPORT_KWS = ("报表", "周报", "运营报表")
     # 家属（role="family"）只放行对话六处门（chat 页 + 会话 CRUD + 发消息）；
     # dashboard/alerts/work-orders/reports 等员工路由仍查 _NURSING_ROLES，
     # middleware 的同款集合也不含 family —— 家属进员工页一律 302 /login。
-    _CHAT_ALLOWED = _NURSING_ROLES | {"family"}
+    # 公司销售（role="company"）同家属待遇：只进 chat，预取走 CRM 专用表
+    # （_crm_skill_queries），养老院演示角色碰不到 CRM 关键词 → 演示零泄露。
+    _CHAT_ALLOWED = _NURSING_ROLES | {"family", "company"}
 
     # Helper: pick CURRENT_DATE when data exists, else the latest available
     # date from the table.  Prevents "N/A" displays when seed data is older
@@ -1064,7 +1135,8 @@ async def build_app() -> FastAPI:
         is_family = sess.role == "family"
 
         # ── Weekly report workflow trigger (before skill intent) ──
-        if not is_family and any(kw in message for kw in ("报表", "周报", "运营报表")):
+        # 仅养老院员工角色可触发（家属/公司会话不碰 nursing.ops 工作流）
+        if sess.role in _NURSING_ROLES and any(kw in message for kw in _REPORT_KWS):
             from dl_control.workflows import runs as _wfruns
             from dl_control.workflows.wake import publish_wake as _wfpw
 
@@ -1158,6 +1230,8 @@ async def build_app() -> FastAPI:
         today_str = datetime.now().strftime("%Y年%m月%d日 %A")
         if is_family:
             system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+        elif sess.role == "company":
+            system_prompt = _crm_system_prompt(sess, today_str, skill_result, message)
         else:
             context_parts = [f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
             if sess.dept: context_parts.append(f"科室：{sess.dept}")
@@ -1533,6 +1607,8 @@ async def build_app() -> FastAPI:
                 today_str = datetime.now().strftime("%Y年%m月%d日 %A")
                 if is_family:
                     system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+                elif sess.role == "company":
+                    system_prompt = _crm_system_prompt(sess, today_str, skill_result, message)
                 else:
                     context_parts = [
                         f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，"
@@ -1568,7 +1644,7 @@ async def build_app() -> FastAPI:
                 yield await _sse({"type": "error", "message": msg})
 
         # 注：_workflow_gen 引用 _chat_gen（闭包按名字解析，此处定义已就绪）
-        if not is_family and any(kw in message for kw in ("报表", "周报", "运营报表")):
+        if sess.role in _NURSING_ROLES and any(kw in message for kw in _REPORT_KWS):
             return StreamingResponse(_workflow_gen(), media_type="text/event-stream")
         return StreamingResponse(_chat_gen(), media_type="text/event-stream")
 

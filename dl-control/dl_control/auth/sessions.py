@@ -35,6 +35,8 @@ class Session:
     # Family context (role="family" only): ERP 家属令牌 + 绑定老人清单（JSON 串）
     family_token: str | None = None
     residents: str | None = None
+    # Company context (role="company" only): CRM 会话经理标志（"1"=view_all 全量）
+    crm_manager: str | None = None
 
 
 def _sess_key(sid: str) -> str:
@@ -78,6 +80,7 @@ class SessionStore:
         username: str | None = None,
         family_token: str | None = None,
         residents: str | None = None,
+        crm_manager: str | None = None,
     ) -> Session:
         sid = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
@@ -104,6 +107,8 @@ class SessionStore:
             mapping["family_token"] = family_token
         if residents is not None:
             mapping["residents"] = residents
+        if crm_manager is not None:
+            mapping["crm_manager"] = crm_manager
         async with self._r.pipeline(transaction=True) as pipe:
             key = _sess_key(sid)
             pipe.hset(key, mapping=mapping)
@@ -126,6 +131,7 @@ class SessionStore:
             username=username,
             family_token=family_token,
             residents=residents,
+            crm_manager=crm_manager,
         )
 
     async def load(self, sid: str) -> Session | None:
@@ -149,6 +155,7 @@ class SessionStore:
             username=data.get("username"),
             family_token=data.get("family_token"),
             residents=data.get("residents"),
+            crm_manager=data.get("crm_manager"),
         )
 
     async def renew(self, sid: str) -> None:

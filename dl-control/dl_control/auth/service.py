@@ -161,6 +161,89 @@ async def try_login(
 
 
 @dataclass(frozen=True, slots=True)
+class CrmLoginResult:
+    """公司销售登录结果 — 身份真源在 huha-crm（宿主机 Django），本侧只缓存
+    用户名与经理标志（预取时 X-CRM-User 走 username，经理则不带=全量）。"""
+
+    user_id: str  # "crm:<username>"，与员工 u0xx / 家属 family:<id> 不撞
+    username: str
+    name: str
+    manager: bool
+
+
+def _crm_key(username: str) -> str:
+    return f"login_fail:crm:{username}"
+
+
+async def try_crm_login(
+    db: Database,
+    redis: Redis,
+    *,
+    username: str,
+    password: str,
+    ip: str,
+    rate_limit_fails: int,
+    rate_limit_window: int,
+) -> CrmLoginResult:
+    """CRM 账号登录 → 委托 huha-crm POST /api/auth 换用户名与经理标志。
+
+    公司账号不落本侧库（与家属委托同款姿态）；失败限流用 CRM 专用 Redis
+    键。CRM_API_KEY 未配置时不回落（fail-closed），直接按登录失败处理。
+    """
+    username = username.strip()
+
+    async def _audit(action: str, reason: str) -> None:
+        async with db.conn(user_id=None, role="system") as conn:
+            await write_event(
+                conn,
+                actor_user_id=None,
+                action=action,
+                target="login",
+                meta={"reason": reason, "ip": ip},
+            )
+
+    # 1. 锁定门槛：超限直接拒（不再打 CRM）。
+    count = await redis.get(_crm_key(username))
+    if count is not None and int(count) > rate_limit_fails:
+        await _audit("crm_login_failed", "rate_limited")
+        raise LoginError("rate_limited")
+
+    # 2. 委托 CRM 校验（X-API-Key 服务间）。
+    crm_url = os.environ.get("CRM_API_URL", "http://192.168.10.247:8766").rstrip("/")
+    crm_key = os.environ.get("CRM_API_KEY", "")
+    if not crm_key:
+        await _audit("crm_login_failed", "crm_not_configured")
+        raise LoginError("crm_not_configured")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{crm_url}/api/auth",
+                headers={"X-API-Key": crm_key},
+                json={"username": username, "password": password},
+            )
+    except Exception:
+        await _audit("crm_login_failed", "crm_unreachable")
+        raise LoginError("crm_unreachable") from None
+
+    if resp.status_code != 200:
+        await redis.incr(_crm_key(username))
+        await redis.expire(_crm_key(username), rate_limit_window)
+        reason = "invalid_credentials" if resp.status_code == 401 else f"crm_{resp.status_code}"
+        await _audit("crm_login_failed", reason)
+        raise LoginError(reason)
+
+    data = resp.json()
+    await redis.delete(_crm_key(username))
+    await _audit("crm_login_succeeded", "ok")
+    return CrmLoginResult(
+        user_id=f"crm:{username}",
+        username=username,
+        name=username,
+        manager=bool(data.get("manager")),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class NursingLoginResult:
     user_id: str
     username: str

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AI 养老院院长 — 对话{% endblock %}
+{% block title %}{{ t("nursing.chat.title") }}{% endblock %}
 {% block body %}
 
 {% set role = nursing_user.role %}
@@ -25,102 +25,101 @@
   .quick-q:hover { background: #fdf6ec; border-color: #E67E22; color: #E67E22; }
 </style>
 
-{% set label_map = {
-  'director': '院长', 'nursing_dept': '护理科', 'logistics_dept': '总务科',
-  'building': '楼长', 'floor': '楼层组长', 'general': '工作人员', 'family': '家属',
-} %}
-{% set role_label = label_map.get(role, role) %}
+{% set role_label = t("nursing.role." ~ role) %}
 
 <div class="nh-chat-layout">
   <aside class="nh-sidebar">
     <div class="nh-sidebar-section">
-      <h3>当前用户</h3>
-      <div class="nh-stat-row"><span>身份</span><span class="nh-stat-val">{{ role_label }}</span></div>
-      <div class="nh-stat-row"><span>姓名</span><span class="nh-stat-val">{{ nursing_user.name }}</span></div>
-      {% if dept %}<div class="nh-stat-row"><span>科室</span><span class="nh-stat-val">{{ dept }}</span></div>{% endif %}
-      {% if building %}<div class="nh-stat-row"><span>楼栋</span><span class="nh-stat-val">{{ building }}</span></div>{% endif %}
-      {% if floor %}<div class="nh-stat-row"><span>楼层</span><span class="nh-stat-val">{{ floor }}</span></div>{% endif %}
+      <h3>{{ t("nursing.chat.current_user") }}</h3>
+      <div class="nh-stat-row"><span>{{ t("nursing.chat.identity") }}</span><span class="nh-stat-val">{{ role_label }}</span></div>
+      <div class="nh-stat-row"><span>{{ t("nursing.chat.name") }}</span><span class="nh-stat-val">{{ nursing_user.name }}</span></div>
+      {% if dept %}<div class="nh-stat-row"><span>{{ t("nursing.chat.dept") }}</span><span class="nh-stat-val">{{ dept }}</span></div>{% endif %}
+      {% if building %}<div class="nh-stat-row"><span>{{ t("nursing.chat.building") }}</span><span class="nh-stat-val">{{ building }}</span></div>{% endif %}
+      {% if floor %}<div class="nh-stat-row"><span>{{ t("nursing.chat.floor") }}</span><span class="nh-stat-val">{{ floor }}</span></div>{% endif %}
     </div>
 
     <div class="nh-sidebar-section">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3>对话记录</h3>
-        <button id="btn-new-chat" style="background:#E67E22;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:14px">+ 新对话</button>
+        <h3>{{ t("nursing.chat.history") }}</h3>
+        <button id="btn-new-chat" style="background:#E67E22;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:14px">{{ t("nursing.chat.new_chat") }}</button>
       </div>
       <div id="session-list" style="max-height:200px;overflow-y:auto;margin-top:8px"></div>
     </div>
 
+    {# 快捷查询：按钮显示文案走 i18n；onclick 里的 prompt 是发给后端的中文语义，不迁（P4 英文语义层另做） #}
     {% if role == 'director' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('全院在院老人总数')">全院在院老人总数</button>
-      <button class="quick-q" onclick="quickAsk('今日排班情况')">今日排班情况</button>
-      <button class="quick-q" onclick="quickAsk('库存预警物资')">库存预警物资</button>
-      <button class="quick-q" onclick="quickAsk('未处理健康告警')">未处理健康告警</button>
-      <button class="quick-q" onclick="quickAsk('本日护理完成率')">本日护理完成率</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('全院在院老人总数')">{{ t("nursing.chat.q.total_residents") }}</button>
+      <button class="quick-q" onclick="quickAsk('今日排班情况')">{{ t("nursing.chat.q.schedule_status") }}</button>
+      <button class="quick-q" onclick="quickAsk('库存预警物资')">{{ t("nursing.chat.q.low_stock") }}</button>
+      <button class="quick-q" onclick="quickAsk('未处理健康告警')">{{ t("nursing.chat.q.unhandled_alerts") }}</button>
+      <button class="quick-q" onclick="quickAsk('本日护理完成率')">{{ t("nursing.chat.q.care_completion") }}</button>
     </div>
     {% elif role == 'nursing_dept' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('今日排班表')">今日排班表</button>
-      <button class="quick-q" onclick="quickAsk('工单完成率')">工单完成率</button>
-      <button class="quick-q" onclick="quickAsk('某楼栋当班人员')">某楼栋当班人员</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('今日排班表')">{{ t("nursing.chat.q.today_schedule") }}</button>
+      <button class="quick-q" onclick="quickAsk('工单完成率')">{{ t("nursing.chat.q.workorder_rate") }}</button>
+      <button class="quick-q" onclick="quickAsk('某楼栋当班人员')">{{ t("nursing.chat.q.onduty_by_building") }}</button>
     </div>
     {% elif role == 'logistics_dept' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('库存盘点')">库存盘点</button>
-      <button class="quick-q" onclick="quickAsk('低于安全线的物资')">低于安全线的物资</button>
-      <button class="quick-q" onclick="quickAsk('采购建议')">采购建议</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('库存盘点')">{{ t("nursing.chat.q.inventory_check") }}</button>
+      <button class="quick-q" onclick="quickAsk('低于安全线的物资')">{{ t("nursing.chat.q.below_safety") }}</button>
+      <button class="quick-q" onclick="quickAsk('采购建议')">{{ t("nursing.chat.q.purchase_advice") }}</button>
     </div>
     {% elif role in ('building', 'floor') %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('本楼老人情况')">本楼老人情况</button>
-      <button class="quick-q" onclick="quickAsk('今天谁当班')">今天谁当班</button>
-      <button class="quick-q" onclick="quickAsk('本日菜单和活动')">本日菜单和活动</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('本楼老人情况')">{{ t("nursing.chat.q.my_building_residents") }}</button>
+      <button class="quick-q" onclick="quickAsk('今天谁当班')">{{ t("nursing.chat.q.whos_on_duty") }}</button>
+      <button class="quick-q" onclick="quickAsk('本日菜单和活动')">{{ t("nursing.chat.q.menu_and_activities") }}</button>
     </div>
     {% elif role == 'family' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('我家老人最近怎么样')">我家老人最近怎么样</button>
-      <button class="quick-q" onclick="quickAsk('这周吃饭情况怎么样')">这周吃饭情况怎么样</button>
-      <button class="quick-q" onclick="quickAsk('本月账单和费用')">本月账单和费用</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('我家老人最近怎么样')">{{ t("nursing.chat.q.hows_my_elder") }}</button>
+      <button class="quick-q" onclick="quickAsk('这周吃饭情况怎么样')">{{ t("nursing.chat.q.meals_this_week") }}</button>
+      <button class="quick-q" onclick="quickAsk('本月账单和费用')">{{ t("nursing.chat.q.monthly_bill") }}</button>
     </div>
     {% else %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('今日菜单')">今日菜单</button>
-      <button class="quick-q" onclick="quickAsk('活动安排')">活动安排</button>
-      <button class="quick-q" onclick="quickAsk('院内通知')">院内通知</button>
+    <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
+      <button class="quick-q" onclick="quickAsk('今日菜单')">{{ t("nursing.chat.q.today_menu") }}</button>
+      <button class="quick-q" onclick="quickAsk('活动安排')">{{ t("nursing.chat.q.activities") }}</button>
+      <button class="quick-q" onclick="quickAsk('院内通知')">{{ t("nursing.chat.q.notices") }}</button>
     </div>
     {% endif %}
 
-    <div class="nh-sidebar-footer">杭州社会福利院<br>AI 养老院院长 v0.1</div>
+    <div class="nh-sidebar-footer">{{ t("nursing.dashboard.org") }}<br>{{ t("nursing.chat.brand_v") }}</div>
   </aside>
 
   <div class="nh-chat-main">
     <div class="nh-chat-header">
-      {% if role == 'director' %}全院工作台
-      {% elif role == 'nursing_dept' %}护理工作台
-      {% elif role == 'logistics_dept' %}总务工作台
-      {% elif role == 'family' %}家属服务
-      {% elif role in ('building', 'floor') %}{% if building %}{{ building }}{% endif %}{% if floor %} {{ floor }}{% endif %} 工作台
-      {% else %}工作台 — {{ dept or '综合' }}{% endif %}
+      {% if role == 'director' %}{{ t("nursing.chat.wb.director") }}
+      {% elif role == 'nursing_dept' %}{{ t("nursing.chat.wb.nursing_dept") }}
+      {% elif role == 'logistics_dept' %}{{ t("nursing.chat.wb.logistics_dept") }}
+      {% elif role == 'family' %}{{ t("nursing.chat.wb.family") }}
+      {% elif role in ('building', 'floor') %}{{ t("nursing.chat.wb.building").replace("{b}", building).replace("{f}", floor) }}
+      {% else %}{{ t("nursing.chat.wb.generic").replace("{d}", dept or t("nursing.chat.wb.dept_default")) }}{% endif %}
     </div>
     <div class="nh-chat-messages" id="chat-messages">
       {% if role == 'family' %}
-      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 家属助手</div>您好，{{ nursing_user.name }}！我是养老院 AI 家属助手，可以帮您了解家里老人的照护、健康、用餐和费用情况，请问想了解什么？</div>
+      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">{{ t("nursing.chat.meta.family") }}</div>{{ t("nursing.chat.greet.family").replace("{name}", nursing_user.name) }}</div>
       {% else %}
-      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI {{ role_label }}助手</div>您好，{{ nursing_user.name }}！我是 AI 养老院{{ role_label }}助手，请问有什么可以帮您的？</div>
+      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">{{ t("nursing.chat.meta.role").replace("{role}", role_label) }}</div>{{ t("nursing.chat.greet.staff").replace("{name}", nursing_user.name).replace("{role}", role_label) }}</div>
       {% endif %}
     </div>
     <div id="img-preview" style="display:none;padding:6px 12px;background:#f8f8f8;border-radius:8px;margin-bottom:4px"></div>
     <div class="nh-chat-input-area">
       <input type="file" id="file-upload" accept="image/*,.pdf,.doc,.docx,.txt,.xlsx,.xls,.csv,.md" style="display:none" multiple>
-      <button id="btn-upload" type="button" title="上传图片" style="background:none;border:1px solid #ddd;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;margin-right:4px">📎</button>
-      <textarea id="chat-input" rows="1" placeholder="输入您的问题… 支持拖拽/粘贴图片" autofocus></textarea>
-      <button id="chat-send" type="button">发送</button>
+      <button id="btn-upload" type="button" title="{{ t("nursing.chat.upload_title") }}" style="background:none;border:1px solid #ddd;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;margin-right:4px">📎</button>
+      <textarea id="chat-input" rows="1" placeholder="{{ t("nursing.chat.placeholder") }}" autofocus></textarea>
+      <button id="chat-send" type="button">{{ t("nursing.chat.send") }}</button>
     </div>
   </div>
 </div>
 
 <script>
 var LABEL = '{{ role_label }}';
+var I18N = JSON.parse({{ i18n_page|tojson }});
+function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
 (function() {
   var ta = document.getElementById('chat-input');
   var btn = document.getElementById('chat-send');
@@ -154,7 +153,7 @@ var LABEL = '{{ role_label }}';
     var preview = document.getElementById('img-preview');
     preview.innerHTML = previewHtml +
       '<span style="color:#888;font-size:12px"> ' + name + '</span>' +
-      '<span onclick="document.getElementById(\'img-preview\').style.display=\'none\';pendingAttachment=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; 移除</span>';
+      '<span onclick="document.getElementById(\'img-preview\').style.display=\'none\';pendingAttachment=null" style="cursor:pointer;color:#e74c3c;margin-left:8px">&times; ' + tr('js.remove') + '</span>';
     preview.style.display = 'block';
   }
 
@@ -235,7 +234,7 @@ var LABEL = '{{ role_label }}';
     div.className = 'nh-msg ' + (isUser ? 'nh-msg-user' : 'nh-msg-ai');
     var label = '{{ role_label }}';
     var html = isUser ? text.replace(/\n/g, '<br>') : simpleMarkdown(text);
-    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">AI ' + label + '助手</div>') + html;
+    div.innerHTML = (isUser ? '' : '<div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', label) + '</div>') + html;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
     return div;
@@ -244,7 +243,7 @@ var LABEL = '{{ role_label }}';
   // 流式增量更新：复用同一气泡重渲染（simpleMarkdown 是纯函数，整段重跑）
   function updateMessage(div, text) {
     var label = '{{ role_label }}';
-    div.innerHTML = '<div class="nh-msg-meta">AI ' + label + '助手</div>' + simpleMarkdown(text);
+    div.innerHTML = '<div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', label) + '</div>' + simpleMarkdown(text);
     msgs.scrollTop = msgs.scrollHeight;
   }
 
@@ -255,12 +254,12 @@ var LABEL = '{{ role_label }}';
       (data.chats || []).forEach(function(c) {
         var item = document.createElement('div');
         item.className = 'nh-session-item' + (c.id === currentChatId ? ' active' : '');
-        item.innerHTML = '<span class="nh-session-title">' + (c.title || '新对话') + '</span>' +
+        item.innerHTML = '<span class="nh-session-title">' + (c.title || tr('js.new_chat')) + '</span>' +
           '<span class="nh-session-del" data-id="' + c.id + '">&times;</span>';
         item.querySelector('.nh-session-title').addEventListener('click', function() { switchChat(c.id); });
         item.querySelector('.nh-session-del').addEventListener('click', function(e) {
           e.stopPropagation();
-          if (confirm('删除这个对话？')) deleteChat(c.id);
+          if (confirm(tr('js.confirm_delete'))) deleteChat(c.id);
         });
         list.appendChild(item);
       });
@@ -269,26 +268,26 @@ var LABEL = '{{ role_label }}';
 
   function switchChat(chatId) {
     currentChatId = chatId;
-    msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>正在加载对话记录…</div>';
+    msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">' + tr('js.meta_assistant') + '</div>' + tr('js.loading_history') + '</div>';
     fetch('/api/nursing/chats/' + chatId + '/messages').then(function(r) { return r.json(); }).then(function(data) {
-      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI {{ role_label }}助手</div>您好！我是 AI 养老院{{ role_label }}助手，请问有什么可以帮您的？</div>';
+      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', LABEL) + '</div>' + tr('js.greet_staff').replace('{role}', LABEL) + '</div>';
       (data.messages || []).forEach(function(m) {
         var label = '';
         if (m.attachment) {
-          label = m.attachment.filetype.startsWith('image/') ? ' [图片]' : ' [文件:' + m.attachment.filename + ']';
+          label = m.attachment.filetype.startsWith('image/') ? tr('js.attach_image') : tr('js.attach_file').replace('{f}', m.attachment.filename);
         }
         addMessage(m.content + label, m.role === 'user');
       });
       msgs.scrollTop = msgs.scrollHeight;
     }).catch(function() {
-      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>加载失败，请重试。</div>';
+      msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">' + tr('js.meta_assistant') + '</div>' + tr('js.load_failed') + '</div>';
     });
     loadChatList();
   }
 
   function deleteChat(chatId) {
     fetch('/api/nursing/chats/' + chatId, { method: 'DELETE' }).then(function() {
-      if (currentChatId === chatId) { currentChatId = ''; msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 助手</div>您好！我是 AI 养老院院长助手，请问有什么可以帮您的？</div>'; }
+      if (currentChatId === chatId) { currentChatId = ''; msgs.innerHTML = '<div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">' + tr('js.meta_assistant') + '</div>' + tr('js.greet_staff').replace('{role}', LABEL) + '</div>'; }
       loadChatList();
     });
   }
@@ -303,7 +302,7 @@ var LABEL = '{{ role_label }}';
     var text = ta.value.trim();
     var att = pendingAttachment;
     if (!text && !att) return;
-    var fileLabel = att ? (att.type.match(/^image\//) ? ' [图片]' : ' [文件:' + att.filename + ']') : '';
+    var fileLabel = att ? (att.type.match(/^image\//) ? tr('js.attach_image') : tr('js.attach_file').replace('{f}', att.filename)) : '';
     if (att) {
       // Include image preview inside the user's message bubble
       addMessage((att.previewHtml || '') + '<div>' + (text || '') + '</div>', true);
@@ -316,13 +315,13 @@ var LABEL = '{{ role_label }}';
     ta.value = '';
     ta.style.height = 'auto';
     btn.disabled = true;
-    btn.textContent = '思考中…';
+    btn.textContent = tr('js.thinking');
 
     // Thinking indicator
     var think = document.createElement('div');
     think.className = 'nh-msg nh-msg-ai';
     think.id = 'typing-indicator';
-    think.innerHTML = '<div class="nh-msg-meta">AI ' + LABEL + '助手</div><div class="typing-dots"><span></span><span></span><span></span></div>';
+    think.innerHTML = '<div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', LABEL) + '</div><div class="typing-dots"><span></span><span></span><span></span></div>';
     msgs.appendChild(think);
     msgs.scrollTop = msgs.scrollHeight;
 
@@ -339,14 +338,14 @@ var LABEL = '{{ role_label }}';
       }).then(function(r) { return r.json(); })
         .then(function(data) {
           var t = document.getElementById('typing-indicator'); if (t) t.remove();
-          addMessage(data.reply || '（无响应）', false);
+          addMessage(data.reply || tr('js.no_reply'), false);
           if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
         })
         .catch(function(err) {
           var t = document.getElementById('typing-indicator'); if (t) t.remove();
-          addMessage('网络错误：' + err.message, false);
+          addMessage(tr('js.net_error').replace('{e}', err.message), false);
         })
-        .finally(function() { btn.disabled = false; btn.textContent = '发送'; });
+        .finally(function() { btn.disabled = false; btn.textContent = tr('js.send'); });
       return;
     }
 
@@ -360,7 +359,7 @@ var LABEL = '{{ role_label }}';
         // 流式端点不可用（旧版 dl-control）→ 回落非流式
         return r.json().then(function(data) {
           var t = document.getElementById('typing-indicator'); if (t) t.remove();
-          addMessage(data.reply || '（无响应）', false);
+          addMessage(data.reply || tr('js.no_reply'), false);
           if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
         });
       }
@@ -406,7 +405,7 @@ var LABEL = '{{ role_label }}';
           ensureBubble();
           stopDrain();
           shown = acc.length;
-          updateMessage(bubble, ev.message || 'AI 服务暂时不可用');
+          updateMessage(bubble, ev.message || tr('js.unavailable'));
         }
       }
       function pump() {
@@ -415,7 +414,7 @@ var LABEL = '{{ role_label }}';
             ensureBubble();
             stopDrain();
             if (acc && shown < acc.length) { shown = acc.length; updateMessage(bubble, acc); }
-            if (!acc) updateMessage(bubble, '（无响应）');
+            if (!acc) updateMessage(bubble, tr('js.no_reply'));
             return;
           }
           buf += dec.decode(res.value, { stream: true });
@@ -432,11 +431,11 @@ var LABEL = '{{ role_label }}';
       }
       return pump().catch(function(err) {
         ensureBubble();
-        if (!acc) updateMessage(bubble, '网络错误：' + err.message);
+        if (!acc) updateMessage(bubble, tr('js.net_error').replace('{e}', err.message));
       });
     }).finally(function() {
       var t = document.getElementById('typing-indicator'); if (t) t.remove();
-      btn.disabled = false; btn.textContent = '发送';
+      btn.disabled = false; btn.textContent = tr('js.send');
     });
   }
 

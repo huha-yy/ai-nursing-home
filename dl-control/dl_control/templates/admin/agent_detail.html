@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ agent.display_name }} — AI 养老院院长{% endblock %}
+{% block title %}{{ agent.display_name }} {{ t("admin.base.title_suffix") }}{% endblock %}
 {% block admin_body %}
 
 <div class="admin-page-header">
   <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
-    <a href="/admin/agents">← Agent 管理</a>
+    <a href="/admin/agents">{{ t("admin.agent.back") }}</a>
     {% if agent.precreated_id %}
-    <span style="margin-left:0.5rem">· 预置角色：{{ agent.precreated_id }}</span>
+    <span style="margin-left:0.5rem">· {{ t("admin.agent.predefined") }} {{ agent.precreated_id }}</span>
     {% endif %}
   </p>
   <h2>{{ agent.display_name }}</h2>
@@ -14,39 +14,39 @@
 </div>
 
 <section class="admin-section">
-  <h3>基本信息</h3>
+  <h3>{{ t("admin.agent.basic_info") }}</h3>
   <div class="detail-cards">
     <div class="detail-card">
-      <span class="detail-card-label">级别</span>
+      <span class="detail-card-label">{{ t("admin.agent.tier") }}</span>
       <span class="detail-card-value"><span class="badge badge-{{ agent.tier }}">{{ agent.tier }}</span></span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">状态</span>
+      <span class="detail-card-label">{{ t("common.status") }}</span>
       <span class="detail-card-value"><span class="badge badge-status">{{ agent.status }}</span></span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">模型</span>
+      <span class="detail-card-label">{{ t("agents.model") }}</span>
       <span class="detail-card-value"><code>{{ agent.model_selection }}</code></span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">创建时间</span>
+      <span class="detail-card-label">{{ t("common.created") }}</span>
       <span class="detail-card-value">{{ agent.created_at }}</span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">更新时间</span>
+      <span class="detail-card-label">{{ t("common.updated") }}</span>
       <span class="detail-card-value">{{ agent.updated_at }}</span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">通道</span>
+      <span class="detail-card-label">{{ t("admin.agent.channel") }}</span>
       <span class="detail-card-value"><code>{{ agent.channel_config }}</code></span>
     </div>
   </div>
 </section>
 
 <section class="admin-section">
-  <h3>技能配置
+  <h3>{{ t("admin.agent.skills_heading") }}
     <button class="ghost-btn" id="edit-skills-btn" style="margin-left:0.75rem;width:auto;font-size:0.8rem;padding:0.25rem 0.6rem"
-            onclick="document.getElementById('skills-editor').style.display='block';this.style.display='none'">编辑</button>
+            onclick="document.getElementById('skills-editor').style.display='block';this.style.display='none'">{{ t("admin.agent.edit") }}</button>
   </h3>
   <div class="skill-tags">
     {% if agent.skill_list %}
@@ -54,22 +54,22 @@
       <span class="skill-tag">{{ s }}</span>
       {% endfor %}
     {% else %}
-    <span class="empty-note" style="padding:0">未配置技能</span>
+    <span class="empty-note" style="padding:0">{{ t("admin.agent.no_skills") }}</span>
     {% endif %}
   </div>
 </section>
 
 <div id="skills-editor" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0;margin-bottom:1.5rem">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border)">
-    <h3 style="margin:0">编辑技能</h3>
+    <h3 style="margin:0">{{ t("agents.edit_skills") }}</h3>
     <button type="button" class="ghost-btn" style="width:auto;font-size:0.8rem;padding:0.25rem 0.6rem"
-            onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">✕ 关闭</button>
+            onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">{{ t("admin.agents.close") }}</button>
   </div>
   <form method="post" action="/admin/agents/{{ agent.id }}/skills" style="padding:1.25rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="skill-picker">
       <div class="skill-picker-group">
-        <p class="skill-picker-label">系统技能</p>
+        <p class="skill-picker-label">{{ t("admin.agents.system_skills") }}</p>
         <div class="skill-checkboxes">
           {% for s in vendor_skills %}
           <label class="skill-check"><input type="checkbox" name="skill_list" value="{{ s }}"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}</label>
@@ -77,7 +77,7 @@
         </div>
       </div>
       <div class="skill-picker-group">
-        <p class="skill-picker-label">定制技能</p>
+        <p class="skill-picker-label">{{ t("admin.agents.custom_skills") }}</p>
         <div class="skill-checkboxes">
           {% for s in custom_skills %}
           <label class="skill-check"><input type="checkbox" name="skill_list" value="{{ s }}"{% if s in agent.skill_list %} checked{% endif %}> {{ s }}</label>
@@ -86,35 +86,35 @@
       </div>
     </div>
     <div style="display:flex;gap:0.5rem;margin-top:1rem">
-      <button type="submit" class="primary-btn" style="width:auto">保存</button>
+      <button type="submit" class="primary-btn" style="width:auto">{{ t("common.save") }}</button>
       <button type="button" class="ghost-btn" style="width:auto"
-              onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">取消</button>
+              onclick="document.getElementById('skills-editor').style.display='none';document.getElementById('edit-skills-btn').style.display='inline-block'">{{ t("common.cancel") }}</button>
     </div>
   </form>
 </div>
 
 {% if agent.precreated_id %}
 <section class="admin-section">
-  <h3>预置模板状态</h3>
+  <h3>{{ t("admin.agent.precreated_status") }}</h3>
   <div class="detail-cards">
     <div class="detail-card">
-      <span class="detail-card-label">模板 ID</span>
+      <span class="detail-card-label">{{ t("admin.agent.template_id") }}</span>
       <span class="detail-card-value"><code>{{ agent.precreated_id }}</code></span>
     </div>
     <div class="detail-card">
-      <span class="detail-card-label">同步状态</span>
+      <span class="detail-card-label">{{ t("admin.agent.sync_status") }}</span>
       <span class="detail-card-value">
         {% if agent.precreated_source_removed %}
-        <span class="badge badge-info">源已删除</span>
+        <span class="badge badge-info">{{ t("admin.agents.badge_removed") }}</span>
         {% elif agent.precreated_source_drift %}
-        <span class="badge badge-warning">模板漂移</span>
+        <span class="badge badge-warning">{{ t("admin.agents.badge_drift") }}</span>
         <form method="post" action="/admin/agents/{{ agent.id }}/precreated/apply" style="display:inline;margin-left:0.5rem">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="expected_current_sha" value="{{ agent.precreated_current_sha }}">
-          <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">应用更新</button>
+          <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">{{ t("admin.agent.apply_update") }}</button>
         </form>
         {% else %}
-        <span class="badge badge-status">已同步</span>
+        <span class="badge badge-status">{{ t("admin.agent.synced") }}</span>
         {% endif %}
       </span>
     </div>
@@ -123,30 +123,30 @@
 {% endif %}
 
 <section class="admin-section">
-  <h3>操作</h3>
+  <h3>{{ t("admin.agents.col.actions") }}</h3>
   <div class="detail-cards">
     {% if agent.tier == "tier0" %}
     <div class="detail-card">
-      <span class="detail-card-label">飞书</span>
-      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/feishu">配置飞书通道 →</a></span>
+      <span class="detail-card-label">{{ t("admin.agent.feishu") }}</span>
+      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/feishu">{{ t("admin.agent.configure_feishu") }}</a></span>
     </div>
     <div class="detail-card">
       <span class="detail-card-label">GBrain</span>
-      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/gbrain">配置 GBrain →</a></span>
+      <span class="detail-card-value"><a href="/admin/agents/{{ agent.id }}/gbrain">{{ t("admin.agent.configure_gbrain") }}</a></span>
     </div>
     {% endif %}
     <div class="detail-card">
-      <span class="detail-card-label">容器</span>
+      <span class="detail-card-label">{{ t("admin.agent.container") }}</span>
       <span class="detail-card-value">
         {% if agent.status == 'registered' or agent.status == 'error' or agent.status == 'stopped' %}
         <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/provision" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">启动容器</button>
+          <button type="submit" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">{{ t("admin.agent.start_container") }}</button>
         </form>
         {% elif agent.status == 'active' %}
         <form method="post" action="/api/v1/admin/agents/{{ agent.id }}/restart" style="display:inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">重启容器</button>
+          <button type="submit" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">{{ t("admin.agent.restart_container") }}</button>
         </form>
         {% else %}
         <span>{{ agent.status }}</span>

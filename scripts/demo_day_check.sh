@@ -2,6 +2,8 @@
 # 演示当天一键自检（2026-09-07）：数据新鲜度 + 服务健康 + LLM 连通 + chat 探针。
 # 演示前 10 分钟在一体机/开发机上跑：bash scripts/demo_day_check.sh [--quick]
 #   --quick  跳过 chat 探针（只查数据与服务，~30s）
+#   LANG=en 英文演示口径（P5）：演示位人名/探针问句/期望串切英文
+#           （只认精确 "en"；en_US.UTF-8 等本地化值按 zh 处理）
 # 退出码 0=全绿可演示；1=有红项（先照报告修再演示）。
 #
 # 数据口径（对照 DASHBOARD-DATA.md / JOURNAL 09-07）：
@@ -12,6 +14,10 @@
 set -u
 QUICK=0
 [ "${1:-}" = "--quick" ] && QUICK=1
+# P5 双语：LANG=en 环境变量切换英文演示口径（人名/探针断言用 en 串）；
+# 环境里 LANG 常见 en_US.UTF-8 等本地化值——只认精确的 "en"，其余一律 zh
+DLANG="zh"
+[ "${LANG:-}" = "en" ] && DLANG="en"
 
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; NC=$'\033[0m'
 PASS=0; FAIL=0; WARN=0
@@ -92,9 +98,14 @@ if [ -n "$ERP_KEY" ]; then
   orders_n=$(curl -s -m 10 -H "X-API-Key: $ERP_KEY" "$ERP/api/meal-orders/?date=$TODAY&meal_type=午餐" | python3 -c "import sys,json;d=json.load(sys.stdin);items=d.get('items',d);print(len([i for i in items if i.get('status')!='cancelled']))" 2>/dev/null)
   [ "${orders_n:-0}" -ge 20 ] && ok "今日午餐有效订单 ${orders_n} 份" || warn "今日午餐仅 ${orders_n:-0} 份（<20，食堂看板会稀）→ 重锚 rebuild_demo_data"
 
-  # 演示位：张国栋/李秀兰未来有效订单必须 0
-  demo_free=$(curl -s -m 10 -H "X-API-Key: $ERP_KEY" "$ERP/api/meal-orders/?date=$(date -d tomorrow +%F)&meal_type=午餐&page_size=50" | python3 -c "import sys,json;d=json.load(sys.stdin);items=d.get('items',d);print(len([i for i in items if i.get('resident_name') in ('张国栋','李秀兰') and i.get('status')!='cancelled']))" 2>/dev/null)
-  [ "${demo_free:-9}" = "0" ] && ok "演示位干净（张国栋/李秀兰明天无有效订单）" || bad "演示位被占（明天午餐 ${demo_free} 单）→ restore_demo.sh 或退餐 API 清掉"
+  # 演示位：张国栋/李秀兰未来有效订单必须 0（P5：LANG=en 断言英文名）
+  if [ "$DLANG" = "en" ]; then COUPLE="Zhang Guodong|Li Xiulan"; else COUPLE="张国栋|李秀兰"; fi
+  demo_free=$(curl -s -m 10 -H "X-API-Key: $ERP_KEY" "$ERP/api/meal-orders/?date=$(date -d tomorrow +%F)&meal_type=午餐&page_size=50" | COUPLE="$COUPLE" python3 -c "
+import os,sys,json
+names=set(os.environ['COUPLE'].split('|'))
+d=json.load(sys.stdin);items=d.get('items',d)
+print(len([i for i in items if i.get('resident_name') in names and i.get('status')!='cancelled']))" 2>/dev/null)
+  [ "${demo_free:-9}" = "0" ] && ok "演示位干净（${COUPLE//|//} 明天无有效订单）" || bad "演示位被占（明天午餐 ${demo_free} 单）→ restore_demo.sh 或退餐 API 清掉"
 else
   bad "读不到 nursing-erp/.env 的 ERP_API_KEY"
 fi
@@ -122,7 +133,7 @@ else bad "周报无成功期次——演示前必须触发一次 nursing.ops"; f
 
 # ── 4. chat 探针（三角色） ──────────────────────────────────────
 if [ "$QUICK" = "0" ]; then
-section "chat 探针（每问 5-20s，共 7 问）"
+section "chat 探针（每问 5-20s，共 7 问；LANG=$DLANG）"
 CJ=$(mktemp); FJ=$(mktemp); BJ=$(mktemp)
 curl -s -c "$CJ" -o /dev/null "$CTRL/auth/nursing-login" -d 'username=wang_jianguo&password=123456'
 curl -s -c "$FJ" -o /dev/null "$CTRL/auth/family-login" -d 'username=13820000001&password=123456'
@@ -147,13 +158,25 @@ probe() { # $1=cookie $2=问句 $3=期望包含的子串(任一,|分隔)
     *"暂时不可用"*|"") bad "「$2」→ 空答/不可用";;
     *) echo "$out" | grep -qE "$3" && ok "「$2」" || warn "「$2」→ 答复未见 $3（人工看一眼：${out:0:60}…）";; esac
 }
-probe "$CJ" "院里住了多少人" "36|人"
-probe "$CJ" "还有床位吗" "床|入住率"
-probe "$CJ" "这个月谁欠费" "吴桂英|欠费|元"
-probe "$BJ" "有老人摔倒吗" "摔倒|预警|没有"
-probe "$BJ" "最近三天排班情况" "排班|白班|夜班"
-probe "$FJ" "这周吃饭情况" "餐|吃饭|菜单"
-probe "$CJ" "今天有什么活动" "活动|:.*-"
+# P5：探针问句/期望串双语（en 演示前 ERP 需 --lang en 重灌、PG 侧
+# seed_work_orders_demo.py --lang en + seed_pg_demo_en.py 重播）
+if [ "$DLANG" = "en" ]; then
+  probe "$CJ" "How many residents live here" "36|[0-9]+ residents"
+  probe "$CJ" "Are there any vacant beds" "bed|occupancy|[0-9]+/[0-9]+"
+  probe "$CJ" "Who is in arrears this month" "Wu Guiying|arrears|unpaid"
+  probe "$BJ" "Did anyone fall recently" "fall|alert|[Nn]o "
+  probe "$BJ" "Show the schedule for the last 3 days" "shift|schedule|Day|Night|白班|夜班"
+  probe "$FJ" "How were the meals this week" "meal|menu|food|reakfast|unch|inner"
+  probe "$CJ" "Any activities today" "Baduanjin|Chess|Health Talk|Handcraft|activit"
+else
+  probe "$CJ" "院里住了多少人" "36|人"
+  probe "$CJ" "还有床位吗" "床|入住率"
+  probe "$CJ" "这个月谁欠费" "吴桂英|欠费|元"
+  probe "$BJ" "有老人摔倒吗" "摔倒|预警|没有"
+  probe "$BJ" "最近三天排班情况" "排班|白班|夜班"
+  probe "$FJ" "这周吃饭情况" "餐|吃饭|菜单"
+  probe "$CJ" "今天有什么活动" "活动|:.*-"
+fi
 # 清探针会话
 for f in "$CJ" "$FJ" "$BJ"; do
   curl -s -b "$f" -o /dev/null "$CTRL/api/nursing/chats"; rm -f "$f"; done

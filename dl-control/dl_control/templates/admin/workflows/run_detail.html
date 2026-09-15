@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}运行 {{ run.id | string | truncate(8, true, "") }} — AI 养老院院长{% endblock %}
+{% block title %}{{ t("admin.workflows.run_word") }} {{ run.id | string | truncate(8, true, "") }} {{ t("admin.base.title_suffix") }}{% endblock %}
 {% block admin_body %}
 
 <div class="admin-page-header">
   <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
     <a href="/admin/workflows/{{ run.workflow_id }}">← {{ run.workflow_id }}</a>
-    <span style="margin-left:0.5rem">· <a href="/admin/workflows">全部工作流</a></span>
+    <span style="margin-left:0.5rem">· <a href="/admin/workflows">{{ t("admin.workflows.all") }}</a></span>
   </p>
-  <h2>运行 <code>{{ run.id | string | truncate(12, true, "") }}</code></h2>
+  <h2>{{ t("admin.workflows.run_word") }} <code>{{ run.id | string | truncate(12, true, "") }}</code></h2>
   <p class="admin-page-sub">
     <span class="badge badge-status">{{ run.status }}</span>
-    · 触发: {{ run.trigger }}
-    {% if run.correlation_key %} · 关联: <code>{{ run.correlation_key }}</code>{% endif %}
-    · 版本 {{ run.workflow_version }}
+    · {{ t("admin.workflows.trigger_prefix") }}{{ run.trigger }}
+    {% if run.correlation_key %} · {{ t("admin.workflows.correlation_prefix") }}<code>{{ run.correlation_key }}</code>{% endif %}
+    · {{ t("admin.workflows.version_word") }} {{ run.workflow_version }}
     · {{ run.created_at }}
     {% if run.finished_at %} → {{ run.finished_at }}{% endif %}
   </p>
@@ -20,15 +20,15 @@
 
 {% if pending_approvals %}
 <section class="admin-section">
-  <h3>待审批</h3>
+  <h3>{{ t("admin.workflows.pending") }}</h3>
   {% for a in pending_approvals %}
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:0.5rem">
-    <p style="margin:0 0 0.5rem">{{ a.prompt }} <small style="color:var(--text-dim)">步骤 {{ a.step_key }}</small></p>
+    <p style="margin:0 0 0.5rem">{{ a.prompt }} <small style="color:var(--text-dim)">{{ t("workflows.step_word") }} {{ a.step_key }}</small></p>
     <form method="post" action="/admin/workflow-runs/{{ run.id }}/approval" style="display:inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="step_key" value="{{ a.step_key }}">
-      <button type="submit" name="decision" value="approve" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">批准</button>
-      <button type="submit" name="decision" value="reject" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">拒绝</button>
+      <button type="submit" name="decision" value="approve" class="primary-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">{{ t("common.approve") }}</button>
+      <button type="submit" name="decision" value="reject" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">{{ t("common.reject") }}</button>
     </form>
   </div>
   {% endfor %}
@@ -37,51 +37,51 @@
 
 {% if run.status == 'waiting_manual' %}
 <section class="admin-section">
-  <h3>需要人工处理</h3>
+  <h3>{{ t("admin.workflows.manual_section") }}</h3>
   {% if unresolved %}
   {% for e in unresolved %}
   <div style="background:var(--surface);border:1px solid var(--warn);border-radius:var(--radius);padding:1rem;margin-bottom:0.5rem">
-    <p style="margin:0 0 0.5rem">未确认操作 <code>{{ e.idempotency_key }}</code> — 目标: {{ e.target }}, 步骤: {{ e.step_key }}, 尝试: {{ e.attempt }}</p>
+    <p style="margin:0 0 0.5rem">{{ t("admin.workflows.unconfirmed") }} <code>{{ e.idempotency_key }}</code> — {{ t("workflows.effect_target") }}: {{ e.target }}, {{ t("workflows.effect_step") }}: {{ e.step_key }}, {{ t("workflows.effect_attempt") }}: {{ e.attempt }}</p>
     <form method="post" action="/admin/workflow-runs/{{ run.id }}/resolve" style="display:flex;gap:0.5rem;align-items:center">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="idempotency_key" value="{{ e.idempotency_key }}">
-      <input type="text" name="note" placeholder="备注" style="flex:1;margin-top:0">
-      <button type="submit" name="action" value="confirm_committed" class="primary-btn" style="width:auto;padding:0.3rem 0.6rem;font-size:0.8rem">确认已执行</button>
-      <button type="submit" name="action" value="confirm_not_sent" class="ghost-btn" style="width:auto;padding:0.3rem 0.6rem;font-size:0.8rem">标记未发送</button>
+      <input type="text" name="note" placeholder="{{ t("admin.workflows.note_placeholder") }}" style="flex:1;margin-top:0">
+      <button type="submit" name="action" value="confirm_committed" class="primary-btn" style="width:auto;padding:0.3rem 0.6rem;font-size:0.8rem">{{ t("admin.workflows.confirm_committed") }}</button>
+      <button type="submit" name="action" value="confirm_not_sent" class="ghost-btn" style="width:auto;padding:0.3rem 0.6rem;font-size:0.8rem">{{ t("admin.workflows.mark_not_sent") }}</button>
     </form>
   </div>
   {% endfor %}
   {% endif %}
   <form method="post" action="/admin/workflow-runs/{{ run.id }}/resolve" style="margin-top:0.75rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <button type="submit" name="action" value="abandon" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">放弃此运行</button>
+    <button type="submit" name="action" value="abandon" class="ghost-btn" style="width:auto;padding:0.3rem 0.8rem;font-size:0.82rem">{{ t("admin.workflows.abandon_run") }}</button>
   </form>
 </section>
 {% endif %}
 
 <section class="admin-section">
-  <h3>流程控制</h3>
+  <h3>{{ t("admin.workflows.controls") }}</h3>
   <form method="post" action="/admin/workflow-runs/{{ run.id }}/control" style="display:flex;gap:0.5rem;flex-wrap:wrap">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if run.status == 'failed' %}
-    <button type="submit" name="action" value="retry" class="primary-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">重试</button>
+    <button type="submit" name="action" value="retry" class="primary-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">{{ t("workflows.retry") }}</button>
     {% endif %}
     {% if run.status in ('pending', 'waiting_approval', 'waiting_timer', 'waiting_retry', 'waiting_agent') %}
-    <button type="submit" name="action" value="cancel" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">取消</button>
-    <button type="submit" name="action" value="fail" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">标记失败</button>
-    <button type="submit" name="action" value="complete" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">标记完成</button>
+    <button type="submit" name="action" value="cancel" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">{{ t("common.cancel") }}</button>
+    <button type="submit" name="action" value="fail" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">{{ t("workflows.mark_failed") }}</button>
+    <button type="submit" name="action" value="complete" class="ghost-btn" style="width:auto;padding:0.35rem 0.9rem;font-size:0.85rem">{{ t("admin.workflows.mark_completed") }}</button>
     {% endif %}
     {% if run.status not in ('failed','pending','waiting_approval','waiting_timer','waiting_retry','waiting_agent') %}
-    <span style="color:var(--text-dim);font-size:0.85rem;padding:0.35rem 0">当前状态不支持操作</span>
+    <span style="color:var(--text-dim);font-size:0.85rem;padding:0.35rem 0">{{ t("admin.workflows.no_ops") }}</span>
     {% endif %}
   </form>
 </section>
 
 {% if steps %}
 <section class="admin-section">
-  <h3>执行步骤</h3>
+  <h3>{{ t("admin.workflows.steps") }}</h3>
   <table class="data-table">
-    <thead><tr><th>步骤</th><th>状态</th><th>尝试</th><th>开始</th><th>结束</th><th>输出</th></tr></thead>
+    <thead><tr><th>{{ t("workflows.col.step") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.attempt") }}</th><th>{{ t("admin.workflows.col.start") }}</th><th>{{ t("admin.workflows.col.end") }}</th><th>{{ t("workflows.col.output") }}</th></tr></thead>
     <tbody>
       {% for s in steps %}
       <tr>
@@ -100,9 +100,9 @@
 
 {% if ledger %}
 <section class="admin-section">
-  <h3>执行账本</h3>
+  <h3>{{ t("admin.workflows.ledger") }}</h3>
   <table class="data-table">
-    <thead><tr><th>Key</th><th>步骤</th><th>目标</th><th>状态</th><th>更新时间</th></tr></thead>
+    <thead><tr><th>{{ t("workflows.col.key") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.target") }}</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.updated") }}</th></tr></thead>
     <tbody>
       {% for e in ledger %}
       <tr>
@@ -118,5 +118,5 @@
 </section>
 {% endif %}
 
-<p style="margin-top:1rem"><a href="/admin/audit" style="font-size:0.85rem">查看完整审计日志 →</a></p>
+<p style="margin-top:1rem"><a href="/admin/audit" style="font-size:0.85rem">{{ t("admin.workflows.audit_link") }}</a></p>
 {% endblock %}

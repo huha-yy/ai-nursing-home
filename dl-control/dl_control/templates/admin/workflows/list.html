@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}工作流 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("admin.workflows.title") }}{% endblock %}
 {% block admin_body %}
 
 <div class="admin-page-header">
-  <h2>工作流</h2>
-  <p class="admin-page-sub">{{ flows | length if flows else 0 }} 个已安装流程{% if recent %} · {{ recent | length }} 条近期运行{% endif %}</p>
+  <h2>{{ t("workflows.heading") }}</h2>
+  <p class="admin-page-sub">{{ flows | length if flows else 0 }}{{ t("admin.workflows.flows_unit") }}{% if recent %} · {{ recent | length }}{{ t("admin.workflows.runs_unit") }}{% endif %}</p>
 </div>
 
 {% if approvals %}
 <section class="admin-section">
-  <h3>待审批</h3>
+  <h3>{{ t("admin.workflows.pending") }}</h3>
   <table class="data-table">
-    <thead><tr><th>工作流</th><th>步骤</th><th>提示</th><th>申请时间</th><th></th></tr></thead>
+    <thead><tr><th>{{ t("workflows.col.workflow") }}</th><th>{{ t("workflows.col.step") }}</th><th>{{ t("workflows.col.prompt") }}</th><th>{{ t("admin.workflows.col.requested") }}</th><th></th></tr></thead>
     <tbody>
       {% for a in approvals %}
       <tr>
@@ -23,8 +23,8 @@
           <form method="post" action="/admin/workflow-runs/{{ a.run_id }}/approval" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="step_key" value="{{ a.step_key }}">
-            <button type="submit" name="decision" value="approve" class="primary-btn" style="width:auto;padding:0.25rem 0.7rem;font-size:0.82rem">批准</button>
-            <button type="submit" name="decision" value="reject" class="ghost-btn" style="width:auto;padding:0.25rem 0.7rem;font-size:0.82rem">拒绝</button>
+            <button type="submit" name="decision" value="approve" class="primary-btn" style="width:auto;padding:0.25rem 0.7rem;font-size:0.82rem">{{ t("common.approve") }}</button>
+            <button type="submit" name="decision" value="reject" class="ghost-btn" style="width:auto;padding:0.25rem 0.7rem;font-size:0.82rem">{{ t("common.reject") }}</button>
           </form>
         </td>
       </tr>
@@ -35,10 +35,10 @@
 {% endif %}
 
 <section class="admin-section">
-  <h3>已安装流程</h3>
+  <h3>{{ t("workflows.installed_flows") }}</h3>
   {% if flows %}
   <table class="data-table">
-    <thead><tr><th>名称</th><th>版本</th><th>触发器</th><th>运行中</th><th>状态</th></tr></thead>
+    <thead><tr><th>{{ t("admin.workflows.col.name") }}</th><th>{{ t("workflows.col.version") }}</th><th>{{ t("workflows.col.trigger") }}</th><th>{{ t("admin.workflows.col.active") }}</th><th>{{ t("common.status") }}</th></tr></thead>
     <tbody>
       {% for f in flows %}
       <tr>
@@ -50,7 +50,7 @@
           <form method="post" action="/admin/workflows/{{ f.id }}/enabled" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="enabled" value="{{ 'false' if f.enabled else 'true' }}">
-            <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">{{ '禁用' if f.enabled else '启用' }}</button>
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.2rem 0.6rem;font-size:0.78rem">{{ t("common.disable") if f.enabled else t("common.enable") }}</button>
           </form>
         </td>
       </tr>
@@ -58,15 +58,15 @@
     </tbody>
   </table>
   {% else %}
-  <p class="empty-note">暂无已安装的工作流。</p>
+  <p class="empty-note">{{ t("admin.workflows.no_flows") }}</p>
   {% endif %}
 </section>
 
 {% if recent %}
 <section class="admin-section">
-  <h3>近期运行</h3>
+  <h3>{{ t("workflows.recent_runs") }}</h3>
   <table class="data-table">
-    <thead><tr><th>运行 ID</th><th>工作流</th><th>状态</th><th>当前步骤</th><th>时间</th></tr></thead>
+    <thead><tr><th>{{ t("admin.workflows.col.run_id") }}</th><th>{{ t("workflows.col.workflow") }}</th><th>{{ t("common.status") }}</th><th>{{ t("admin.workflows.col.current_step") }}</th><th>{{ t("admin.workflows.col.time") }}</th></tr></thead>
     <tbody>
       {% for run in recent %}
       <tr>

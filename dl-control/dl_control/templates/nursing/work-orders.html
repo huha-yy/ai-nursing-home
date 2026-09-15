@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}护理工单 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("nursing.orders.title") }}{% endblock %}
 {% block body %}
 
 <style>
@@ -83,46 +83,59 @@
 
 <div class="nh-wo">
   <div class="nh-wo-bar">
-    <a href="/dashboard" class="nh-wo-back">← 大屏</a>
+    <a href="/dashboard" class="nh-wo-back">{{ t("nursing.orders.back") }}</a>
     <span class="nh-wo-total" id="wo-total"></span>
   </div>
-  <h1 class="nh-wo-ttl">护理工单</h1>
+  <h1 class="nh-wo-ttl">{{ t("nursing.orders.heading") }}</h1>
 
   <div class="nh-wo-kpis">
-    <div class="nh-wo-kpi"><strong id="k-total">-</strong><small>当日工单</small></div>
-    <div class="nh-wo-kpi nh-wo-kpi-ok"><strong id="k-done">-</strong><small>已完成</small></div>
-    <div class="nh-wo-kpi nh-wo-kpi-warn"><strong id="k-pend">-</strong><small>待处理</small></div>
-    <div class="nh-wo-kpi"><strong id="k-rate">-</strong><small>完成率</small></div>
+    <div class="nh-wo-kpi"><strong id="k-total">-</strong><small>{{ t("nursing.orders.kpi.total") }}</small></div>
+    <div class="nh-wo-kpi nh-wo-kpi-ok"><strong id="k-done">-</strong><small>{{ t("nursing.orders.kpi.done") }}</small></div>
+    <div class="nh-wo-kpi nh-wo-kpi-warn"><strong id="k-pend">-</strong><small>{{ t("nursing.orders.kpi.pending") }}</small></div>
+    <div class="nh-wo-kpi"><strong id="k-rate">-</strong><small>{{ t("nursing.orders.kpi.rate") }}</small></div>
   </div>
   <div class="nh-wo-prog"><i id="k-bar" style="width:0%"></i></div>
 
   <div class="nh-wo-layout">
-    <aside class="nh-wo-dates" id="wo-dates"><div class="nh-wo-empty-dates"><span class="nh-wo-spin"></span>加载中…</div></aside>
+    <aside class="nh-wo-dates" id="wo-dates"><div class="nh-wo-empty-dates"><span class="nh-wo-spin"></span>{{ t("nursing.common.loading") }}</div></aside>
     <section class="nh-wo-mid">
       <div class="nh-wo-filt" id="wo-filt">
-        <b class="on" data-f="all" onclick="setFilt('all')">全部 <span id="n-all"></span></b>
-        <b data-f="pending" onclick="setFilt('pending')">待处理 <span id="n-pending"></span></b>
-        <b data-f="done" onclick="setFilt('done')">已完成 <span id="n-done"></span></b>
+        <b class="on" data-f="all" onclick="setFilt('all')">{{ t("nursing.orders.filt.all") }} <span id="n-all"></span></b>
+        <b data-f="pending" onclick="setFilt('pending')">{{ t("nursing.orders.filt.pending") }} <span id="n-pending"></span></b>
+        <b data-f="done" onclick="setFilt('done')">{{ t("nursing.orders.filt.done") }} <span id="n-done"></span></b>
       </div>
-      <div class="nh-wo-list" id="wo-list"><div class="nh-wo-empty-list"><span class="nh-wo-spin"></span>加载中…</div></div>
+      <div class="nh-wo-list" id="wo-list"><div class="nh-wo-empty-list"><span class="nh-wo-spin"></span>{{ t("nursing.common.loading") }}</div></div>
     </section>
-    <main class="nh-wo-main" id="wo-main"><div class="nh-wo-placeholder"><span class="nh-wo-spin"></span>加载中…</div></main>
+    <main class="nh-wo-main" id="wo-main"><div class="nh-wo-placeholder"><span class="nh-wo-spin"></span>{{ t("nursing.common.loading") }}</div></main>
   </div>
 </div>
 
 <script>
+var I18N = JSON.parse({{ i18n_page|tojson }});
+function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
+
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 var state = {orders: [], dates: [], selDate: null, selId: null, filt: 'all'};
 
+// 日期标签走 Intl（zh-CN ⇄ en），替代手写 “N月N日/周X”
+function fmtDay(d) {
+  try {
+    return d.toLocaleDateString(tr('js.locale'), { month: 'short', day: 'numeric' });
+  } catch (e) { return (d.getMonth()+1)+'/'+d.getDate(); }
+}
+function fmtWd(d) {
+  try {
+    return d.toLocaleDateString(tr('js.locale'), { weekday: 'short' });
+  } catch (e) { return ''; }
+}
 function dateLabel(iso){
   var today = new Date(); today.setHours(0,0,0,0);
   var d = new Date(iso + 'T00:00:00'); d.setHours(0,0,0,0);
   var diff = Math.round((today - d) / 86400000);
-  if (diff === 0) return {label: (d.getMonth()+1)+'月'+d.getDate()+'日', tag: '今天'};
-  if (diff === 1) return {label: (d.getMonth()+1)+'月'+d.getDate()+'日', tag: '昨天'};
-  var wd = '日一二三四五六'[d.getDay()];
-  return {label: (d.getMonth()+1)+'月'+d.getDate()+'日', tag: '周'+wd};
+  if (diff === 0) return {label: fmtDay(d), tag: tr('js.today')};
+  if (diff === 1) return {label: fmtDay(d), tag: tr('js.yesterday')};
+  return {label: fmtDay(d), tag: fmtWd(d)};
 }
 
 function groupDates(){
@@ -181,7 +194,7 @@ function syncHash(){
 function renderDates(){
   var box = document.getElementById('wo-dates');
   if (!state.dates.length) {
-    box.innerHTML = '<div class="nh-wo-empty-dates">近 30 天暂无工单记录</div>';
+    box.innerHTML = '<div class="nh-wo-empty-dates">' + tr('js.no_records_30') + '</div>';
     return;
   }
   var html = '';
@@ -191,8 +204,8 @@ function renderDates(){
             '" onclick="selectDate(\'' + dt.date + '\')">' +
             '<span class="nh-wo-dt-label">' + lab.label + '</span>' +
             '<span class="nh-wo-dt-tag">' + lab.tag + '</span>' +
-            '<span class="nh-wo-dt-sub">' + (dt.pend ? '<span class="pend">待' + dt.pend + '</span>·' : '') +
-            dt.total + '单</span></div>';
+            '<span class="nh-wo-dt-sub">' + (dt.pend ? '<span class="pend">' + tr('js.pending_short').replace('{n}', dt.pend) + '</span>·' : '') +
+            tr('js.orders_short').replace('{n}', dt.total) + '</span></div>';
   });
   box.innerHTML = html;
 }
@@ -208,7 +221,8 @@ function renderKpis(){
   document.getElementById('k-bar').style.width = rate + '%';
   var pendAll = state.orders.filter(function(o){return !o.completed;}).length;
   document.getElementById('wo-total').textContent =
-    '近 ' + state.dates.length + ' 天 ' + state.orders.length + ' 单 · 待处理 ' + pendAll + ' 单';
+    tr('js.total_line').replace('{d}', state.dates.length)
+      .replace('{n}', state.orders.length).replace('{p}', pendAll);
 }
 
 function renderList(){
@@ -220,7 +234,7 @@ function renderList(){
   var items = dayOrders();
   if (!items.length) {
     box.innerHTML = '<div class="nh-wo-empty-list">' +
-      (day.length ? '该筛选下暂无工单' : '当日无工单记录') + '</div>';
+      (day.length ? tr('js.none_filter') : tr('js.none_day')) + '</div>';
     return;
   }
   var html = '';
@@ -230,7 +244,7 @@ function renderList(){
             '<div class="nh-wo-item-top">' +
             '<span class="nh-wo-i-type">' + esc(o.type) + '</span>' +
             '<span class="nh-wo-i-room">' + esc(o.room || '-') + ' ' + esc(o.resident || '') + '</span>' +
-            '<span class="nh-wo-i-st ' + (o.completed ? 'ok' : 'pend') + '">' + (o.completed ? '已完成' : '待处理') + '</span></div>' +
+            '<span class="nh-wo-i-st ' + (o.completed ? 'ok' : 'pend') + '">' + (o.completed ? tr('js.status.done') : tr('js.status.pending')) + '</span></div>' +
             '<div class="nh-wo-item-sub">' + esc(o.note || '') + '</div></div>';
   });
   box.innerHTML = html;
@@ -241,18 +255,18 @@ function renderDetail(){
   var o = byId(state.selId);
   if (!o) {
     el.innerHTML = '<div class="nh-wo-placeholder">' +
-      (state.orders.length ? '← 从列表选择一张工单' : '暂无工单记录') + '</div>';
+      (state.orders.length ? tr('js.select_hint') : tr('js.no_records')) + '</div>';
     return;
   }
   el.innerHTML =
     '<div class="nh-wo-detail-head">' +
-    '<span class="nh-wo-detail-name">' + esc(o.resident || '未关联老人') + '</span>' +
+    '<span class="nh-wo-detail-name">' + esc(o.resident || tr('js.no_resident')) + '</span>' +
     '<span class="nh-wo-detail-building">' + esc(o.building || '') + ' ' + esc(o.room || '') + '</span>' +
     '<span class="nh-wo-type-tag">' + esc(o.type) + '</span>' +
-    '<span class="nh-wo-badge ' + (o.completed ? 'ok' : 'pend') + '">' + (o.completed ? '已完成' : '待处理') + '</span></div>' +
-    '<div class="nh-wo-detail-content">' + esc(o.note || '（无护理记录）') + '</div>' +
-    '<div class="nh-wo-meta">工单日期　<b>' + esc(o.date) + '</b></div>' +
-    '<div class="nh-wo-meta">负责护理员　<b>' + esc(o.staff || '未指派') + '</b></div>';
+    '<span class="nh-wo-badge ' + (o.completed ? 'ok' : 'pend') + '">' + (o.completed ? tr('js.status.done') : tr('js.status.pending')) + '</span></div>' +
+    '<div class="nh-wo-detail-content">' + esc(o.note || tr('js.no_note')) + '</div>' +
+    '<div class="nh-wo-meta">' + tr('js.order_date') + '　<b>' + esc(o.date) + '</b></div>' +
+    '<div class="nh-wo-meta">' + tr('js.staff') + '　<b>' + esc(o.staff || tr('js.unassigned')) + '</b></div>';
 }
 
 async function refresh(){
@@ -273,9 +287,9 @@ async function refresh(){
   try {
     await refresh();
     if (!state.dates.length) {
-      datesEl.innerHTML = '<div class="nh-wo-empty-dates">近 30 天暂无工单记录</div>';
-      listEl.innerHTML = '<div class="nh-wo-empty-list">暂无工单</div>';
-      mainEl.innerHTML = '<div class="nh-wo-placeholder">暂无工单记录</div>';
+      datesEl.innerHTML = '<div class="nh-wo-empty-dates">' + tr('js.no_records_30') + '</div>';
+      listEl.innerHTML = '<div class="nh-wo-empty-list">' + tr('js.no_records') + '</div>';
+      mainEl.innerHTML = '<div class="nh-wo-placeholder">' + tr('js.no_records') + '</div>';
       return;
     }
     // hash 还原（#d=2026-08-24&o=57）；缺省最新一天，选中其首张待处理
@@ -290,9 +304,9 @@ async function refresh(){
       else if (state.orders.length) selectOrder(dayOrders()[0] ? dayOrders()[0].id : state.orders[0].id);
     }
   } catch(e) {
-    datesEl.innerHTML = '<div class="nh-wo-empty-dates">加载失败</div>';
-    listEl.innerHTML = '<div class="nh-wo-empty-list">加载失败</div>';
-    mainEl.innerHTML = '<div class="nh-wo-placeholder">加载失败：' + esc(e.message) + '</div>';
+    datesEl.innerHTML = '<div class="nh-wo-empty-dates">' + tr('js.load_failed') + '</div>';
+    listEl.innerHTML = '<div class="nh-wo-empty-list">' + tr('js.load_failed') + '</div>';
+    mainEl.innerHTML = '<div class="nh-wo-placeholder">' + tr('js.load_failed_msg').replace('{e}', esc(e.message)) + '</div>';
   }
 })();
 </script>

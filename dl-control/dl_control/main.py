@@ -47,6 +47,22 @@ def _i18n_context(request: _Request) -> dict:
     }
 
 
+def _page_i18n(request: _Request, prefixes: tuple[str, ...]) -> str:
+    """Cookie-lang JSON blob for a page's inline scripts (see i18n.dump_prefixed)."""
+    lang = i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE))
+    return i18n.dump_prefixed(lang, prefixes)
+
+
+def _req_lang(request: _Request) -> str:
+    """chat 语义层语言（P4 英文问答）：读 lang cookie 归一，缺省 zh。
+
+    与 i18n.DEFAULT_LANG（en，界面文案兜底）刻意不同——chat 的预取数据、
+    会话历史、agent 上下文现状是中文，cookie 未设置时对话行为必须保持中文。
+    """
+    raw = request.cookies.get(i18n.LANG_COOKIE)
+    return raw if raw in i18n.LANGS else "zh"
+
+
 TEMPLATES = Jinja2Templates(
     directory=str(PACKAGE_DIR / "templates"),
     context_processors=[_i18n_context],
@@ -56,7 +72,7 @@ TEMPLATES = Jinja2Templates(
 class _NursingWorkflowStart(BaseModel):
     """Request body for triggering the multi-agent nursing ops workflow."""
 
-    building: str = "3号楼"
+    building: str | None = None  # 缺省=会话楼栋，再缺省按库实值（P5b 双语）
     nursing_agent_id: str | None = None
     logistics_agent_id: str | None = None
     general_agent_id: str | None = None
@@ -93,6 +109,29 @@ def _week_start() -> str:
     """本周周一日期 YYYY-MM-DD（ERP 周菜单的 week_start 键）。"""
     today = datetime.now().date()
     return (today - timedelta(days=today.weekday())).isoformat()
+
+
+async def _default_workflow_building(conn) -> str:
+    """周报 workflow 的楼栋兜底值——从库实值取（P5b 楼栋英文化）。
+
+    院长/管理层会话无 building，此前写死 "3号楼"；en 演示期
+    nursing_schedules.building 已改 "Building 3"，写死值会查空排班。
+    优先 3号楼/Building 3（历史默认），都无则取任一非空值，最后回落字面量。
+    """
+    cur = await conn.execute(
+        "SELECT building FROM nursing_schedules "
+        "WHERE building IN ('3号楼', 'Building 3') "
+        "ORDER BY CASE building WHEN '3号楼' THEN 0 ELSE 1 END LIMIT 1"
+    )
+    row = await cur.fetchone()
+    if row and row[0]:
+        return row[0]
+    cur = await conn.execute(
+        "SELECT building FROM nursing_schedules "
+        "WHERE building IS NOT NULL AND building <> '' LIMIT 1"
+    )
+    row = await cur.fetchone()
+    return row[0] if row and row[0] else "3号楼"
 
 
 def _erp_items(data) -> list:
@@ -212,6 +251,29 @@ def _occupancy_summary(buildings: list) -> dict:
     return {"total": total, "occupied": occupied, "free": free, "rate": rate}
 
 
+def _alert_display(i: dict, lang: str) -> dict:
+    """ERP /api/incidents/ 行 → /alerts 页载荷行（P5b，模块级便于单测）。
+
+    lang=en 时枚举字段过 i18n.enum_display：category（取 category_display，
+    ERP 默认 zh-hans → 中文"摔倒"等）与 severity_display 换英文；name/
+    building/content（自由文本）原样。lang=zh 时零改动。
+    """
+    return {
+        "id": i["id"],
+        "name": i.get("resident_name", ""),
+        "building": i.get("building", ""),
+        "category": i18n.enum_display(
+            i.get("category_display", i.get("category", "")), lang),
+        "severity": i.get("severity", ""),
+        "severity_display": i18n.enum_display(i.get("severity_display", ""), lang),
+        "content": i.get("description", ""),
+        "handled": bool(i.get("handled", False)),
+        "handled_by": i.get("handled_by", "") or "",
+        "handled_at": i.get("handled_at", "") or "",
+        "created_at": i.get("created_at", ""),
+    }
+
+
 def _today_activities(rows: list) -> dict:
     """nursing_activities 行 (date, title, time, location) → {date, items}。
 
@@ -290,39 +352,56 @@ def _skill_queries() -> list:
     "评估盘点/老人的评估/谁该复评"这类问句同时含两边关键词，首匹配即
     break，先命中评估行才有评估数据；行内再分：盘点类（待评估/复评）→
     review 三态盘点，泛评估词 → 评估单列表。
+
+    2026-09-15 P4（广交会英文问答）：每行追加英文关键词（全小写，
+    _match_skill_rows 对 message.lower() 做子串匹配，中文不受 lower()
+    影响）。演示铁律对英文同样成立——英文问句必须命中意图行才有真实
+    数据注入，否则 LLM 编数。撞车口径与中文行对齐：异常事件行先于
+    resident（elderly）行；欠费 → 餐费 → 泛财务行序保持；bed/occupancy
+    归床位行，resident 行收 how many residents/elderly。
     """
     return [
         # 「当班」收进排班行（09-07 三轮：护理台快速按钮「某楼栋当班人员」原先
         # 半命中员工行——排班行在前，注入的是排班表而非花名册，正是该问句要的）
-        (["排班", "值班", "谁当班", "当班", "排班表"], "nursing-schedule",
+        (["排班", "值班", "谁当班", "当班", "排班表",
+          "schedule", "shift", "on duty", "duty", "roster", "staffing"], "nursing-schedule",
          "API:/api/schedules/?date=" + datetime.now().strftime("%Y-%m-%d")),
-        (["工单", "完成率", "护理完成", "任务完成"], "nursing-work-order",
+        (["工单", "完成率", "护理完成", "任务完成",
+          "work order", "task completion", "completion rate"], "nursing-work-order",
          "API:/api/incidents/"),
         # 评估两行须在 logistics（"盘点"）与 resident（"老人"）行之前：
-        # "评估盘点/老人的评估" 同时含对方关键词，先命中这里才有评估数据
-        (["待评估", "复评", "评估盘点"], "assessment-query",
+        # "评估盘点/老年人的评估" 同时含对方关键词，先命中这里才有评估数据
+        (["待评估", "复评", "评估盘点", "review due", "re-assessment", "reassessment"],
+         "assessment-query",
          "API:/api/assessments/review/"),
-        (["评估", "定级", "能力等级", "护理等级"], "assessment-query",
+        (["评估", "定级", "能力等级", "护理等级", "assessment", "care level", "grading"],
+         "assessment-query",
          "API:/api/assessments/"),
-        (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫"],
+        (["库存", "盘点", "物资", "采购", "尿不湿", "手套", "口罩", "消毒液", "胃管", "护理垫",
+          "inventory", "stock", "supplies", "diapers", "gloves", "mask", "purchase"],
          "logistics-inventory", "API:/api/inventory/"),
-        # 异常事件口语（摔倒/走失/发烧…）必须在 resident（"老人"）行之前：
+        # 异常事件口语（摔倒/走失/发烧…）必须在 resident（"老人/elderly"）行之前：
         # "有老人摔倒吗"同时含"老人"，先命中这里才拿得到 incidents 而非老人名单
-        (["摔倒", "走失", "坠床", "噎食", "发烧", "发热"], "alert-query",
+        (["摔倒", "走失", "坠床", "噎食", "发烧", "发热",
+          "alert", "incident", "fall", "fell", "missing", "choking", "fever"],
+         "alert-query",
          "API:/api/incidents/?handled=false"),
         # 财务三行 + 投诉行必须在 resident 行之前（09-07 三轮重排：resident 行
         # 收进真实人名后，「吴桂英欠费」「家属有意见」这类 人名/名词+意图 组合
         # 问句会被 resident 行吞掉——欠费/费用/投诉是更具体的意图，前置）；
         # 行内序：欠费 → 餐费/月结 → 泛财务（首匹配 break，欠费须最先）
-        (["欠费", "没交", "未缴", "未交", "催缴"], "finance-query",
+        (["欠费", "没交", "未缴", "未交", "催缴", "arrears", "unpaid", "overdue"],
+         "finance-query",
          "API:/api/billing/arrears/"),
-        (["餐费", "月结"], "finance-query", "API:/api/meal-finance/"),
-        (["费用", "结算", "缴费", "账单", "应收", "出账", "收费", "收了"], "finance-query",
+        (["餐费", "月结", "meal fee"], "finance-query", "API:/api/meal-finance/"),
+        (["费用", "结算", "缴费", "账单", "应收", "出账", "收费", "收了",
+          "bill", "fee", "payment", "charge", "invoice", "settlement", "cost"],
+         "finance-query",
          "API:/api/billing/summary/"),
         # 投诉/意见（09-07 三轮：「有人投诉吗」未命中任何行；表在本地 PG，
         # 3 行真实演示数据，无日期列按 id 倒序）。须在 meal（"食堂"）行
         # 之前——「食堂有投诉吗」该给投诉数据而非菜单
-        (["投诉", "抱怨", "意见"], "complaint-query",
+        (["投诉", "抱怨", "意见", "complaint", "complain", "feedback"], "complaint-query",
          "SELECT id, content, source, status FROM nursing_complaints "
          "ORDER BY id DESC LIMIT 20"),
         # 「入住」这类短词刻意不收：会先于后行吞掉"入住率/床位"类问句。
@@ -333,22 +412,31 @@ def _skill_queries() -> list:
         # 人名（09-07 三轮：原"张建国"是陈旧种子名，库里根本没有——换成
         # nursing_residents 实有 8 人；组合问句由前方的 欠费/摔倒 行优先，
         # 人名行只兜纯人名问句「张国栋住哪」）
+        # 2026-09-15 P5：追加 ERP --lang en 重灌后的英文名（zh 名保留——
+        # 双语演示同一映射行兜底，英文名与 rebuild_demo_data.py
+        # NAME_ZH_EN 的拼音拼写一一对应）
         (["老人", "张国栋", "李秀兰", "陈永发", "赵玉芬", "王淑珍", "刘明德",
           "吴桂英", "周德胜", "301", "302", "303", "108", "205", "老人档案", "健康档案",
           "住了多少人", "多少入住", "入住人数", "在院人数", "在院老人数",
-          "入住情况", "入住动态"],
+          "入住情况", "入住动态", "resident", "elderly", "how many residents",
+          "Zhang Guodong", "Li Xiulan", "Chen Yongfa", "Zhao Yufen",
+          "Wang Shuzhen", "Liu Mingde", "Wu Guiying", "Zhou Desheng"],
          "resident-query", "API:/api/residents/"),
         # 床位/入住率走 beds occupancy（resident 行刻意不收裸"入住"给它让路）
-        (["床位", "入住率", "空床", "满床", "几床", "空着"], "beds-occupancy",
+        (["床位", "入住率", "空床", "满床", "几床", "空着",
+          "bed", "occupancy", "vacant", "available beds"], "beds-occupancy",
          "API:/api/beds/occupancy/"),
         # 早/午/晚饭口语（"晚饭吃什么"此前未命中任何行）；「食堂」（09-07
-        # 三轮：「食堂今天做了什么」未命中任何行）
+        # 三轮：「食堂今天做了什么」未命中任何行）。英文用 " eat"/"eating"
+        # 而非裸 "eat"——后者撞 heat/weather（"heat stroke alert" 会被吞成菜单）
         (["菜单", "饭菜", "今天吃什么", "伙食", "早餐", "午餐", "晚餐",
           "早饭", "午饭", "晚饭", "夜宵", "晚上吃什么", "早上吃什么", "中午吃什么",
-          "吃什么", "食堂"],
+          "吃什么", "食堂",
+          "menu", "meal", "food", "breakfast", "lunch", "dinner", "supper", " eat", "eating"],
          "meal-query",
          f"API:/api/week-menu/?week_start={_week_start()}"),
-        (["活动", "文娱", "合唱", "讲座", "棋牌", "书法"], "activity-query",
+        (["活动", "文娱", "合唱", "讲座", "棋牌", "书法",
+          "activity", "activities", "event", "entertainment"], "activity-query",
          # 口径对齐 dashboard _eff_date 兜底：演示活动数据常停在最近一天，
          # 纯 date >= CURRENT_DATE 会空手（09-07 三轮实测「菜单和活动」答
          # "活动数据为空"）。今天或未来有数据取之；否则取最近一天那天起。
@@ -356,10 +444,11 @@ def _skill_queries() -> list:
          "WHERE date >= COALESCE((SELECT MIN(date) FROM nursing_activities "
          "WHERE date >= CURRENT_DATE), (SELECT MAX(date) FROM nursing_activities)) "
          "ORDER BY date, time LIMIT 10"),
-        (["预警", "告警", "重点关注", "异常"], "alert-query",
+        (["预警", "告警", "重点关注", "异常", "warning", "alert"], "alert-query",
          "API:/api/incidents/?handled=false"),
         # 员工口语（护工/护士/医生/护理员——"护理员"不含"护理等级"，评估行不吞）
-        (["员工", "谁负责", "人员", "值班人员", "护工", "护士", "医生", "护理员"],
+        (["员工", "谁负责", "人员", "值班人员", "护工", "护士", "医生", "护理员",
+          "staff", "employee", "caregiver", "nurse", "doctor", "who is on"],
          "staff-query", "API:/api/employees/"),
     ]
 
@@ -375,6 +464,30 @@ _PROMPT_ANSWER_RULES = (
     "仅当用户明确要求建议或分析时才展开。"
 )
 
+# P4 英文版（内容对等：先给事实/多行用简洁表格/只答所问/不邀约/问了才展开）
+_PROMPT_ANSWER_RULES_EN = (
+    "Answer based on the real data above; do not make things up. Answer style: "
+    "give the answer directly in the first sentence; when the data has multiple "
+    "rows, present it in one concise table; answer only what the user asked — "
+    "do not volunteer unrequested analysis, suggestions, or side topics; do not "
+    "end by asking whether further help is needed or listing things you could "
+    "do; expand only when the user explicitly asks for advice or analysis."
+)
+
+
+def _prompt_answer_rules(lang: str = "zh") -> str:
+    """回答风格契约的语言分支（agent 注入与非流式/流式 prompt 共用）。"""
+    return _PROMPT_ANSWER_RULES_EN if lang == "en" else _PROMPT_ANSWER_RULES
+
+
+def _agent_en_prefix() -> str:
+    """英文会话发往 agent 的载荷前缀（P4 语言指令 + P5b 枚举术语翻译指令）。
+
+    术语词表由 i18n.enum_terms_clause 从 ENUM_ZH_EN 生成，与页面显示映射
+    同源，两处不会漂移。非流式/流式两个注入点共用。
+    """
+    return "[Please respond in English.] " + i18n.enum_terms_clause() + "\n"
+
 
 def _schedule_window(message: str) -> list[str] | None:
     """排班问句的时间范围词 → 日期列表（升序、含今天）；None=只查当天。
@@ -389,21 +502,28 @@ def _schedule_window(message: str) -> list[str] | None:
     （--cover-until），但这里没有未来词 → 只注入当天 → agent 诚实报
     "不含明天的数据"（假阴性，数据其实在）。未来词分支放在过去词之前
     （「明后天」同时含"明/后天"子串，先整词后单词）。
+
+    2026-09-15 P4：英文时间词并入对应分支（tomorrow/day after tomorrow/
+    next 3 days/this week/last 3 days/recent），语义与中文分支一致。
+    "day after tomorrow" 含子串 "tomorrow"，必须先于 tomorrow 判定；
+    中文侧「后天」上移到「明天」之前对行为无影响（组合词已在首分支拦下）。
     """
+    msg = message.lower()
     today = datetime.now().date()
-    if any(w in message for w in ("明天后天", "明后天")):
+    if any(w in msg for w in ("明天后天", "明后天")):
         return [(today + timedelta(days=i)).isoformat() for i in (1, 2)]
-    if "明天" in message:
-        return [(today + timedelta(days=1)).isoformat()]
-    if "后天" in message:
+    if any(w in msg for w in ("后天", "day after tomorrow")):
         return [(today + timedelta(days=2)).isoformat()]
-    if any(w in message for w in ("未来", "接下来")):
+    if any(w in msg for w in ("明天", "tomorrow")):
+        return [(today + timedelta(days=1)).isoformat()]
+    if any(w in msg for w in ("未来", "接下来", "next 3 days", "next three days")):
         return [(today + timedelta(days=i)).isoformat() for i in range(3)]
-    if any(w in message for w in ("本周", "这周", "一周", "7天")):
+    if any(w in msg for w in ("本周", "这周", "一周", "7天", "this week")):
         monday = today - timedelta(days=today.weekday())
         days = (today - monday).days + 1
         return [(monday + timedelta(days=i)).isoformat() for i in range(days)]
-    if any(w in message for w in ("三天", "3天", "最近", "过去", "几天", "昨天", "前天")):
+    if any(w in msg for w in ("三天", "3天", "最近", "过去", "几天", "昨天", "前天",
+                              "last 3 days", "last three days", "past few days", "recent")):
         return [(today - timedelta(days=2 - i)).isoformat() for i in range(3)]
     return None
 
@@ -415,16 +535,27 @@ def _schedule_window(message: str) -> list[str] | None:
 _COMBO_SKILL_PAIRS = {frozenset({"meal-query", "activity-query"})}
 _COMBO_LABELS = {"meal-query": "菜单数据", "activity-query": "活动数据"}
 
+# 院长周报结构化摘要的 4 个段标题（P4：lang=en 时翻成英文下发）
+_REPORT_SECTIONS_EN = {
+    "排班概况": "Schedule Overview",
+    "物资配送": "Supplies Delivery",
+    "成本预估": "Cost Estimate",
+    "重点关注": "Key Concerns",
+}
+
 
 def _match_skill_rows(message: str, table: list) -> list[tuple[str, str]]:
     """意图匹配：返回 (skill_name, sql) 列表——首匹配行 + 白名单组合的第二行。
 
     单意图问句恒只返回 1 行（与旧 first-match-break 行为一致）；组合问句
     最多 2 行，且第二行必须与首行构成白名单组合对。
+    匹配对 message.lower() 做子串判定（P4）：英文关键词全小写，
+    中文关键词不受 lower() 影响。
     """
+    msg = message.lower()
     matches: list[tuple[str, str]] = []
     for keywords, skill_name, sql in table:
-        if not any(kw in message for kw in keywords):
+        if not any(kw in msg for kw in keywords):
             continue
         if not matches:
             matches.append((skill_name, sql))
@@ -492,6 +623,8 @@ async def _prefetch_skill_data(sql, skill_name, message, sess, db) -> list | Non
 _FOLLOWUP_TIME_WORDS = (
     "明天", "后天", "今天", "今晚", "本周", "这周", "上周", "下周",
     "最近", "前几天", "接下来",
+    # P4 英文追问碎片（"and tomorrow?"）
+    "tomorrow", "today", "this week", "last week", "next week", "recent",
 )
 
 
@@ -530,22 +663,29 @@ def _family_skill_queries() -> list:
       家属可看的数据，SQL 预取对家属是越权面；
     - ERP 侧按 X-Family-Token 过滤，返回的永远只是绑定老人；
     - 行序即优先级（首匹配即 break）：账单/吃饭在前，泛"老人近况"兜底最后。
+
+    2026-09-15 P4：每行追加英文关键词（全小写，子串匹配同员工版）。
     """
     return [
-        (["账单", "费用", "缴费", "欠费", "收费", "月结", "钱"], "family-billing",
+        (["账单", "费用", "缴费", "欠费", "收费", "月结", "钱",
+          "bill", "fee", "payment", "charge"], "family-billing",
          "API:/api/family/billing/"),
-        (["吃饭", "点餐", "订餐", "退餐", "伙食", "三餐", "菜单", "饭菜", "吃什么"],
+        (["吃饭", "点餐", "订餐", "退餐", "伙食", "三餐", "菜单", "饭菜", "吃什么",
+          "meal", "order", "food", "menu", " eat", "eating"],
          "family-meals", "API:/api/family/meals/"),
-        (["健康", "身体", "血压", "血糖", "用药", "护理", "评估", "病历", "过敏", "诊断"],
+        (["健康", "身体", "血压", "血糖", "用药", "护理", "评估", "病历", "过敏", "诊断",
+          "health", "blood pressure", "medication", "care"],
          "family-care", "API:/api/family/care/"),
         # 兜底行：泛问老人近况 → 总览（基础+评估+近期动态+今日三餐+欠费）
-        (["老人", "爸", "妈", "近况", "怎么样", "状态", "情况", "照护", "住"],
+        (["老人", "爸", "妈", "近况", "怎么样", "状态", "情况", "照护", "住",
+          "parent", "father", "mother", "how is", "condition", "status"],
          "family-overview", "API:/api/family/overview/"),
     ]
 
 
-def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> str:
-    """家属会话的 system prompt（模块级，便于单测）。
+def _family_system_prompt(sess, today_str: str, skill_result, message: str,
+                          lang: str = "zh") -> str:
+    """家属会话的 system prompt（模块级，便于单测；P4 加 lang 分支）。
 
     名单来自登录时 ERP 返回、缓存在 session 的 residents JSON
     （[{name, building, room, relation}]）；有预取数据时只依据数据回答。
@@ -561,6 +701,24 @@ def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> s
     ) or "（暂无绑定老人）"
     if skill_result is not None:
         data_json = _json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+        if lang == "en":
+            return (
+                f"You are the family-services assistant of the nursing home. Today is "
+                f"{today_str}. The current user is a family member, {sess.name}. "
+                f"Below is the real care data of the elder(s) bound to this family member:\n"
+                f"{data_json}\n\n"
+                "Answer the user's question in English based only on the data above; "
+                "discuss only the elders that appear in the data, and do not make things "
+                "up. The data may contain Chinese proper nouns (names, dish names) — "
+                "keep them as-is. " + i18n.enum_terms_clause() + " Answer style: give "
+                "the answer directly in the first "
+                "sentence; answer only what was asked; do not volunteer unrequested "
+                "analysis or suggestions; do not end by offering further help; expand "
+                "only when the family member explicitly asks for advice. You cannot "
+                "order or cancel meals or modify any data on behalf of the family; for "
+                "any operation, guide them to the 'Family Services' page. Keep a warm, "
+                "friendly tone. Respond in English."
+            )
         return (
             f"你是养老院的家属服务助手。今天是{today_str}。当前用户是家属{sess.name}。"
             f"以下是家属绑定老人的真实照护数据：\n{data_json}\n\n"
@@ -569,6 +727,20 @@ def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> s
             "分析或建议，结尾不要询问是否需要进一步帮助；仅当家属明确要求建议时才展开。"
             "你不能代家属点餐、退餐或修改数据；家属需要操作时引导使用「家属服务」页面。语气温暖亲切。"
         )
+    if lang == "en":
+        return (
+            f"You are the family-services assistant of the nursing home. Today is "
+            f"{today_str}. The current user is a family member, {sess.name}. Bound "
+            f"elder(s): {roster}. Only discuss the care, health, meals and fees of the "
+            "bound elder(s) above. When the user asks about other elders, staff "
+            "matters, or facility management, warmly and politely explain that this is "
+            "beyond the scope of family services. You can only look up and relay "
+            "information — you cannot order or cancel meals or modify any data on "
+            "behalf of the family; for any operation, guide them to the 'Family "
+            "Services' page in the top bar. Names in the data may be Chinese proper "
+            "nouns — keep them as-is. " + i18n.enum_terms_clause() + " Respond in "
+            "English. Keep a warm, friendly tone."
+        )
     return (
         f"你是养老院的家属服务助手。今天是{today_str}。当前用户是家属{sess.name}，"
         f"绑定的老人：{roster}。请只谈论上述绑定老人的照护、健康、用餐与费用情况；"
@@ -576,6 +748,66 @@ def _family_system_prompt(sess, today_str: str, skill_result, message: str) -> s
         "你只能查询和转述信息，不能代家属点餐、退餐或修改任何数据；家属需要操作时，"
         "引导使用顶栏「家属服务」页面。回答用中文，语气温暖亲切。"
     )
+
+
+def _today_str(lang: str = "zh") -> str:
+    """chat prompt 用的今天字符串（zh：2026年09月15日 Tuesday；en：2026-09-15 Tuesday）。"""
+    fmt = "%Y-%m-%d %A" if lang == "en" else "%Y年%m月%d日 %A"
+    return datetime.now().strftime(fmt)
+
+
+# 院长（及员工）直连路径的 system prompt —— 非流式/流式两处共用
+# （2026-09-15 P4 从端点内联抽出并加 lang 分支；zh 分支为原文搬移）。
+def _director_system_prompt(sess, today_str: str, skill_result, message: str,
+                            lang: str = "zh") -> str:
+    import json as _json
+    if lang == "en":
+        if skill_result is not None:
+            data_json = _json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+            return (
+                "You are the AI director assistant for the nursing home. Below are real "
+                f"results queried from the system database:\n{data_json}\n\n"
+                f"User question: {message}\n"
+                "Answer the user's question in English directly based on the data "
+                "above; do not say you cannot recognize it or that it is garbled. The "
+                "data may contain Chinese proper nouns (names, dish names) — keep them "
+                "as-is. " + i18n.enum_terms_clause() + " Respond in English."
+            )
+        context_parts = [
+            "You are the AI director assistant of Hangzhou Social Welfare Center, "
+            "located at 451 Hemu Road, Gongshu District, Hangzhou, with 1300+ beds "
+            "across four care zones (self-care, assisted living, nursing, dementia "
+            f"care) and about 300 staff. Today is {today_str}. "
+            f"Current user: {sess.name}, role: {sess.role}",
+        ]
+        if sess.dept:
+            context_parts.append(f"Department: {sess.dept}")
+        if sess.building:
+            context_parts.append(f"Building: {sess.building}")
+        if sess.floor:
+            context_parts.append(f"Floor: {sess.floor}")
+        context_parts.append(i18n.enum_terms_clause())
+        context_parts.append("Respond in English. Answer the user's questions concisely.")
+        return ". ".join(context_parts)
+    if skill_result is not None:
+        data_json = _json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
+        return (
+            f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n"
+            f"用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
+        )
+    context_parts = [
+        f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，"
+        f"占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），"
+        f"约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"
+    ]
+    if sess.dept:
+        context_parts.append(f"科室：{sess.dept}")
+    if sess.building:
+        context_parts.append(f"楼栋：{sess.building}")
+    if sess.floor:
+        context_parts.append(f"楼层：{sess.floor}")
+    context_parts.append("请用中文简洁回答用户的问题。")
+    return "。".join(context_parts)
 
 
 async def _load_nursing_sess(request: _Request, sessions: SessionStore):
@@ -769,7 +1001,7 @@ async def build_app() -> FastAPI:
             f"(SELECT MAX(date) FROM {table}))"
         )
 
-    def _extract_step_summary(step_key: str, output) -> dict | None:
+    def _extract_step_summary(step_key: str, output, lang: str = "zh") -> dict | None:
         """Extract key fields from a workflow step's raw output (OpenClaw JSON
         or plain LLM response). Returns a small dict for the report UI."""
         import json as _json
@@ -859,7 +1091,8 @@ async def build_app() -> FastAPI:
             }
             for name in ("排班概况", "物资配送", "成本预估", "重点关注"):
                 if name in secs:
-                    result[name] = secs[name]
+                    key = _REPORT_SECTIONS_EN.get(name, name) if lang == "en" else name
+                    result[key] = secs[name]
             if result:
                 return result
         if text:
@@ -886,7 +1119,8 @@ async def build_app() -> FastAPI:
             request,
             "nursing/chat.html",
             {"active": "chat", "nursing_user": nursing_user, "csrf_token": sess.csrf_token,
-             "is_family": sess.role == "family"},
+             "is_family": sess.role == "family",
+             "i18n_page": _page_i18n(request, ("nursing.chat.",))},
         )
 
     # ── Chat history helpers ──────────────────────────────────────────
@@ -969,6 +1203,8 @@ async def build_app() -> FastAPI:
         if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
 
+        lang = _req_lang(request)  # P4：意图/提示词语言（cookie 缺省 zh）
+
         try:
             body = await request.json()
         except Exception:
@@ -1050,12 +1286,20 @@ async def build_app() -> FastAPI:
                 ocr_text = _re.sub(r' {2,}', ' ', ocr_text)
                 ocr_text = ocr_text.strip()
                 user_question = message or ""
-                message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:6000]}"
-                if user_question:
-                    message += f"\n\n用户问题：{user_question}"
+                if lang == "en":
+                    message = f"The user uploaded an image. OCR result:\n\n{ocr_text[:6000]}"
+                    if user_question:
+                        message += f"\n\nUser question: {user_question}"
+                else:
+                    message = f"用户上传了一张图片，OCR 识别结果如下：\n\n{ocr_text[:6000]}"
+                    if user_question:
+                        message += f"\n\n用户问题：{user_question}"
             else:
-                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
-                message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
+                if lang == "en":
+                    message = ("The user uploaded an image, but OCR could not recognize "
+                               f"any text. {message or ''}")
+                else:
+                    message = f"用户上传了一张图片，但 OCR 未能识别出文字。{message or ''}"
             file_b64 = ""
 
         # ── Family branch gate ─────────────────────────────────────
@@ -1069,8 +1313,10 @@ async def build_app() -> FastAPI:
             from dl_control.workflows.wake import publish_wake as _wfpw
 
             try:
-                _run_input = {"building": getattr(sess, "building", None) or "3号楼"}
                 async with db.conn(user_id=None, role="system") as _wconn:
+                    _bld = (getattr(sess, "building", None)
+                            or await _default_workflow_building(_wconn))
+                    _run_input = {"building": _bld}
                     await _wfruns.start_run(
                         _wconn,
                         workflow_id="nursing.ops",
@@ -1125,7 +1371,17 @@ async def build_app() -> FastAPI:
                         # Inject skill data into message for Agent
                         agent_msg = message
                         if skill_result is not None:
-                            agent_msg = f"系统数据库查询结果：{json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]}\n\n用户问题：{message}\n" + _PROMPT_ANSWER_RULES
+                            data_json = json.dumps(
+                                skill_result, ensure_ascii=False, default=str)[:8000]
+                            agent_msg = (
+                                f"系统数据库查询结果：{data_json}"
+                                f"\n\n用户问题：{message}\n" + _prompt_answer_rules(lang)
+                            )
+                        # P4：英文会话给 agent 载荷加语言指令前缀（只影响发出去的
+                        # 消息；存储历史/标题用 original_message，不受影响）；
+                        # P5b 前缀并入枚举术语翻译指令
+                        if lang == "en":
+                            agent_msg = _agent_en_prefix() + agent_msg
                         async with httpx.AsyncClient(timeout=60.0) as client:
                             resp = await client.post(
                                 f"http://dato-agent-{agent_id}:18790/dato/chat",
@@ -1155,19 +1411,11 @@ async def build_app() -> FastAPI:
             return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)
-        today_str = datetime.now().strftime("%Y年%m月%d日 %A")
+        today_str = _today_str(lang)
         if is_family:
-            system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+            system_prompt = _family_system_prompt(sess, today_str, skill_result, message, lang)
         else:
-            context_parts = [f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"]
-            if sess.dept: context_parts.append(f"科室：{sess.dept}")
-            if sess.building: context_parts.append(f"楼栋：{sess.building}")
-            if sess.floor: context_parts.append(f"楼层：{sess.floor}")
-            context_parts.append("请用中文简洁回答用户的问题。")
-            system_prompt = "。".join(context_parts)
-            if skill_result is not None:
-                data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
-                system_prompt = f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
+            system_prompt = _director_system_prompt(sess, today_str, skill_result, message, lang)
         api_key = s.llm_api_key.get_secret_value()
         if not api_key:
             reply = "LLM API Key 未配置，请在 infra/.env 中设置 LLM_API_KEY"
@@ -1291,6 +1539,8 @@ async def build_app() -> FastAPI:
         if sess is None or sess.role not in _CHAT_ALLOWED:
             return JSONResponse({"error": "unauthorized"}, 401)
 
+        lang = _req_lang(request)  # P4：意图/提示词语言（cookie 缺省 zh）
+
         try:
             body = await request.json()
         except Exception:
@@ -1333,8 +1583,10 @@ async def build_app() -> FastAPI:
             from dl_control.workflows.wake import publish_wake as _wfpw
 
             try:
-                _run_input = {"building": getattr(sess, "building", None) or "3号楼"}
                 async with db.conn(user_id=None, role="system") as _wconn:
+                    _bld = (getattr(sess, "building", None)
+                            or await _default_workflow_building(_wconn))
+                    _run_input = {"building": _bld}
                     await _wfruns.start_run(
                         _wconn, workflow_id="nursing.ops", trigger="manual",
                         run_input=_run_input, actor_user_id=None,
@@ -1367,8 +1619,12 @@ async def build_app() -> FastAPI:
             data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
             agent_msg = (
                 f"系统数据库查询结果：{data_json}\n\n用户问题：{message}\n"
-                + _PROMPT_ANSWER_RULES
+                + _prompt_answer_rules(lang)
             )
+        # P4：英文会话给 agent 载荷加语言指令前缀（网关 + receiver 回落共用
+        # agent_msg；存储历史用 message，不受影响）；P5b 前缀并入枚举术语指令
+        if lang == "en":
+            agent_msg = _agent_en_prefix() + agent_msg
 
         # ── Agent 路由信息（同非流式端点） ──
         ROLE_TO_AGENT = {
@@ -1530,29 +1786,13 @@ async def build_app() -> FastAPI:
                     return
 
                 # ── 非 agent 角色：直连 LLM 流式（系统提示词同非流式端点） ──
-                today_str = datetime.now().strftime("%Y年%m月%d日 %A")
+                today_str = _today_str(lang)
                 if is_family:
-                    system_prompt = _family_system_prompt(sess, today_str, skill_result, message)
+                    system_prompt = _family_system_prompt(
+                        sess, today_str, skill_result, message, lang)
                 else:
-                    context_parts = [
-                        f"你是杭州市社会福利中心的AI养老院院长助手。中心位于杭州拱墅区和睦路451号，"
-                        f"占地60亩，设1300余张床位，四个照护分区（自理区、介助区、介护区、认知障碍照护专区），"
-                        f"约300名员工。今天是{today_str}。当前用户：{sess.name}，角色：{sess.role}"
-                    ]
-                    if sess.dept:
-                        context_parts.append(f"科室：{sess.dept}")
-                    if sess.building:
-                        context_parts.append(f"楼栋：{sess.building}")
-                    if sess.floor:
-                        context_parts.append(f"楼层：{sess.floor}")
-                    context_parts.append("请用中文简洁回答用户的问题。")
-                    system_prompt = "。".join(context_parts)
-                    if skill_result is not None:
-                        data_json = json.dumps(skill_result, ensure_ascii=False, default=str)[:8000]
-                        system_prompt = (
-                            f"你是AI养老院院长助手。以下是系统数据库查询的真实结果：\n{data_json}\n\n"
-                            f"用户问题：{message}\n请根据以上数据用中文直接回答用户问题，不要说你无法识别或乱码。"
-                        )
+                    system_prompt = _director_system_prompt(
+                        sess, today_str, skill_result, message, lang)
                 if not s.llm_api_key.get_secret_value():
                     yield await _sse({"type": "error", "message": "LLM API Key 未配置"})
                     return
@@ -1577,7 +1817,12 @@ async def build_app() -> FastAPI:
         return TEMPLATES.TemplateResponse(
             request,
             "nursing/test-roles.html",
-            {"active": "test"},
+            {
+                "active": "test",
+                "i18n_page": _page_i18n(
+                    request, ("nursing.role.", "nursing.test.")
+                ),
+            },
         )
 
     @app.get("/dashboard", response_class=HTMLResponse)
@@ -1599,7 +1844,12 @@ async def build_app() -> FastAPI:
         return TEMPLATES.TemplateResponse(
             request,
             "nursing/dashboard.html",
-            {"active": "dashboard", "nursing_user": nursing_user, "csrf_token": sess.csrf_token},
+            {
+                "active": "dashboard",
+                "nursing_user": nursing_user,
+                "csrf_token": sess.csrf_token,
+                "i18n_page": _page_i18n(request, ("nursing.dashboard.",)),
+            },
         )
 
     @app.get("/api/nursing/alerts")
@@ -1626,19 +1876,12 @@ async def build_app() -> FastAPI:
                     _sev = {"danger": 0, "warning": 1, "info": 2}
                     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
                     items.sort(key=lambda x: _sev.get(x.get("severity", ""), 9))
-                    return {"alerts": [{
-                        "id": i["id"],
-                        "name": i.get("resident_name", ""),
-                        "building": i.get("building", ""),
-                        "category": i.get("category_display", i.get("category", "")),
-                        "severity": i.get("severity", ""),
-                        "severity_display": i.get("severity_display", ""),
-                        "content": i.get("description", ""),
-                        "handled": bool(i.get("handled", False)),
-                        "handled_by": i.get("handled_by", "") or "",
-                        "handled_at": i.get("handled_at", "") or "",
-                        "created_at": i.get("created_at", ""),
-                    } for i in items[:100]]}
+                    # P5b：en 页面枚举字段换英文（lang 取页面 i18n 口径，缺省 en）
+                    _lang = i18n.normalize_lang(
+                        request.cookies.get(i18n.LANG_COOKIE))
+                    return {"alerts": [
+                        _alert_display(i, _lang) for i in items[:100]
+                    ]}
         except Exception:
             pass
         return {"alerts": []}
@@ -1663,6 +1906,7 @@ async def build_app() -> FastAPI:
             "active": "alerts",
             "nursing_user": nursing_user,
             "csrf_token": sess.csrf_token,
+            "i18n_page": _page_i18n(request, ("nursing.alerts.",)),
         })
 
     @app.post("/api/nursing/alerts/{alert_id}/handle")
@@ -1724,10 +1968,12 @@ async def build_app() -> FastAPI:
                 rows = await cur.fetchall()
         except Exception:
             return {"orders": []}
+        # P5b：en 页面工单类型换英文（DB 是中文查询词表语境，不动存储）
+        _lang = i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE))
         return {"orders": [{
             "id": r[0],
             "date": r[1].isoformat() if r[1] else "",
-            "type": r[2],
+            "type": i18n.enum_display(r[2], _lang),
             "completed": bool(r[3]),
             "staff": r[4] or "",
             "note": r[5] or "",
@@ -1755,6 +2001,7 @@ async def build_app() -> FastAPI:
         return TEMPLATES.TemplateResponse(request, "nursing/work-orders.html", {
             "active": "dashboard",
             "nursing_user": nursing_user,
+            "i18n_page": _page_i18n(request, ("nursing.orders.",)),
         })
 
     @app.get("/api/nursing/dashboard")
@@ -1969,6 +2216,31 @@ async def build_app() -> FastAPI:
             except Exception:
                 pass
 
+        # P5b 枚举英文化（en 页面显示层）：工单类型/护理等级/餐次换英文。
+        # zh 模式 enum_display 原样返回，零改动；dish name（菜名，专名）与
+        # 自由文本不动。前端 MEAL_THEME 已兼容英文餐次键。
+        _lang = i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE))
+        work_order_details = [
+            {**w, "type": i18n.enum_display(w["type"], _lang)}
+            for w in work_order_details
+        ]
+        care_level_distribution = [
+            {**c, "name": i18n.enum_display(c["name"], _lang)}
+            for c in care_level_distribution
+        ]
+        today_menu = [
+            {**m, "meal_type": i18n.enum_display(m["meal_type"], _lang)}
+            for m in today_menu
+        ]
+        if isinstance(order_stats, dict) and order_stats.get("meals"):
+            order_stats = {
+                **order_stats,
+                "meals": [
+                    {**m, "meal_type": i18n.enum_display(m["meal_type"], _lang)}
+                    for m in order_stats["meals"]
+                ],
+            }
+
         return {
             "summary": {
                 "total_residents": total_residents,
@@ -2004,10 +2276,19 @@ async def build_app() -> FastAPI:
         sid = sessions.unsign(raw) if raw else None
         sess = await sessions.load(sid) if sid else None
         if sess is None or sess.role not in _NURSING_ROLES:
-            raise HTTPException(status_code=401, detail="需要护理系统登录")
+            raise HTTPException(
+                status_code=401,
+                detail=i18n.translate(_req_lang(request), "nursing.err.login_required"),
+            )
         from dl_control.workflows import runs as _wfruns
 
-        run_input: dict = {"building": body.building}
+        # 楼栋解析链（P5b）：显式入参 → 会话楼栋 → 库实值兜底（en 演示期
+        # nursing_schedules.building 是 "Building 3"，写死 "3号楼" 会查空）
+        building = body.building or getattr(sess, "building", None)
+        if not building:
+            async with db.conn(user_id=None, role="system") as _bconn:
+                building = await _default_workflow_building(_bconn)
+        run_input: dict = {"building": building}
         if body.nursing_agent_id:
             run_input["nursing_agent_id"] = body.nursing_agent_id
         if body.logistics_agent_id:
@@ -2038,7 +2319,7 @@ async def build_app() -> FastAPI:
 
     # -- Nursing weekly report (workflow results) --
     @app.get("/api/nursing/report")
-    async def nursing_report_api(offset: int = 0, limit: int = 10):
+    async def nursing_report_api(request: _Request, offset: int = 0, limit: int = 10):
         """周报期次列表（最新在前，分页）。
 
         raw 不再随列表下发（页面不渲染它，10 期 × 4 步的 OpenClaw 原文会把
@@ -2069,7 +2350,7 @@ async def build_app() -> FastAPI:
                 )
                 steps = {}
                 for s in await cur2.fetchall():
-                    summary = _extract_step_summary(s[0], s[2])
+                    summary = _extract_step_summary(s[0], s[2], _req_lang(request))
                     steps[s[0]] = {"status": s[1], "summary": summary}
                 runs_list.append({
                     "id": rid, "status": r[1], "trigger": r[2],
@@ -2101,6 +2382,7 @@ async def build_app() -> FastAPI:
             "active": "reports",
             "nursing_user": nursing_user,
             "csrf_token": sess.csrf_token,
+            "i18n_page": _page_i18n(request, ("nursing.reports.",)),
         })
 
     @app.exception_handler(MustRotatePasswordError)

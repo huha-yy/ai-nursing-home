@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}健康告警 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("nursing.alerts.title") }}{% endblock %}
 {% block body %}
 
 <style>
@@ -74,27 +74,36 @@
 
 <div class="nh-al">
   <div class="nh-al-bar">
-    <a href="/dashboard" class="nh-al-back">← 大屏</a>
+    <a href="/dashboard" class="nh-al-back">{{ t("nursing.alerts.back") }}</a>
     <span class="nh-al-total" id="al-total"></span>
   </div>
-  <h1 class="nh-al-ttl">健康告警</h1>
+  <h1 class="nh-al-ttl">{{ t("nursing.alerts.heading") }}</h1>
 
   <div class="nh-al-sevrow" id="al-sevrow"></div>
   <div class="nh-al-tabs">
-    <button class="nh-al-tab act" id="tab-pending" onclick="switchTab('pending')">待处理<span class="n" id="n-pending"></span></button>
-    <button class="nh-al-tab" id="tab-handled" onclick="switchTab('handled')">已处理<span class="n" id="n-handled"></span></button>
+    <button class="nh-al-tab act" id="tab-pending" onclick="switchTab('pending')">{{ t("nursing.alerts.tab.pending") }}<span class="n" id="n-pending"></span></button>
+    <button class="nh-al-tab" id="tab-handled" onclick="switchTab('handled')">{{ t("nursing.alerts.tab.handled") }}<span class="n" id="n-handled"></span></button>
   </div>
 
   <div class="nh-al-layout">
-    <aside class="nh-al-list" id="al-list"><div class="nh-al-empty-list"><span class="nh-al-spin"></span>加载中…</div></aside>
-    <main class="nh-al-main" id="al-main"><div class="nh-al-placeholder"><span class="nh-al-spin"></span>加载中…</div></main>
+    <aside class="nh-al-list" id="al-list"><div class="nh-al-empty-list"><span class="nh-al-spin"></span>{{ t("nursing.common.loading") }}</div></aside>
+    <main class="nh-al-main" id="al-main"><div class="nh-al-placeholder"><span class="nh-al-spin"></span>{{ t("nursing.common.loading") }}</div></main>
   </div>
 </div>
 
 <script>
+var I18N = JSON.parse({{ i18n_page|tojson }});
+function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
+
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
-var SEV_LABEL = {danger:'危急', warning:'紧急', info:'一般'};
+var SEV_LABEL = {danger: tr('js.sev.danger'), warning: tr('js.sev.warning'), info: tr('js.sev.info')};
+
+function fmtDay(d) {
+  try {
+    return d.toLocaleDateString(tr('js.locale'), { month: 'short', day: 'numeric' });
+  } catch (e) { return (d.getMonth()+1)+'/'+d.getDate(); }
+}
 
 function fmtShort(iso){
   if(!iso) return '';
@@ -103,10 +112,10 @@ function fmtShort(iso){
   var now = new Date();
   var pad = function(n){return n<10?'0'+n:''+n;};
   var hm = pad(d.getHours())+':'+pad(d.getMinutes());
-  if (d.toDateString() === now.toDateString()) return '今天 '+hm;
+  if (d.toDateString() === now.toDateString()) return tr('js.today') + ' ' + hm;
   var y = new Date(now); y.setDate(now.getDate()-1);
-  if (d.toDateString() === y.toDateString()) return '昨天 '+hm;
-  return (d.getMonth()+1)+'月'+d.getDate()+'日 '+hm;
+  if (d.toDateString() === y.toDateString()) return tr('js.yesterday') + ' ' + hm;
+  return fmtDay(d) + ' ' + hm;
 }
 function fmtFull(iso){
   if(!iso) return '';
@@ -143,7 +152,8 @@ function selectAlert(id){
 
 function renderSevRow(){
   var c = counts();
-  document.getElementById('al-total').textContent = '共 ' + state.alerts.length + ' 条 · ' + c.pending + ' 条待处理';
+  document.getElementById('al-total').textContent =
+    tr('js.total_line').replace('{n}', state.alerts.length).replace('{p}', c.pending);
   var html = '';
   ['danger','warning','info'].forEach(function(sev){
     var n = c.bySev[sev];
@@ -159,8 +169,8 @@ function renderList(){
   var items = state.alerts.filter(function(a){ return state.tab === 'pending' ? !a.handled : a.handled; });
   if (!items.length) {
     box.innerHTML = state.tab === 'pending'
-      ? '<div class="nh-al-empty-list">🎉 待处理告警已清零</div>'
-      : '<div class="nh-al-empty-list">暂无已处理记录</div>';
+      ? '<div class="nh-al-empty-list">' + tr('js.cleared') + '</div>'
+      : '<div class="nh-al-empty-list">' + tr('js.no_handled') + '</div>';
     return;
   }
   var html = '';
@@ -168,9 +178,9 @@ function renderList(){
     html += '<div class="nh-al-item sev-' + (a.severity||'info') + (a.handled ? ' handled' : '') + (a.id === state.sel ? ' sel' : '') +
             '" onclick="selectAlert(' + a.id + ')">' +
             '<div class="nh-al-item-top">' +
-            '<span class="nh-al-item-name">' + esc(a.name || '未关联老人') + '</span>' +
+            '<span class="nh-al-item-name">' + esc(a.name || tr('js.no_resident')) + '</span>' +
             '<span class="nh-al-item-cat">' + esc(a.category) + '</span></div>' +
-            '<div class="nh-al-item-time">' + SEV_LABEL[a.severity] + ' · ' + fmtShort(a.created_at) + '</div>' +
+            '<div class="nh-al-item-time">' + (SEV_LABEL[a.severity] || a.severity) + ' · ' + fmtShort(a.created_at) + '</div>' +
             '</div>';
   });
   box.innerHTML = html;
@@ -180,21 +190,21 @@ function renderDetail(){
   var el = document.getElementById('al-main');
   var a = byId(state.sel);
   if (!a) {
-    el.innerHTML = '<div class="nh-al-placeholder">' + (state.alerts.length ? '← 从列表选择一条告警' : '暂无告警记录') + '</div>';
+    el.innerHTML = '<div class="nh-al-placeholder">' + (state.alerts.length ? tr('js.select_hint') : tr('js.no_records')) + '</div>';
     return;
   }
   var html = '<div class="nh-al-detail-head">' +
-    '<span class="nh-al-detail-name">' + esc(a.name || '未关联老人') + '</span>' +
+    '<span class="nh-al-detail-name">' + esc(a.name || tr('js.no_resident')) + '</span>' +
     '<span class="nh-al-detail-building">' + esc(a.building || '') + '</span>' +
     '<span class="nh-al-badge ' + (a.severity||'info') + '">' + (SEV_LABEL[a.severity] || a.severity_display || a.severity) + '</span>' +
     '<span class="nh-al-cat-tag">' + esc(a.category) + '</span></div>';
-  html += '<div class="nh-al-detail-content">' + esc(a.content || '（无补充说明）') + '</div>';
-  html += '<div class="nh-al-meta">上报时间　<b>' + fmtFull(a.created_at) + '</b></div>';
+  html += '<div class="nh-al-detail-content">' + esc(a.content || tr('js.no_content')) + '</div>';
+  html += '<div class="nh-al-meta">' + tr('js.reported_at') + '　<b>' + fmtFull(a.created_at) + '</b></div>';
   if (a.handled) {
-    html += '<div class="nh-al-meta">处理时间　<b>' + fmtFull(a.handled_at) + '</b>' + (a.handled_by ? '　处理人　<b>' + esc(a.handled_by) + '</b>' : '') + '</div>';
-    html += '<div class="nh-al-handled-box">✓ 已处理</div>';
+    html += '<div class="nh-al-meta">' + tr('js.handled_at') + '　<b>' + fmtFull(a.handled_at) + '</b>' + (a.handled_by ? '　' + tr('js.handled_by') + '　<b>' + esc(a.handled_by) + '</b>' : '') + '</div>';
+    html += '<div class="nh-al-handled-box">' + tr('js.handled_badge') + '</div>';
   } else {
-    html += '<button class="nh-al-handle-btn" id="al-handle" onclick="handleAlert(' + a.id + ')">标记已处理</button>';
+    html += '<button class="nh-al-handle-btn" id="al-handle" onclick="handleAlert(' + a.id + ')">' + tr('js.mark_handled') + '</button>';
   }
   el.innerHTML = html;
 }
@@ -203,16 +213,16 @@ async function handleAlert(id){
   if (state.handling) return;
   state.handling = true;
   var btn = document.getElementById('al-handle');
-  if (btn) { btn.disabled = true; btn.textContent = '处理中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = tr('js.handling'); }
   try {
     var r = await fetch('/api/nursing/alerts/' + id + '/handle', {method:'POST', credentials:'same-origin'});
     var d = await r.json();
-    if (!d.ok) { alert('标记失败：' + (d.error || r.status)); if (btn){btn.disabled=false; btn.textContent='标记已处理';} return; }
+    if (!d.ok) { alert(tr('js.mark_failed').replace('{e}', (d.error || r.status))); if (btn){btn.disabled=false; btn.textContent=tr('js.mark_handled');} return; }
     await refresh();           // 重新拉列表：计数与分流都以后端为准
     renderDetail();            // 停留在该条详情，展示处理人/时间
   } catch(e) {
-    alert('网络错误：' + e.message);
-    if (btn){btn.disabled=false; btn.textContent='标记已处理';}
+    alert(tr('js.network_error').replace('{e}', e.message));
+    if (btn){btn.disabled=false; btn.textContent=tr('js.mark_handled');}
   }
   state.handling = false;
 }
@@ -233,8 +243,8 @@ async function refresh(){
   try {
     await refresh();
     if (!state.alerts.length) {
-      listEl.innerHTML = '<div class="nh-al-empty-list">暂无告警记录</div>';
-      mainEl.innerHTML = '<div class="nh-al-placeholder">暂无告警记录</div>';
+      listEl.innerHTML = '<div class="nh-al-empty-list">' + tr('js.no_records') + '</div>';
+      mainEl.innerHTML = '<div class="nh-al-placeholder">' + tr('js.no_records') + '</div>';
       return;
     }
     // hash 还原选中（#a=<id>）；缺省选待处理里最急的一条，没有待处理则第一条
@@ -247,8 +257,8 @@ async function refresh(){
     }
     selectAlert(initial.id);
   } catch(e) {
-    listEl.innerHTML = '<div class="nh-al-empty-list">加载失败</div>';
-    mainEl.innerHTML = '<div class="nh-al-placeholder">加载失败：' + esc(e.message) + '</div>';
+    listEl.innerHTML = '<div class="nh-al-empty-list">' + tr('js.load_failed') + '</div>';
+    mainEl.innerHTML = '<div class="nh-al-placeholder">' + tr('js.load_failed_msg').replace('{e}', esc(e.message)) + '</div>';
   }
 })();
 </script>

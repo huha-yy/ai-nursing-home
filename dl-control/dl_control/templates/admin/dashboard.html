@@ -1,90 +1,91 @@
 {% extends "base.html" %}
-{% block title %}概览 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("admin.dashboard.title") }}{% endblock %}
 {% block admin_body %}
 
 <div class="admin-page-header">
-  <h2>系统概览</h2>
-  <p class="admin-page-sub">杭州社会福利院 · 智能运营平台</p>
+  <h2>{{ t("admin.dashboard.heading") }}</h2>
+  <p class="admin-page-sub">{{ t("admin.dashboard.sub") }}</p>
 </div>
 
 <div class="stat-row">
   <div class="stat-card">
     <div class="stat-value">{{ total_agents }}</div>
-    <div class="stat-label">Agent 实例</div>
-    <div class="stat-detail">全部运行中</div>
+    <div class="stat-label">{{ t("admin.dashboard.stat.agents") }}</div>
+    <div class="stat-detail">{{ t("admin.dashboard.stat.all_running") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ tier0 }}</div>
     <div class="stat-label">Tier 0</div>
-    <div class="stat-detail">共享容器引擎</div>
+    <div class="stat-detail">{{ t("admin.dashboard.stat.shared_engine") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ tier1 }}</div>
     <div class="stat-label">Tier 1</div>
-    <div class="stat-detail">独立数据库</div>
+    <div class="stat-detail">{{ t("admin.dashboard.stat.dedicated_db") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ events_today }}</div>
-    <div class="stat-label">今日事件</div>
-    <div class="stat-detail">审计日志记录</div>
+    <div class="stat-label">{{ t("admin.dashboard.stat.events_today") }}</div>
+    <div class="stat-detail">{{ t("admin.dashboard.stat.audit_note") }}</div>
   </div>
 </div>
 
 <section class="admin-section">
-  <h3>核心服务</h3>
+  <h3>{{ t("admin.dashboard.services") }}</h3>
   <div class="service-grid">
     <div class="service-card ok">
       <span class="svc-dot"></span>
       <strong>dato-control</strong>
-      <span class="svc-meta">控制中心</span>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.control") }}</span>
     </div>
     <div class="service-card ok">
       <span class="svc-dot"></span>
       <strong>PostgreSQL</strong>
-      <span class="svc-meta">主数据库</span>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.db") }}</span>
     </div>
     <div class="service-card ok">
       <span class="svc-dot"></span>
       <strong>Redis</strong>
-      <span class="svc-meta">会话缓存</span>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.redis") }}</span>
     </div>
     <div class="service-card ok">
       <span class="svc-dot"></span>
       <strong>dl-cognee</strong>
-      <span class="svc-meta">知识库 RAG</span>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.rag") }}</span>
     </div>
     <div class="service-card ok">
       <span class="svc-dot"></span>
       <strong>dl-gbrain</strong>
-      <span class="svc-meta">知识大脑</span>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.brain") }}</span>
     </div>
     <div class="service-card dim">
       <span class="svc-dot"></span>
-      <strong>本地 LLM</strong>
-      <span class="svc-meta">DeepSeek 远端</span>
+      <strong>{{ t("admin.dashboard.svc.llm") }}</strong>
+      <span class="svc-meta">{{ t("admin.dashboard.svc.llm_meta") }}</span>
     </div>
   </div>
 </section>
 
 <section class="admin-section">
-  <h3>预置角色</h3>
+  <h3>{{ t("admin.dashboard.roles") }}</h3>
   <div class="role-grid">
+    {# rname = i18n key；staff 为演示人员名（数据值，不翻译）；extra>0 时附加“等 N 人” #}
     {% set roles = [
-      ('director', '院长', '王建国'),
-      ('nursing-dept', '护理科', '张护士 等 3 人'),
-      ('logistics-dept', '总务科', '陈总务 等 2 人'),
-      ('building-1', '1 号楼', '刘主任'),
-      ('building-2', '2 号楼', '张主任'),
-      ('building-3', '3 号楼', '李卫东'),
-      ('building-4', '4 号楼', '吴主任'),
-      ('building-5', '5 号楼', '刘主任'),
-      ('building-6', '6 号楼', '周主任'),
-      ('general-assistant', '通用助手', '综合办 等 4 人'),
+      ('admin.dashboard.role.director', '王建国', 0),
+      ('admin.dashboard.role.nursing', '张护士', 3),
+      ('admin.dashboard.role.logistics', '陈总务', 2),
+      ('admin.dashboard.role.b1', '刘主任', 0),
+      ('admin.dashboard.role.b2', '张主任', 0),
+      ('admin.dashboard.role.b3', '李卫东', 0),
+      ('admin.dashboard.role.b4', '吴主任', 0),
+      ('admin.dashboard.role.b5', '刘主任', 0),
+      ('admin.dashboard.role.b6', '周主任', 0),
+      ('admin.dashboard.role.general', '综合办', 4),
     ] %}
-    {% for rid, rname, rstaff in roles %}
+    {% for rkey, rstaff, rextra in roles %}
     <div class="role-card">
-      <span class="role-card-name">{{ rname }}</span>
-      <span class="role-card-staff">{{ rstaff }}</span>
+      <span class="role-card-name">{{ t(rkey) }}</span>
+      <span class="role-card-staff">{{ rstaff }}{% if rextra %} {{ t("admin.dashboard.more_prefix") }}{{ rextra }}{{ t("admin.dashboard.more_suffix") }}{% endif %}</span>
     </div>
     {% endfor %}
   </div>

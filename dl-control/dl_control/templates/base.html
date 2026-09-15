@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}AI 养老院院长{% endblock %}</title>
+  <title>{% block title %}{{ t("admin.base.brand") }}{% endblock %}</title>
   {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <link rel="stylesheet" href="/static/styles.css">
   {% block head_extra %}
@@ -14,28 +14,29 @@
 <body class="{% block body_class %}{% endblock %}{% if nursing_user %} nursing-page{% endif %}">
   {% if nursing_user %}
   <header class="nursing-topbar">
-    <span class="nh-brand">AI 养老院院长</span>
+    <span class="nh-brand">{{ t("admin.base.brand") }}</span>
     <nav>
-      <a href="/chat"{% if active == 'chat' %} class="active"{% endif %}>对话</a>
+      <a href="/chat"{% if active == 'chat' %} class="active"{% endif %}>{{ t("nursing.nav.chat") }}</a>
       {% if is_family %}
       {# 家属只留对话 + ERP 家属服务页（照护/点餐/账单）；大屏/周报/告警/业务管理均为员工面 #}
-      <a href="https://admin.eldcare.cn:8443/family/" target="_blank" rel="noopener">家属服务</a>
+      <a href="https://admin.eldcare.cn:8443/family/" target="_blank" rel="noopener">{{ t("nursing.nav.family") }}</a>
       {% else %}
-      <a href="/dashboard"{% if active == 'dashboard' %} class="active"{% endif %}>大屏</a>
-      <a href="/reports"{% if active == 'reports' %} class="active"{% endif %}>周报</a>
-      <a href="/alerts"{% if active == 'alerts' %} class="active"{% endif %}>告警</a>
-      <a href="https://admin.eldcare.cn:8443/admin/" target="_blank" rel="noopener">业务管理</a>
+      <a href="/dashboard"{% if active == 'dashboard' %} class="active"{% endif %}>{{ t("nursing.nav.dashboard") }}</a>
+      <a href="/reports"{% if active == 'reports' %} class="active"{% endif %}>{{ t("nursing.nav.reports") }}</a>
+      <a href="/alerts"{% if active == 'alerts' %} class="active"{% endif %}>{{ t("nursing.nav.alerts") }}</a>
+      <a href="https://admin.eldcare.cn:8443/admin/" target="_blank" rel="noopener">{{ t("nursing.nav.business") }}</a>
       {% endif %}
     </nav>
+    {% include "_lang_toggle.html" %}
     <div class="nh-user-area">
       {% set label_map = {
-        'director': '院长',
-        'nursing_dept': '护理科',
-        'logistics_dept': '总务科',
-        'building': '楼长',
-        'floor': '楼层组长',
-        'general': '工作人员',
-        'family': '家属',
+        'director': t('nursing.role.director'),
+        'nursing_dept': t('nursing.role.nursing_dept'),
+        'logistics_dept': t('nursing.role.logistics_dept'),
+        'building': t('nursing.role.building'),
+        'floor': t('nursing.role.floor'),
+        'general': t('nursing.role.general'),
+        'family': t('nursing.role.family'),
       } %}
       {% set lbl = label_map.get(nursing_user.role, nursing_user.role) %}
       <span class="nh-role-badge role-{{ nursing_user.role }}">{{ lbl }}</span>
@@ -43,23 +44,23 @@
     </div>
     <form method="post" action="/logout" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="ghost-btn">退出</button>
+      <button type="submit" class="ghost-btn">{{ t("nursing.signout") }}</button>
     </form>
   </header>
   {% elif current_user %}
   <header class="topbar">
-    <span class="brand">AI 养老院院长</span>
+    <span class="brand">{{ t("admin.base.brand") }}</span>
     <nav>
-      <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>概览</a>
+      <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>{{ t("admin.base.nav_overview") }}</a>
       <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>Agent</a>
-      <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>工作流</a>
-      <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>审计</a>
+      <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>{{ t("admin.base.nav_workflows") }}</a>
+      <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>{{ t("admin.base.nav_audit") }}</a>
     </nav>
     {% include "_lang_toggle.html" %}
-    <span class="admin-user-label">管理员</span>
+    <span class="admin-user-label">{{ t("admin.base.admin_label") }}</span>
     <form method="post" action="/logout" class="logout-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="ghost-btn">退出</button>
+      <button type="submit" class="ghost-btn">{{ t("admin.base.signout") }}</button>
     </form>
   </header>
   {% else %}
@@ -70,15 +71,15 @@
   <div class="admin-layout">
     <aside class="admin-sidebar">
       <div class="admin-sidebar-section">
-        <p class="admin-sidebar-heading">导航</p>
-        <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>概览</a>
-        <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>Agent 管理</a>
-        <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>工作流</a>
-        <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>审计日志</a>
+        <p class="admin-sidebar-heading">{{ t("admin.base.sidebar_nav") }}</p>
+        <a href="/admin"{% if active == 'dashboard' %} class="active"{% endif %}>{{ t("admin.base.nav_overview") }}</a>
+        <a href="/admin/agents"{% if active == 'agents' %} class="active"{% endif %}>{{ t("admin.base.nav_agents") }}</a>
+        <a href="/admin/workflows"{% if active == 'workflows' %} class="active"{% endif %}>{{ t("admin.base.nav_workflows") }}</a>
+        <a href="/admin/audit"{% if active == 'audit' %} class="active"{% endif %}>{{ t("admin.base.nav_audit_full") }}</a>
       </div>
       <div class="admin-sidebar-section">
-        <p class="admin-sidebar-heading">配置</p>
-        <a href="/admin/settings/precreated">预置模板</a>
+        <p class="admin-sidebar-heading">{{ t("admin.base.sidebar_config") }}</p>
+        <a href="/admin/settings/precreated">{{ t("admin.base.nav_templates") }}</a>
       </div>
     </aside>
     <main class="admin-content">{% block admin_body %}{% endblock %}</main>

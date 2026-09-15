@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}运营总览 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("nursing.dashboard.title") }}{% endblock %}
 {% block body %}
 <script src="/static/echarts.min.js"></script>
 
 <div class="nh-dashboard">
 
   <div class="nh-dash-header">
-    <h1>运营总览</h1>
+    <h1>{{ t("nursing.dashboard.heading") }}</h1>
     <div class="nh-dash-header-right">
       <span class="nh-dash-weather" id="weather-widget">--</span>
       <span class="nh-dash-date"></span>
@@ -14,7 +14,7 @@
   </div>
 
   <div class="nh-dash-status" id="status-bar">
-    <span class="nh-status-text" id="status-text">加载中…</span>
+    <span class="nh-status-text" id="status-text">{{ t("nursing.dashboard.js.loading") }}</span>
     <span class="nh-status-badge" id="status-badge"></span>
   </div>
 
@@ -23,32 +23,32 @@
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-people"></div>
       <div class="nh-kpi-val" id="kpi-residents">--</div>
-      <div class="nh-kpi-label">在院老人</div>
+      <div class="nh-kpi-label">{{ t("nursing.dashboard.kpi.residents") }}</div>
       <div class="nh-kpi-sub" id="sub-occupancy"></div>
       <div class="nh-kpi-trend" id="trend-residents"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-alert"></div>
       <a href="/alerts" class="nh-kpi-link"><div class="nh-kpi-val" id="kpi-alerts">--</div></a>
-      <div class="nh-kpi-label">未处理告警</div>
+      <div class="nh-kpi-label">{{ t("nursing.dashboard.kpi.alerts") }}</div>
       <div class="nh-kpi-trend" id="trend-alerts"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-assess"></div>
       <div class="nh-kpi-val" id="kpi-assess">--</div>
-      <div class="nh-kpi-label">评估待办</div>
+      <div class="nh-kpi-label">{{ t("nursing.dashboard.kpi.assess") }}</div>
       <div class="nh-kpi-trend" id="trend-assess"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-duty"></div>
       <div class="nh-kpi-val" id="kpi-duty">--</div>
-      <div class="nh-kpi-label">今日当班</div>
+      <div class="nh-kpi-label">{{ t("nursing.dashboard.kpi.duty") }}</div>
       <div class="nh-kpi-trend" id="trend-duty"></div>
     </div>
     <div class="nh-kpi-card">
       <div class="nh-kpi-icon nh-kpi-icon-inventory"></div>
       <div class="nh-kpi-val" id="kpi-inventory">--</div>
-      <div class="nh-kpi-label">库存预警</div>
+      <div class="nh-kpi-label">{{ t("nursing.dashboard.kpi.inventory") }}</div>
       <div class="nh-kpi-trend" id="trend-inventory"></div>
     </div>
   </div>
@@ -65,20 +65,20 @@
   {# -- Middle row: 照护线 -- #}
   <div class="nh-dash-mid">
     <div class="nh-dash-panel nh-focus-panel">
-      <h3 class="nh-dash-panel-title">今日重点关注老人</h3>
+      <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.focus_panel") }}</h3>
       <div id="focus-list" class="nh-focus-list">
-        <div class="nh-focus-empty">加载中…</div>
+        <div class="nh-focus-empty">{{ t("nursing.dashboard.js.loading") }}</div>
       </div>
     </div>
     <div class="nh-dash-panel nh-chart-panel">
       <h3 class="nh-dash-panel-title">
-        今日护理完成率
-        <a href="/work-orders" style="margin-left:0.5rem;font-size:0.85rem;font-weight:500">详情 →</a>
+        {{ t("nursing.dashboard.completion") }}
+        <a href="/work-orders" style="margin-left:0.5rem;font-size:0.85rem;font-weight:500">{{ t("nursing.dashboard.detail_link") }}</a>
       </h3>
       <div id="completion-chart" style="width:100%;height:280px"></div>
     </div>
     <div class="nh-dash-panel nh-chart-panel">
-      <h3 class="nh-dash-panel-title">护理等级分布</h3>
+      <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.care_dist") }}</h3>
       <div id="care-chart" style="width:100%;height:280px"></div>
     </div>
   </div>
@@ -86,57 +86,60 @@
   {# -- Bottom row: 后勤线（餐食 / 点餐 / 库存）-- #}
   <div class="nh-dash-bottom">
     <div class="nh-dash-panel nh-menu-panel">
-      <h3 class="nh-dash-panel-title">今日餐食 <span class="nh-dash-panel-sub" id="menu-day"></span></h3>
+      <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.today_menu") }} <span class="nh-dash-panel-sub" id="menu-day"></span></h3>
       <div id="today-menu" class="nh-menu-cols">
-        <div class="nh-focus-empty">加载中…</div>
+        <div class="nh-focus-empty">{{ t("nursing.dashboard.js.loading") }}</div>
       </div>
       <div class="nh-menu-legend">
-        <span><i class="nh-menu-dot cat-meat"></i>荤菜</span>
-        <span><i class="nh-menu-dot cat-veg"></i>素菜</span>
-        <span><i class="nh-menu-dot cat-staple"></i>主食</span>
-        <span><i class="nh-menu-dot cat-soup"></i>汤</span>
-        <span><i class="nh-menu-dot cat-side"></i>小菜</span>
+        <span><i class="nh-menu-dot cat-meat"></i>{{ t("nursing.menu.cat.meat") }}</span>
+        <span><i class="nh-menu-dot cat-veg"></i>{{ t("nursing.menu.cat.veg") }}</span>
+        <span><i class="nh-menu-dot cat-staple"></i>{{ t("nursing.menu.cat.staple") }}</span>
+        <span><i class="nh-menu-dot cat-soup"></i>{{ t("nursing.menu.cat.soup") }}</span>
+        <span><i class="nh-menu-dot cat-side"></i>{{ t("nursing.menu.cat.side") }}</span>
       </div>
     </div>
     <div class="nh-dash-panel">
-      <h3 class="nh-dash-panel-title">今日点餐动态</h3>
+      <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.orders") }}</h3>
       <div id="order-stats" class="nh-order-stats">
-        <div class="nh-focus-empty">加载中…</div>
+        <div class="nh-focus-empty">{{ t("nursing.dashboard.js.loading") }}</div>
       </div>
     </div>
     {# -- 今日文娱活动（Postgres nursing_activities；当天无数据取最近一天并在标题标注日期）-- #}
     <div class="nh-dash-panel">
-      <h3 class="nh-dash-panel-title">今日文娱活动 <span class="nh-dash-panel-sub" id="activity-day"></span></h3>
+      <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.activities") }} <span class="nh-dash-panel-sub" id="activity-day"></span></h3>
       <div id="today-activities" class="nh-activity-list">
-        <div class="nh-focus-empty">加载中…</div>
+        <div class="nh-focus-empty">{{ t("nursing.dashboard.js.loading") }}</div>
       </div>
     </div>
   </div>
 
   {# -- Low stock table（整宽横条：四列表格挤窄格可读性差，用户拍板保留原格式）-- #}
   <div class="nh-dash-panel nh-stock-panel">
-    <h3 class="nh-dash-panel-title">库存不足 (&lt;安全线)</h3>
+    <h3 class="nh-dash-panel-title">{{ t("nursing.dashboard.low_stock") }}</h3>
     <table class="nh-stock-table">
-      <thead><tr><th>物品名称</th><th>当前库存</th><th>安全库存</th><th>状态</th></tr></thead>
+      <thead><tr><th>{{ t("nursing.dashboard.stock.item") }}</th><th>{{ t("nursing.dashboard.stock.qty") }}</th><th>{{ t("nursing.dashboard.stock.safety") }}</th><th>{{ t("nursing.dashboard.stock.status") }}</th></tr></thead>
       <tbody id="stock-tbody">
-        <tr><td colspan="4" class="nh-stock-empty">加载中…</td></tr>
+        <tr><td colspan="4" class="nh-stock-empty">{{ t("nursing.dashboard.js.loading") }}</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="nh-dash-footer">
-    <button class="nh-dash-refresh-btn" onclick="refreshData(); countdown=30" title="立即刷新">↻ 刷新</button>
+    <button class="nh-dash-refresh-btn" onclick="refreshData(); countdown=30" title="{{ t("nursing.dashboard.refresh_title") }}">{{ t("nursing.dashboard.refresh") }}</button>
     <span class="nh-dash-divider">|</span>
-    <span id="refresh-countdown">30 秒后自动刷新</span>
+    <span id="refresh-countdown">{{ t("nursing.dashboard.autorefresh").replace("{n}", "30") }}</span>
     <span class="nh-dash-divider">|</span>
     <span id="last-update">--</span>
     <span class="nh-dash-divider">|</span>
-    <span>杭州社会福利院</span>
+    <span>{{ t("nursing.dashboard.org") }}</span>
   </div>
 
 </div>
 
 <script>
+var I18N = JSON.parse({{ i18n_page|tojson }});
+function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
+
 (function() {
   var completionChart = null;
   var careChart = null;
@@ -147,7 +150,7 @@
     var el = document.getElementById('work-order-detail');
     el.style.display = woDetailOpen ? 'block' : 'none';
     var btn = document.getElementById('wo-toggle-btn');
-    btn.textContent = '详情 ' + (woDetailOpen ? '▴' : '▾');
+    btn.textContent = tr('js.detail') + ' ' + (woDetailOpen ? '▴' : '▾');
   }
 
   function populateWorkOrderDetail(data) {
@@ -181,19 +184,29 @@
 
   // -- 2026-08-25 大屏增强渲染 --
 
-  var ORDER_STATUS = [['ordered','已点'],['modified','已改'],['preparing','备餐中'],
-                       ['delivering','配送中'],['delivered','已送达'],['cancelled','已退']];
+  var ORDER_STATUS = [['ordered','js.st.ordered'],['modified','js.st.modified'],['preparing','js.st.preparing'],
+                       ['delivering','js.st.delivering'],['delivered','js.st.delivered'],['cancelled','js.st.cancelled']];
 
-  var MEAL_THEME = { '早餐': 'breakfast', '午餐': 'lunch', '晚餐': 'dinner' };
+  // P5b：en 模式后端把 meal_type 换成英文（Breakfast/Lunch/Dinner），
+  // 主题键双语兼容（zh 键保留——zh 模式后端仍发中文）
+  var MEAL_THEME = { '早餐': 'breakfast', '午餐': 'lunch', '晚餐': 'dinner',
+                     'Breakfast': 'breakfast', 'Lunch': 'lunch', 'Dinner': 'dinner' };
   var CAT_CLASS = { '荤菜': 'cat-meat', '素菜': 'cat-veg', '主食': 'cat-staple',
                     '汤': 'cat-soup', '小菜': 'cat-side' };
+
+  // 页面日期/星期按当前语言走 Intl（zh-CN ⇄ en），避免手写星期词表
+  function wdLabel(date) {
+    try {
+      return date.toLocaleDateString(tr('js.locale'), { weekday: 'short' });
+    } catch (e) { return ''; }
+  }
 
   function renderTodayMenu(rows) {
     var el = document.getElementById('today-menu');
     var dayEl = document.getElementById('menu-day');
-    if (dayEl) dayEl.textContent = '（' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()] + '）';
+    if (dayEl) dayEl.textContent = '（' + wdLabel(new Date()) + '）';
     if (!rows || !rows.length) {
-      el.innerHTML = '<div class="nh-focus-empty">今日菜单未发布</div>';
+      el.innerHTML = '<div class="nh-focus-empty">' + tr('js.menu_not_published') + '</div>';
       return;
     }
     var html = '';
@@ -203,13 +216,13 @@
       html += '<div class="nh-menu-col ' + theme + '">' +
         '<div class="nh-menu-type">' +
         '<span class="nh-menu-badge ' + theme + '">' + m.meal_type + '</span>' +
-        '<span class="nh-menu-count">' + dishes.length + ' 道</span></div>' +
+        '<span class="nh-menu-count">' + tr('js.dishes_count').replace('{n}', dishes.length) + '</span></div>' +
         '<div class="nh-menu-dishes">';
       dishes.forEach(function(d) {
         var cat = CAT_CLASS[d.category] || 'cat-other';
         html += '<span class="nh-menu-dish ' + cat + '">' + d.name + '</span>';
       });
-      if (!dishes.length) html += '<span class="nh-menu-dish cat-other">未排菜</span>';
+      if (!dishes.length) html += '<span class="nh-menu-dish cat-other">' + tr('js.no_dish') + '</span>';
       html += '</div></div>';
     });
     el.innerHTML = html;
@@ -223,19 +236,23 @@
       // 口径诚实：当天无数据时后端取最近一天，标题标注实际日期
       var d = act && act.date ? new Date(act.date + 'T00:00:00') : null;
       var today = new Date(); today.setHours(0, 0, 0, 0);
-      var wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       if (!d) { dayEl.textContent = ''; }
-      else if (d.getTime() === today.getTime()) { dayEl.textContent = '（' + wd[d.getDay()] + '）'; }
-      else { dayEl.textContent = '（' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + wd[d.getDay()] + '）'; }
+      else if (d.getTime() === today.getTime()) { dayEl.textContent = '（' + wdLabel(d) + '）'; }
+      else {
+        try {
+          dayEl.textContent = '（' + d.toLocaleDateString(tr('js.locale'), { month: 'short', day: 'numeric' }) +
+                              ' ' + wdLabel(d) + '）';
+        } catch (e) { dayEl.textContent = ''; }
+      }
     }
     if (!items.length) {
-      el.innerHTML = '<div class="nh-focus-empty">今日无活动安排</div>';
+      el.innerHTML = '<div class="nh-focus-empty">' + tr('js.no_activities') + '</div>';
       return;
     }
     var html = '';
     items.forEach(function(a) {
       html += '<div class="nh-activity-item">' +
-        '<div class="nh-activity-time">' + (a.time || '时间待定') + '</div>' +
+        '<div class="nh-activity-time">' + (a.time || tr('js.time_tbd')) + '</div>' +
         '<div class="nh-activity-body">' +
         '<div class="nh-activity-title">' + a.title + '</div>' +
         (a.location ? '<div class="nh-activity-loc">' + a.location + '</div>' : '') +
@@ -247,25 +264,25 @@
   function renderOrderStats(stats) {
     var el = document.getElementById('order-stats');
     if (!stats || !stats.meals || !stats.meals.length) {
-      el.innerHTML = '<div class="nh-focus-empty">今日暂无点餐</div>';
+      el.innerHTML = '<div class="nh-focus-empty">' + tr('js.no_orders_today') + '</div>';
       return;
     }
-    var html = '<div class="nh-order-total">今日合计 <b>' + stats.total + '</b> 单' +
-      (stats.special > 0 ? ' · 特殊餐 <b>' + stats.special + '</b> 份' : '') + '</div>';
+    var html = '<div class="nh-order-total">' + tr('js.today_total').replace('{n}', stats.total) +
+      (stats.special > 0 ? tr('js.special_meals').replace('{n}', stats.special) : '') + '</div>';
     stats.meals.forEach(function(m) {
       var chips = '';
       ORDER_STATUS.forEach(function(st) {
         var n = m.by_status[st[0]];
         if (n > 0) {
           chips += '<span class="nh-order-chip' + (st[0] === 'cancelled' ? ' chip-cancelled' : '') +
-            (st[0] === 'delivered' ? ' chip-delivered' : '') + '">' + st[1] + ' ' + n + '</span>';
+            (st[0] === 'delivered' ? ' chip-delivered' : '') + '">' + tr(st[1]) + ' ' + n + '</span>';
         }
       });
-      if (!chips) chips = '<span class="nh-order-chip">暂无单</span>';
+      if (!chips) chips = '<span class="nh-order-chip">' + tr('js.no_orders') + '</span>';
       html += '<div class="nh-order-meal">' +
         '<span class="nh-order-meal-name">' + m.meal_type + '</span>' +
-        '<span class="nh-order-meal-count">' + m.total + ' 单</span>' +
-        (m.special > 0 ? '<span class="nh-order-special">特殊 ' + m.special + '</span>' : '') +
+        '<span class="nh-order-meal-count">' + tr('js.order_count').replace('{n}', m.total) + '</span>' +
+        (m.special > 0 ? '<span class="nh-order-special">' + tr('js.special_count').replace('{n}', m.special) + '</span>' : '') +
         '<span class="nh-order-chips">' + chips + '</span></div>';
     });
     el.innerHTML = html;
@@ -286,20 +303,23 @@
     // 护理强度暖色阶（与主题同族）：越深=照护越重，浅杏→琥珀→主橙→焦橙→
     // 深棕，未定用中性暖灰。取代绿/紫/蓝高饱和跳色（与暖橙主题违和）
     var palette = ['#FAD7A1', '#F39C12', '#E67E22', '#A04000', '#6E2C00', '#C9AE8C'];
+    var persons = function(n) { return tr('js.persons').replace('{n}', n); };
     var option = {
       title: {
-        text: total + '人', subtext: '在院分级',
+        text: persons(total), subtext: tr('js.care_subtext'),
         // 圆心垂直居中：画布固定 280px×饼心 44% ≈ 123px，标题块高约 43px
         // → 顶边 123-43/2 ≈ 100px（top:'28%' 会浮在圆心上方约 20px）
         left: 'center', top: 100, itemGap: 4,
         textStyle: { color: '#4A3728', fontSize: 24, fontWeight: 700 },
         subtextStyle: { color: '#6B5A45', fontSize: 12 }
       },
-      tooltip: { trigger: 'item', formatter: '{b}: {c}人 ({d}%)' },
+      tooltip: { trigger: 'item', formatter: function(p) {
+        return p.name + ': ' + persons(p.value) + ' (' + p.percent + '%)';
+      } },
       legend: {
         bottom: 0, itemWidth: 12, itemHeight: 8, itemGap: 14,
         textStyle: { color: '#6B5A45', fontSize: 12 },
-        formatter: function(name) { return name + ' ' + (valMap[name] || 0) + '人'; }
+        formatter: function(name) { return name + ' ' + persons(valMap[name] || 0); }
       },
       series: [{
         type: 'pie',
@@ -311,7 +331,7 @@
         label: {
           show: true, alignTo: 'edge', edgeDistance: 6, minMargin: 4,
           overflow: 'none',
-          formatter: '{b}\n{c}人',
+          formatter: function(p) { return p.name + '\n' + persons(p.value); },
           color: '#4A3728', fontSize: 12, lineHeight: 16
         },
         labelLine: { length: 14, length2: 8, maxSurfaceAngle: 80,
@@ -361,8 +381,8 @@
           label: { fontSize: 32 }
         },
         data: [
-          { value: pct, name: '已完成', itemStyle: { color: '#F39C12' } },
-          { value: 100 - pct, name: '待完成', itemStyle: { color: '#E8D5C4' } }
+          { value: pct, name: tr('js.done'), itemStyle: { color: '#F39C12' } },
+          { value: 100 - pct, name: tr('js.todo'), itemStyle: { color: '#E8D5C4' } }
         ]
       }]
     };
@@ -373,11 +393,11 @@
     var el = document.getElementById('focus-list');
     var cnt = document.getElementById('focus-count');
     if (!items || items.length === 0) {
-      el.innerHTML = '<div class="nh-focus-empty">今日无重点关注老人</div>';
+      el.innerHTML = '<div class="nh-focus-empty">' + tr('js.no_focus') + '</div>';
       if (cnt) cnt.textContent = '';
       return;
     }
-    if (cnt) cnt.textContent = items.length + ' 人';
+    if (cnt) cnt.textContent = tr('js.persons').replace('{n}', items.length);
 
     var groups = { danger: [], warning: [], info: [] };
     items.forEach(function(r) {
@@ -385,12 +405,12 @@
       groups[s].push(r);
     });
 
-    var labels = { danger: '紧急关注', warning: '需关注', info: '常规关注' };
+    var labels = { danger: tr('js.sev.danger'), warning: tr('js.sev.warning'), info: tr('js.sev.info') };
     var html = '';
     ['danger', 'warning', 'info'].forEach(function(sev) {
       if (!groups[sev].length) return;
       html += '<div class="nh-focus-group"><div class="nh-focus-group-head" data-sev="' + sev + '">' +
-        '<span class="nh-focus-group-dot"></span>' + labels[sev] + ' · ' + groups[sev].length + ' 人</div>';
+        '<span class="nh-focus-group-dot"></span>' + labels[sev] + ' · ' + tr('js.persons').replace('{n}', groups[sev].length) + '</div>';
       groups[sev].forEach(function(r) {
         html += '<div class="nh-focus-item" data-sev="' + sev + '">' +
           '<span class="nh-focus-icon"></span>' +
@@ -407,7 +427,7 @@
   function renderStockTable(items) {
     var tbody = document.getElementById('stock-tbody');
     if (!items || items.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="nh-stock-empty">所有物资库存充足 &#x2705;</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="nh-stock-empty">' + tr('js.stock_ok') + '</td></tr>';
       return;
     }
     var html = '';
@@ -415,10 +435,10 @@
       var ratio = s.quantity / s.safety;
       var level, cls;
       if (ratio < 0.5) {
-        level = '严重不足';
+        level = tr('js.stock_severe');
         cls = 'nh-stock-danger';
       } else {
-        level = '低于安全线';
+        level = tr('js.stock_below');
         cls = 'nh-stock-warn';
       }
       html += '<tr>'
@@ -432,32 +452,34 @@
   }
 
   function fetchWeather() {
-    var codes = {0:'☀️ 晴',1:'🌤️ 少云',2:'⛅ 多云',3:'☁️ 阴',45:'🌫️ 雾',48:'🌫️ 雾凇',
-      51:'🌧️ 小雨',53:'🌧️ 小雨',55:'🌧️ 中雨',61:'🌧️ 阵雨',63:'🌧️ 中雨',65:'🌧️ 大雨',
-      71:'❄️ 小雪',73:'❄️ 中雪',75:'❄️ 大雪',80:'🌦️ 阵雨',82:'🌦️ 暴雨',95:'⛈️ 雷暴',99:'⛈️ 大雷暴'};
+    var codes = {0:'wx.clear',1:'wx.few',2:'wx.cloudy',3:'wx.overcast',45:'wx.fog',48:'wx.rime',
+      51:'wx.drizzle',53:'wx.drizzle',55:'wx.rain',61:'wx.shower',63:'wx.rain',65:'wx.heavy_rain',
+      71:'wx.snow_light',73:'wx.snow',75:'wx.snow_heavy',80:'wx.shower',82:'wx.downpour',
+      95:'wx.storm',99:'wx.storm_severe'};
     fetch('https://api.open-meteo.com/v1/forecast?latitude=30.25&longitude=120.17&current=temperature_2m,weather_code&timezone=Asia/Shanghai')
       .then(function(r) { return r.json(); })
       .then(function(d) {
         var t = Math.round(d.current.temperature_2m);
-        var w = codes[d.current.weather_code] || '--';
+        var w = codes[d.current.weather_code] ? tr(codes[d.current.weather_code]) : '--';
         var adv = '';
-        if (t >= 38) adv = ' ⚠ 高温红色预警 · 加强防暑巡查';
-        else if (t >= 35) adv = ' ⚠ 高温橙色预警 · 注意老人防暑';
-        else if (t <= 0) adv = ' ⚠ 低温预警 · 注意老人保暖';
-        else if (t <= 5) adv = ' 天气转冷 · 检查供暖设备';
+        if (t >= 38) adv = tr('wx.adv_red');
+        else if (t >= 35) adv = tr('wx.adv_orange');
+        else if (t <= 0) adv = tr('wx.adv_cold');
+        else if (t <= 5) adv = tr('wx.adv_chilly');
         document.getElementById('weather-widget').textContent = t + '°C ' + w + adv;
       })
-      .catch(function() { document.getElementById('weather-widget').textContent = '天气获取中…'; });
+      .catch(function() { document.getElementById('weather-widget').textContent = tr('wx.loading'); });
   }
 
   function updateShiftHandover(data) {
     var h = new Date().getHours();
     var m = new Date().getMinutes();
     var now = h * 60 + m;
-    var shiftName, shiftEnd;
-    if (now >= 360 && now < 840)       { shiftName = '早班'; shiftEnd = 840; }
-    else if (now >= 840 && now < 1320)  { shiftName = '晚班'; shiftEnd = 1320; }
-    else                                { shiftName = '夜班'; shiftEnd = 360 + 1440; }
+    var shiftKey, shiftEnd;
+    if (now >= 360 && now < 840)       { shiftKey = 'js.shift_early'; shiftEnd = 840; }
+    else if (now >= 840 && now < 1320)  { shiftKey = 'js.shift_late'; shiftEnd = 1320; }
+    else                                { shiftKey = 'js.shift_night'; shiftEnd = 360 + 1440; }
+    var shiftName = tr(shiftKey);
 
     var remaining = shiftEnd - now;
     if (remaining < 0) remaining += 1440;
@@ -470,21 +492,22 @@
 
     var cd = document.getElementById('handover-countdown');
     if (remaining <= 60) {
-      cd.textContent = '即将交班 · ' + rm + ' 分钟';
+      cd.textContent = tr('js.handover_soon').replace('{n}', rm);
       cd.className = 'nh-handover-countdown countdown-urgent';
     } else {
-      cd.textContent = '还有 ' + rh + ' 小时 ' + (rm > 0 ? rm + ' 分钟 ' : '') + '交班';
+      cd.textContent = tr('js.handover_in').replace('{h}', rh).replace('{m}', rm);
       cd.className = 'nh-handover-countdown';
     }
 
     var s = data.summary;
     var fc = (data.focus_residents || []).length;
     var p = [];
-    if (s.pending_health_alerts > 0) p.push(s.pending_health_alerts + ' 条健康告警');
-    if (s.inventory_alerts > 0) p.push(s.inventory_alerts + ' 项库存预警');
-    if (fc > 0) p.push(fc + ' 位老人需关注');
-    if (s.on_duty_today > 0) p.push(s.on_duty_today + ' 人当班');
-    document.getElementById('handover-summary').textContent = p.length > 0 ? '今天发生：' + p.join(' · ') : '今天一切正常';
+    if (s.pending_health_alerts > 0) p.push(tr('js.alert_items').replace('{n}', s.pending_health_alerts));
+    if (s.inventory_alerts > 0) p.push(tr('js.inventory_items').replace('{n}', s.inventory_alerts));
+    if (fc > 0) p.push(tr('js.focus_people').replace('{n}', fc));
+    if (s.on_duty_today > 0) p.push(tr('js.duty_people').replace('{n}', s.on_duty_today));
+    document.getElementById('handover-summary').textContent =
+      p.length > 0 ? tr('js.today_prefix') + p.join(' · ') : tr('js.all_clear');
   }
 
   function refreshData() {
@@ -513,7 +536,9 @@
         asEl.className = 'nh-kpi-val' + (assessN > 0 ? ' kpi-warn' : ' kpi-ok');
         var asTr = document.getElementById('trend-assess');
         if (asTr) {
-          asTr.textContent = '待首评 ' + (ar.pending_first_count || 0) + ' · 复评到期 ' + (ar.due_review_count || 0);
+          asTr.textContent = tr('js.assess_detail')
+            .replace('{n}', (ar.pending_first_count || 0))
+            .replace('{m}', (ar.due_review_count || 0));
           asTr.className = 'nh-kpi-trend ' + (assessN > 0 ? 'trend-bad' : 'trend-flat');
         }
 
@@ -522,16 +547,16 @@
         var ocEl = document.getElementById('sub-occupancy');
         if (ocEl) {
           ocEl.textContent = (oc.total > 0 && oc.rate !== null && oc.rate !== undefined)
-            ? '入住率 ' + oc.rate + '% · 空余 ' + oc.free + ' 床' : '';
+            ? tr('js.occupancy').replace('{r}', oc.rate).replace('{f}', oc.free) : '';
         }
 
         // Trend indicators
         function trend(el, curr, prev, inverse) {
           if (!el || prev === null || prev === undefined) return;
           var diff = curr - prev;
-          if (diff === 0) { el.innerHTML = '持平'; el.className = 'nh-kpi-trend trend-flat'; return; }
+          if (diff === 0) { el.innerHTML = tr('js.trend_flat'); el.className = 'nh-kpi-trend trend-flat'; return; }
           var arrow = diff > 0 ? '↑' : '↓';
-          el.innerHTML = arrow + ' ' + Math.abs(diff) + ' vs 昨日';
+          el.innerHTML = arrow + ' ' + Math.abs(diff) + tr('js.vs_yesterday');
           var isGood = inverse ? (diff < 0) : (diff > 0);
           el.className = 'nh-kpi-trend ' + (isGood ? 'trend-good' : 'trend-bad');
         }
@@ -548,24 +573,26 @@
         var inv = s.inventory_alerts;
         var focusCount = (data.focus_residents || []).length;
         var hh = new Date().getHours();
-        var shiftLabel = hh >= 6 && hh < 14 ? '早班 · ' : (hh >= 14 && hh < 22 ? '晚班 · ' : '夜班 · ');
+        var shiftLabel = hh >= 6 && hh < 14 ? tr('js.shift_prefix_early') :
+                         (hh >= 14 && hh < 22 ? tr('js.shift_prefix_late') : tr('js.shift_prefix_night'));
         if (alerts > 0) {
           st.className = 'nh-dash-status status-danger';
-          stText.textContent = shiftLabel + alerts + ' 条未处理健康告警 · ' + focusCount + ' 位老人需关注';
-          stBadge.textContent = '需立即处理';
+          stText.textContent = shiftLabel + tr('js.status_danger').replace('{n}', alerts).replace('{m}', focusCount);
+          stBadge.textContent = tr('js.badge_now');
           stBadge.className = 'nh-status-badge badge-danger';
         } else if (inv > 0 || focusCount > 0) {
           st.className = 'nh-dash-status status-warning';
           var parts = [];
-          if (inv > 0) parts.push(inv + ' 项库存预警');
-          if (focusCount > 0) parts.push(focusCount + ' 位老人需关注');
+          if (inv > 0) parts.push(tr('js.inventory_items').replace('{n}', inv));
+          if (focusCount > 0) parts.push(tr('js.focus_people').replace('{n}', focusCount));
           stText.textContent = shiftLabel + parts.join(' · ');
-          stBadge.textContent = '需关注';
+          stBadge.textContent = tr('js.badge_watch');
           stBadge.className = 'nh-status-badge badge-warning';
         } else {
           st.className = 'nh-dash-status status-ok';
-          stText.textContent = shiftLabel + '全院正常 · ' + s.total_residents + ' 位老人 · ' + s.on_duty_today + ' 人当班';
-          stBadge.textContent = '运行正常';
+          stText.textContent = shiftLabel + tr('js.status_ok_msg')
+            .replace('{r}', s.total_residents).replace('{d}', s.on_duty_today);
+          stBadge.textContent = tr('js.badge_ok');
           stBadge.className = 'nh-status-badge badge-ok';
         }
 
@@ -578,7 +605,8 @@
         // Charts
         updateCompletionChart(data.completion_rate);
         updateShiftHandover(data);
-        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString(
+          tr('js.locale') === 'en' ? 'en-GB' : 'zh-CN', {hour12:false});
 
         // 大屏增强：餐食 / 点餐动态 / 护理等级
         renderTodayMenu(data.today_menu);
@@ -593,7 +621,7 @@
 
   function startRefreshLoop() {
     countdown = 30;
-    countdownEl.textContent = countdown + ' 秒后自动刷新';
+    countdownEl.textContent = tr('autorefresh').replace('{n}', countdown);
 
     refreshTimer = setInterval(function() {
       countdown--;
@@ -601,7 +629,7 @@
           refreshData();
         countdown = 30;
       }
-      countdownEl.textContent = countdown + ' 秒后自动刷新';
+      countdownEl.textContent = tr('autorefresh').replace('{n}', countdown);
     }, 1000);
   }
 
@@ -613,7 +641,6 @@
   startRefreshLoop();
 
 })();
+
 </script>
-
-
 {% endblock %}

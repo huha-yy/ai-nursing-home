@@ -2252,3 +2252,104 @@ GET 是 405，页面在 /login）。
   restore_demo.sh 一键恢复。
 - **demo_day_check 全量：18 绿 / 1 黄 / 0 红「可以演示」**（黄=周报 5 天前，
   现场触发即消）。记忆文件 demo-week-data-refresh.md 已改写为保鲜体系版。
+
+## 2026-09-15 · P5 演示数据英文化（广交会）：--lang en 全链路 + 可逆回中文
+
+- **口径（拍板）**：人名/菜名/库存品名(含单位)/自由文本英文；**枚举值不动**
+  （护理等级/餐次/班次/科室/状态/菜品分类/巡检结果/楼栋名"1号楼"…全保持
+  中文原值，UI 由 en 翻译目录盖住；库存分类同样保持中文枚举）。
+- **ERP**：`rebuild_demo_data.py --lang en`——NAME_ZH_EN（老人36+员工41+家属
+  联系人36）+DISH_ZH_EN（94 道菜）+`_T` 双语自由文本模板；`overlay_archive()`
+  改名（可逆：zh 重灌 en→zh 反向改回，家属 FamilyMember/User.first_name 连带
+  同步）；异常/审批/任务/报修/日志/用药等动态层串源切 en；`--refresh-incidents`
+  等外科模式同受 LANG。默认 zh 与旧版逐字节同行为（cron 无感）。
+- **AI 侧**：`seed_work_orders_demo.py --lang en`（type/note/staff 英文，随机
+  分布与 zh 逐行一致；staff 名与 ERP NAME_ZH_EN 一致——校验钉死）；新增
+  `seed_pg_demo_en.py`（nursing_activities 每天 4 场 + nursing_complaints 3 条，
+  DELETE+INSERT 幂等，--lang zh 可回中文，--dry-run 预览 SQL）。
+- **坑（实测炸出）**：SQL 拼串的 `_lit()` 原 `repr()` 遇英文撇号（"roommate's"）
+  会改产双引号，psql 把串内 `:word` 当主变量替换报错——改单引号+'' 转义。
+- **chat**：`_skill_queries` 老人行追加 8 个英文名（Zhang Guodong…，zh 名保留）；
+  `demo_day_check.sh` 接受 `LANG=en`（只认精确 "en"）：演示位人名/7 条探针问句
+  与期望串切英文。
+- **演练（全 throwaway，未碰生产）**：/tmp 库 en 重灌自检全过+断言（档案英文名/
+  枚举中文原值/动态层全英文）；`--refresh-incidents --lang en` 幂等；zh 回归
+  数字与 en 完全一致（9056 单/同账单）；zh→en→zh→en 循环可逆；两脚本生成 SQL
+  在 dato PG `BEGIN…ROLLBACK` 演练事务里语法验证通过（回滚后行数原样）；
+  ERP pytest 256 绿 / dl-control 154 绿。
+- **现场切换**（详见 P5 报告）：英文演示=停服→ERP `--lang en` 重灌→AI 两脚本
+  `--lang en`→**写语言标记：`echo en > logs/demo_lang`**；恢复中文=停服→ERP
+  默认重灌→AI 两脚本 zh→**`echo zh > logs/demo_lang`**。keepfresh cron 已语言
+  感知（读标记，三条命令都带 `--lang`），英文演示期间无需再每日手动重播，
+  恢复中文后 cron 自动回 zh 语义。
+
+## 2026-09-15 · P5 收尾：keepfresh 语言感知 + 库存品名英文化
+
+- **keepfresh 语言感知**（解决英文演示窗口内 cron 06:23 仍跑 zh 覆盖英文数据）：
+  `scripts/demo_data_keepfresh.sh` 开头读语言标记 `logs/demo_lang`（已 gitignored，
+  内容一行 zh|en），只认精确 "en"（空格会剥、en_US.UTF-8 等按 zh），缺失/非法
+  一律 zh——与旧行为逐字节一致，cron 无感。三条命令全部带 `--lang $DLANG`：
+  ERP `--refresh-incidents` / PG 工单 / PG 活动+投诉。
+- **activities/complaints 纳入日常保鲜**：`seed_pg_demo_en.py` 的日期窗口
+  today-7～+15 同样锚定运行日，跨周会陈旧 → 收为 keepfresh 第 3 步（幂等
+  DELETE+INSERT，zh 模式回放中文与既有形态一致）。
+- **DRY_RUN 演练模式**：`DRY_RUN=1 bash scripts/demo_data_keepfresh.sh` 只打印
+  将执行的三条命令、不写库不写日志。验证五态全过：无标记→zh / en→en /
+  en_US.UTF-8 垃圾→zh / zh→zh / "  en  "→en（剥空白后命中）。
+- **库存品名英文化**（解决 en 演示低库存面板/库存页露中文品名）：
+  `rebuild_demo_data.py` 的 `overlay_archive()` 扩 `InventoryItem.name+unit`
+  （INV_ZH_EN 15 项，从生产库快照逐个译：尿不湿L码→Adult Diapers L、
+  一次性手套→Disposable Gloves、胃管→Feeding Tubes、血糖试纸→Blood Glucose
+  Test Strips…；UNIT_ZH_EN 包/只/根/瓶/片/台/盒/支/卷→pack/pcs/tube/bottle/
+  pad/unit/box/each/roll——**en 单位值必须互异**，"只"/"支" 不能都译 pcs，
+  否则 zh 反向回译并键）。分类/数量/安全库存不动；StockIn/StockOut 走外键
+  无冗余品名，天然跟随。可逆同人名：zh 重灌改回中文。
+- **演练（throwaway，未碰生产、未真跑 keepfresh）**：/tmp 库 en 重灌自检全过
+  （档案层英文化 36/41/94/**15**；低库存告警输出 Adult Diapers L、Medical
+  Tape、Disinfectant、Surgical Masks）；库存 15 行品名+单位全英文、出入库
+  8+8 行外键无孤儿；同库 zh 重灌回译 15/15，与生产快照逐行一致、零残留
+  （尿不湿L/M/S码 的 L/M/S 是中文名自带尺码字母，非残留）。
+- **demo_day_check.sh 无库存品名断言，无需改动**（en 模式断言仅演示位人名/
+  探针问句）。ERP pytest 256 绿 / dl-control 154 绿；rebuild 脚本 ruff 报的
+  14 条全是 09-15 en 表的存量（scripts/ 本就不在 lint 门禁内，本次零新增）。
+
+## 2026-09-15 · P5b 楼栋/楼层英文化：双库枚举值改名 + X-Building 权限链同步
+
+- **口径修订**：楼栋/楼层从"枚举值不动"清单移出，进 overlay 改名——en 演示期
+  院区导航/台账/工位/周报全链不再露 "1号楼/1层"。双语表：`BUILDING_ZH_EN`
+  （1号楼→Building 1 … 6号楼→Building 6）+ `FLOOR_ZH_EN`（1层→Floor 1、
+  2层→Floor 2，"3层" 为自由文本兜底位）；en 值互异，zh 重灌反向回译可逆。
+- **ERP**（`rebuild_demo_data.py`）：`overlay_archive()` 扩五处 UPDATE——
+  Building.name / Floor.name 台账 + Resident.building+floor / Employee.building
+  字符串缓存列（Schedule 是动态层，重造时直接写新值）。`run_assertions()` 新增
+  第 11 组断言：四表 building/floor 缓存值必须 ⊆ 台账 name 集合——漏改列当场
+  红灯（两种语言通用）。en 自由文本里残留的楼栋引用一并译掉（巡检区域
+  "1号楼餐厅"→"Bldg 1 Dining Hall"、报修位置 "3号楼2层"→"Bldg 3 Floor 2"、
+  "护理站"→"Nursing Station"）。
+- **AI 侧 PG**（`seed_pg_demo_en.py`）：重播前先跑 24 条幂等 UPDATE——
+  nursing_users/nursing_residents/nursing_schedules 三表的 building+floor
+  枚举值 en↔zh 切换（`--lang` 定方向，与 ERP 同值表）。keepfresh 第 3 步
+  每日跑即保持语言同步，无需额外步骤。`seed_work_orders_demo.py` 仅改注释
+  （其"1号楼"键是脚本内部配护理员的映射键，工单表无楼栋列）。
+- **X-Building 权限链**（两边同语言才不断）：nursing_users.building（登录时
+  读入 session）→ dl-control `_erp_headers` quote 发头 → ERP `api_scope`
+  unquote 后查 Building 表。throwaway 实测："Building%201"/裸 "Building 1"
+  均解析命中改名后台账；残留旧中文头（1%E5%8F%B7%E6%A5%BC）→ 400 fail-loud
+  （设计如此，防失配静默放过全量）。**切换语言后楼长账号须重新登录**——
+  Redis 会话里缓存的还是旧语言 building 值（演示前本来就会重新登录，日常无感）。
+- **dl-control 去硬编码**：周报 workflow 的楼栋兜底值原写死 "3号楼"（院长会话
+  无 building 时用），en 数据下会查空排班——改 `_default_workflow_building()`：
+  按库实值取（优先 3号楼/Building 3，都无取任一非空）。三处生效：chat 非流式/
+  流式触发 + `/api/nursing/workflow/start`（pydantic 默认改 None，解析链
+  显式入参→会话楼栋→库实值）。
+- **演练（throwaway，未碰生产）**：/tmp 库 zh→en（楼栋楼层 117 处：台账 6+6、
+  Resident 36+36、Employee 33）自检全过含新断言；en 幂等重跑 0 处；zh 回译
+  117 处全复原零残留（人名/菜名同步复原）。PG 演练事务 BEGIN…ROLLBACK：
+  en UPDATE 24 条行数符合预期（users 每楼 2、residents 6、schedules 按楼），
+  二连跑全 0 行幂等；en→zh 回译零残留。`demo_day_check.sh` 无楼栋断言，无需
+  改动。ERP pytest 256 绿 / dl-control 154 绿；改动文件 ruff 零新增。
+- **现场切换步骤（修订，含楼栋）**：英文演示=停服→ERP `rebuild_demo_data.py
+  --lang en`→AI `seed_work_orders_demo.py --lang en` + `seed_pg_demo_en.py
+  --lang en`（内含楼栋 UPDATE）→`echo en > logs/demo_lang`→楼长/院长重新登录；
+  恢复中文=停服→ERP 默认重灌→两脚本 `--lang zh`（楼栋回译）→
+  `echo zh > logs/demo_lang`→重新登录。两脚本必须同语言跑，单边切=楼长 400。

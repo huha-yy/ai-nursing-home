@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}运营周报 — AI 养老院院长{% endblock %}
+{% block title %}{{ t("nursing.reports.title") }}{% endblock %}
 {% block body %}
 
 <style>
@@ -102,24 +102,27 @@
 
 <div class="nh-rp">
   <div class="nh-rp-bar">
-    <a href="/dashboard" class="nh-rp-back">← 大屏</a>
+    <a href="/dashboard" class="nh-rp-back">{{ t("nursing.reports.back") }}</a>
     <span class="nh-rp-total" id="rp-total"></span>
   </div>
-  <h1 class="nh-rp-ttl">运营周报</h1>
+  <h1 class="nh-rp-ttl">{{ t("nursing.reports.heading") }}</h1>
 
   <div class="nh-rp-layout">
     <aside class="nh-rp-side">
-      <div class="nh-rp-side-title">期次</div>
-      <div id="rp-issues" class="nh-rp-issues"><div class="nh-rp-side-empty">加载中…</div></div>
-      <button class="nh-rp-more" id="rp-more" style="display:none">加载更早期次</button>
+      <div class="nh-rp-side-title">{{ t("nursing.reports.issues") }}</div>
+      <div id="rp-issues" class="nh-rp-issues"><div class="nh-rp-side-empty">{{ t("nursing.common.loading") }}</div></div>
+      <button class="nh-rp-more" id="rp-more" style="display:none">{{ t("nursing.reports.load_more") }}</button>
     </aside>
     <main class="nh-rp-main" id="rp-main">
-      <div class="nh-rp-empty"><span class="nh-rp-spin"></span>加载中…</div>
+      <div class="nh-rp-empty"><span class="nh-rp-spin"></span>{{ t("nursing.common.loading") }}</div>
     </main>
   </div>
 </div>
 
 <script>
+var I18N = JSON.parse({{ i18n_page|tojson }});
+function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
+
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 function simpleMd(t){
@@ -167,27 +170,28 @@ function durMin(a,b){
   var ta=new Date(String(a).replace(' ','T')), tb=new Date(String(b).replace(' ','T'));
   if(isNaN(ta) || isNaN(tb)) return '';
   var m=Math.round((tb-ta)/60000);
-  if(m<1) return '不到 1 分钟';
-  if(m<60) return m+' 分钟';
-  return Math.floor(m/60)+' 小时 '+(m%60)+' 分钟';
+  if(m<1) return tr('js.min_lt1');
+  if(m<60) return tr('js.min_n').replace('{n}', m);
+  return tr('js.hr_n').replace('{h}', Math.floor(m/60)).replace('{m}', (m%60));
 }
 
+// 步骤名：模板层静态文案，走 i18n（数据库工作流中文名在别处渲染，不在此列）
 var stepNames = {
-  'nursing-schedule-step': '护理科 — 排班生成',
-  'logistics-step': '总务科 — 物资配送',
-  'finance-step': '财务科 — 成本预估',
-  'director-report-step': '院长 — 运营周报'
+  'nursing-schedule-step': tr('js.step.schedule'),
+  'logistics-step': tr('js.step.logistics'),
+  'finance-step': tr('js.step.finance'),
+  'director-report-step': tr('js.step.report')
 };
 // 四份产出同级成文档标签页，院长汇总默认在前，其余按工作流真实顺序
 var TAB_ORDER = ['director-report-step', 'nursing-schedule-step', 'logistics-step', 'finance-step'];
 
 var state = {runs: [], sel: null, tab: 'director-report-step', total: 0, hasMore: false, loading: false};
 
-// 运行状态 → 样式类 + 中文标签（库里有 cancelled 期次，别让它掉进"进行中"闪烁）
+// 运行状态 → 样式类 + 标签（库里有 cancelled 期次，别让它掉进"进行中"闪烁）
 function runStat(st){
-  if (st === 'succeeded') return {cls:'ok', label:'已完成'};
-  if (st === 'failed')    return {cls:'fail', label:'失败'};
-  if (st === 'cancelled') return {cls:'cancel', label:'已取消'};
+  if (st === 'succeeded') return {cls:'ok', label:tr('js.status.succeeded')};
+  if (st === 'failed')    return {cls:'fail', label:tr('js.status.failed')};
+  if (st === 'cancelled') return {cls:'cancel', label:tr('js.status.cancelled')};
   return {cls:'run', label: st};  // pending/running 等进行态
 }
 
@@ -210,9 +214,9 @@ function selectTab(k){
 function renderSide(){
   var box = document.getElementById('rp-issues');
   var totalEl = document.getElementById('rp-total');
-  totalEl.textContent = state.total ? ('共 ' + state.total + ' 期') : '';
+  totalEl.textContent = state.total ? tr('js.issues_total').replace('{n}', state.total) : '';
   if (!state.runs.length) {
-    box.innerHTML = '<div class="nh-rp-side-empty">暂无期次</div>';
+    box.innerHTML = '<div class="nh-rp-side-empty">' + tr('js.no_issues') + '</div>';
     return;
   }
   var html = '';
@@ -265,7 +269,7 @@ function renderDoc(k, s){
       // 排班逐日明细表（2026-09-03 前只有汇总卡格，看不出谁在哪个班）
       var wd = ['日','一','二','三','四','五','六'];
       html += '<div class="nh-rp-md" style="margin-bottom:.6rem"><table><thead><tr>' +
-              '<th>日期</th><th>白班 7:00-19:00</th><th>夜班 19:00-7:00</th></tr></thead><tbody>';
+              '<th>' + tr('js.col.date') + '</th><th>' + tr('js.col.day_shift') + '</th><th>' + tr('js.col.night_shift') + '</th></tr></thead><tbody>';
       sched.forEach(function(d){
         var dt = new Date(String(d.date).replace(/-/g,'/'));
         var w = isNaN(dt.getTime()) ? '' : ' 周' + wd[dt.getDay()];
@@ -275,32 +279,21 @@ function renderDoc(k, s){
       html += '</tbody></table></div>';
     }
     if (keys.length) {
-      // 护理科排班等结构化产出：键值卡格
-      var cnLabels = {
-        building:'楼栋',staff_count:'当班人数',total_shifts:'总班次',
-        day_shifts:'白班',night_shifts:'夜班',week:'时间段',
-        item:'物资',category:'分类',weekly_consumption:'周消耗',suggestion:'建议',
-        report_type:'报表类型',period:'周期',department:'部门',residents:'老人数',
-        'summary.weekly_total':'周总成本','summary.daily_average':'日均成本',
-        'summary.estimated_monthly_total':'预估月成本',
-        'summary.estimated_per_resident_per_month':'老人月均成本',
-        'summary.per_resident_per_day':'老人日均成本',
-        'cost_breakdown.labor_cost':'人力成本','cost_breakdown.material_cost':'物资成本',
-        'cost_breakdown.food_cost':'餐饮成本','cost_breakdown.other_cost':'其他成本'
-      };
+      // 护理科排班等结构化产出：键值卡格（字段名走 i18n，数据值原样）
       html += '<div class="nh-rp-sec-grid">';
       keys.forEach(function(kk){
         var v = sum[kk];
-        var label = cnLabels[kk] || kk;
+        var label = I18N['js.fld.' + kk] || kk;
         html += '<div class="nh-rp-sec-cell"><span class="lbl">' + label + '</span><span class="val">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>';
       });
       html += '</div>';
     } else if (!sched) {
-      html += '<div class="nh-rp-doc-missing">本期未生成' + (stepNames[k] || '该步骤') + '的产出（步骤未执行或输出为空）</div>';
+      html += '<div class="nh-rp-doc-missing">' + tr('js.no_output')
+        .replace('{step}', (stepNames[k] || tr('js.step_word'))) + '</div>';
     }
   }
   if (sum.process) {
-    html += '<details class="nh-rp-proc"><summary>⚙ 执行过程（agent 旁白，点击展开）</summary>' +
+    html += '<details class="nh-rp-proc"><summary>' + tr('js.proc_summary') + '</summary>' +
             '<pre>' + esc(sum.process) + '</pre></details>';
   }
   return html;
@@ -310,16 +303,16 @@ function renderMain(){
   var el = document.getElementById('rp-main');
   var run = runById(state.sel);
   if (!run) {
-    el.innerHTML = '<div class="nh-rp-empty">暂无工作流执行记录<br><small style="color:#999">请先触发护理运营工作流</small></div>';
+    el.innerHTML = '<div class="nh-rp-empty">' + tr('js.no_records') + '<br><small style="color:#999">' + tr('js.no_records_hint') + '</small></div>';
     return;
   }
   var cts = fmtTs(run.created_at), fts = fmtTs(run.finished_at);
   var stt = runStat(run.status);
   var dur = run.status === 'succeeded' ? durMin(run.created_at, run.finished_at) : '';
   var html = '<div class="nh-rp-run-head">' +
-    '<span class="nh-rp-run-date">' + cts.date + ' 期</span>' +
+    '<span class="nh-rp-run-date">' + cts.date + tr('js.issue_suffix') + '</span>' +
     '<span class="nh-rp-run-status ' + stt.cls + '">' + stt.label + '</span></div>' +
-    '<div class="nh-rp-run-time">' + (cts.time || '') + ' ~ ' + (fts.time || (stt.cls === 'run' ? '进行中' : '—')) + (dur ? ' · 用时 ' + dur : '') + '</div>';
+    '<div class="nh-rp-run-time">' + (cts.time || '') + ' ~ ' + (fts.time || (stt.cls === 'run' ? tr('js.in_progress') : '—')) + (dur ? tr('js.duration').replace('{d}', dur) : '') + '</div>';
 
   // 四份产出同级：标签页切换，失败步骤标红
   var tabs = TAB_ORDER.filter(function(k){ return run.steps[k]; });
@@ -336,11 +329,11 @@ function renderMain(){
     var cur = run.steps[state.tab];
     var curOk = cur.status === 'succeeded';
     html += '<div class="nh-rp-doc"><div class="nh-rp-doc-label">' + (stepNames[state.tab] || state.tab) +
-            ' <span class="nh-rp-step-badge' + (curOk ? ' ok' : ' fail') + '">' + (curOk ? '成功' : '失败') + '</span></div>';
+            ' <span class="nh-rp-step-badge' + (curOk ? ' ok' : ' fail') + '">' + (curOk ? tr('js.badge.ok') : tr('js.badge.fail')) + '</span></div>';
     html += renderDoc(state.tab, cur);
     html += '</div>';
   } else {
-    html += '<div class="nh-rp-doc"><div class="nh-rp-doc-missing">本期没有任何步骤产出（工作流未执行或全部为空）</div></div>';
+    html += '<div class="nh-rp-doc"><div class="nh-rp-doc-missing">' + tr('js.no_steps') + '</div></div>';
   }
   el.innerHTML = html;
 }
@@ -358,7 +351,7 @@ async function fetchPage(offset){
   moreBtn.addEventListener('click', async function(){
     if (state.loading) return;
     state.loading = true;
-    moreBtn.textContent = '加载中…';
+    moreBtn.textContent = tr('js.loading');
     try {
       var data = await fetchPage(state.runs.length);
       state.runs = state.runs.concat(data.runs);
@@ -367,7 +360,7 @@ async function fetchPage(offset){
       renderSide();
     } catch(e) { /* 静默：下次点击重试 */ }
     state.loading = false;
-    moreBtn.textContent = '加载更早期次';
+    moreBtn.textContent = tr('load_more');
   });
 
   try {
@@ -376,8 +369,8 @@ async function fetchPage(offset){
     state.total = data.total;
     state.hasMore = data.has_more;
     if (!state.runs.length) {
-      issuesEl.innerHTML = '<div class="nh-rp-side-empty">暂无期次</div>';
-      mainEl.innerHTML = '<div class="nh-rp-empty">暂无工作流执行记录<br><small style="color:#999">请先触发护理运营工作流</small></div>';
+      issuesEl.innerHTML = '<div class="nh-rp-side-empty">' + tr('js.no_issues') + '</div>';
+      mainEl.innerHTML = '<div class="nh-rp-empty">' + tr('js.no_records') + '<br><small style="color:#999">' + tr('js.no_records_hint') + '</small></div>';
       return;
     }
     // hash 还原选中期次（#r=xxxxxx，取 run id 前 8 位），缺省最新一期
@@ -389,8 +382,8 @@ async function fetchPage(offset){
     }
     selectRun(initial, false);
   } catch(e) {
-    issuesEl.innerHTML = '<div class="nh-rp-side-empty">加载失败</div>';
-    mainEl.innerHTML = '<div class="nh-rp-empty">加载失败：' + esc(e.message) + '</div>';
+    issuesEl.innerHTML = '<div class="nh-rp-side-empty">' + tr('js.load_failed') + '</div>';
+    mainEl.innerHTML = '<div class="nh-rp-empty">' + tr('js.load_failed_msg').replace('{e}', esc(e.message)) + '</div>';
   }
 })();
 </script>

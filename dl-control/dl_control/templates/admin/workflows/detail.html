@@ -1,31 +1,31 @@
 {% extends "base.html" %}
-{% block title %}{{ flow.display_name }} — AI 养老院院长{% endblock %}
+{% block title %}{{ flow.display_name }} {{ t("admin.base.title_suffix") }}{% endblock %}
 {% block admin_body %}
 
 <div class="admin-page-header">
   <p style="margin:0 0 0.25rem;font-size:0.82rem;color:var(--text-dim)">
-    <a href="/admin/workflows">← 工作流</a>
+    <a href="/admin/workflows">{{ t("admin.workflows.back") }}</a>
   </p>
   <h2>{{ flow.display_name }}</h2>
   <p class="admin-page-sub">
     <code>{{ flow.id }}</code> · {{ flow.latest_version or "—" }} ·
-    {% if flow.enabled %}<span class="badge badge-status">已启用</span>
-    {% else %}<span class="badge badge-warning">已禁用</span>{% endif %}
+    {% if flow.enabled %}<span class="badge badge-status">{{ t("workflows.badge.enabled") }}</span>
+    {% else %}<span class="badge badge-warning">{{ t("admin.workflows.badge_disabled") }}</span>{% endif %}
     {% if flow.description %} · {{ flow.description }}{% endif %}
   </p>
 </div>
 
 <section class="admin-section">
-  <h3>定时调度</h3>
+  <h3>{{ t("admin.workflows.schedules") }}</h3>
   {% if schedules %}
   <table class="data-table">
-    <thead><tr><th>Cron</th><th>输入参数</th><th>启用</th><th>上次触发</th><th>下次触发</th><th></th></tr></thead>
+    <thead><tr><th>Cron</th><th>{{ t("admin.workflows.col.input") }}</th><th>{{ t("admin.workflows.col.enabled") }}</th><th>{{ t("workflows.col.last_fired") }}</th><th>{{ t("workflows.col.next_fire") }}</th><th></th></tr></thead>
     <tbody>
       {% for sc in schedules %}
       <tr>
         <td><code>{{ sc.cron }}</code></td>
         <td><code style="font-size:0.78rem">{{ sc.input_template | tojson | truncate(80) }}</code></td>
-        <td>{{ "是" if sc.enabled else "否" }}</td>
+        <td>{{ t("common.yes") if sc.enabled else t("common.no") }}</td>
         <td style="font-size:0.85rem">{{ sc.last_fired_at or "—" }}</td>
         <td style="font-size:0.85rem">{{ sc.next_fire_at or "—" }}</td>
         <td>
@@ -33,12 +33,12 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="workflow_id" value="{{ flow.id }}">
             <input type="hidden" name="enabled" value="{{ 'false' if sc.enabled else 'true' }}">
-            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem">{{ '禁用' if sc.enabled else '启用' }}</button>
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem">{{ t("common.disable") if sc.enabled else t("common.enable") }}</button>
           </form>
           <form method="post" action="/admin/workflows/schedules/{{ sc.id }}/delete" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="workflow_id" value="{{ flow.id }}">
-            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">删除</button>
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">{{ t("common.delete") }}</button>
           </form>
         </td>
       </tr>
@@ -46,27 +46,27 @@
     </tbody>
   </table>
   {% else %}
-  <p class="empty-note">暂无定时调度。</p>
+  <p class="empty-note">{{ t("admin.workflows.no_schedules") }}</p>
   {% endif %}
   <form method="post" action="/admin/workflows/{{ flow.id }}/schedules" class="stacked-form" style="max-width:none;margin-top:0.75rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div style="display:flex;gap:1rem;margin-bottom:0.5rem">
-      <label style="flex:1">Cron 表达式
+      <label style="flex:1">{{ t("admin.workflows.cron_label") }}
         <input type="text" name="cron" placeholder="0 9 * * 1" required>
       </label>
-      <label style="flex:1">输入参数 (JSON)
+      <label style="flex:1">{{ t("admin.workflows.input_json_label") }}
         <input type="text" name="input_json" placeholder='{"correlation_key": "weekly"}'>
       </label>
     </div>
-    <button type="submit" class="primary-btn" style="width:auto">添加</button>
+    <button type="submit" class="primary-btn" style="width:auto">{{ t("admin.workflows.add") }}</button>
   </form>
 </section>
 
 <section class="admin-section">
-  <h3>Agent 授权</h3>
+  <h3>{{ t("admin.workflows.agent_grants") }}</h3>
   {% if grants %}
   <table class="data-table">
-    <thead><tr><th>Agent</th><th>状态</th><th>授权时间</th><th></th></tr></thead>
+    <thead><tr><th>Agent</th><th>{{ t("common.status") }}</th><th>{{ t("workflows.col.granted") }}</th><th></th></tr></thead>
     <tbody>
       {% for g in grants %}
       <tr>
@@ -76,7 +76,7 @@
         <td>
           <form method="post" action="/admin/workflows/{{ flow.id }}/grants/{{ g.agent_id }}/delete" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">撤销</button>
+            <button type="submit" class="ghost-btn" style="width:auto;padding:0.15rem 0.5rem;font-size:0.75rem;color:var(--danger)">{{ t("common.revoke") }}</button>
           </form>
         </td>
       </tr>
@@ -84,50 +84,50 @@
     </tbody>
   </table>
   {% else %}
-  <p class="empty-note">暂无 Agent 授权。</p>
+  <p class="empty-note">{{ t("admin.workflows.no_grants") }}</p>
   {% endif %}
   {% if grantable %}
   <form method="post" action="/admin/workflows/{{ flow.id }}/grants" class="stacked-form" style="max-width:480px;margin-top:0.75rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label style="margin-bottom:0.5rem">授权给
+    <label style="margin-bottom:0.5rem">{{ t("admin.workflows.grant_to") }}
       <select name="agent_id" >
         {% for a in grantable %}
         <option value="{{ a.id }}">{{ a.display_name }}</option>
         {% endfor %}
       </select>
     </label>
-    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">授权</button>
+    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">{{ t("admin.workflows.grant") }}</button>
   </form>
   {% endif %}
 </section>
 
 <section class="admin-section">
-  <h3>默认执行 Agent</h3>
+  <h3>{{ t("admin.workflows.default_agent") }}</h3>
   <p style="color:var(--text-dim);font-size:0.85rem;margin:0 0 0.75rem">
     {% if flow.default_agent_id %}<code>{{ flow.default_agent_name }}</code>
-    {% else %}未指定（由运行时的可用 Agent 自动选择）{% endif %}
+    {% else %}{{ t("admin.workflows.default_auto") }}{% endif %}
   </p>
   {% if active_agents %}
   <form method="post" action="/admin/workflows/{{ flow.id }}/default-agent" class="stacked-form" style="max-width:480px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label style="margin-bottom:0.5rem">选择 Agent
+    <label style="margin-bottom:0.5rem">{{ t("admin.workflows.select_agent") }}
       <select name="default_agent_id" >
-        <option value="">自动选择</option>
+        <option value="">{{ t("admin.workflows.auto_select") }}</option>
         {% for a in active_agents %}
         <option value="{{ a.id }}" {{ 'selected' if flow.default_agent_id == a.id else '' }}>{{ a.display_name }}</option>
         {% endfor %}
       </select>
     </label>
-    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">保存</button>
+    <button type="submit" class="primary-btn" style="width:auto;flex-shrink:0">{{ t("common.save") }}</button>
   </form>
   {% endif %}
 </section>
 
 <section class="admin-section">
-  <h3>运行记录</h3>
+  <h3>{{ t("admin.workflows.run_history") }}</h3>
   {% if runs %}
   <table class="data-table">
-    <thead><tr><th>运行 ID</th><th>版本</th><th>状态</th><th>触发方式</th><th>关联 Key</th><th>当前步骤</th><th>开始时间</th><th>结束时间</th></tr></thead>
+    <thead><tr><th>{{ t("admin.workflows.col.run_id") }}</th><th>{{ t("workflows.col.version") }}</th><th>{{ t("common.status") }}</th><th>{{ t("admin.workflows.col.trigger") }}</th><th>{{ t("admin.workflows.col.correlation") }}</th><th>{{ t("admin.workflows.col.current_step") }}</th><th>{{ t("admin.workflows.col.started") }}</th><th>{{ t("admin.workflows.col.finished") }}</th></tr></thead>
     <tbody>
       {% for run in runs %}
       <tr>
@@ -144,7 +144,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="empty-note">暂无运行记录。</p>
+  <p class="empty-note">{{ t("admin.workflows.no_runs") }}</p>
   {% endif %}
 </section>
 {% endblock %}

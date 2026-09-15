@@ -28,7 +28,6 @@
 {% set label_map = {
   'director': '院长', 'nursing_dept': '护理科', 'logistics_dept': '总务科',
   'building': '楼长', 'floor': '楼层组长', 'general': '工作人员', 'family': '家属',
-  'company': '销售',
 } %}
 {% set role_label = label_map.get(role, role) %}
 
@@ -83,12 +82,6 @@
       <button class="quick-q" onclick="quickAsk('这周吃饭情况怎么样')">这周吃饭情况怎么样</button>
       <button class="quick-q" onclick="quickAsk('本月账单和费用')">本月账单和费用</button>
     </div>
-    {% elif role == 'company' %}
-    <div class="nh-sidebar-section"><h3>快捷查询</h3>
-      <button class="quick-q" onclick="quickAsk('这个月赢单了多少')">这个月赢单了多少</button>
-      <button class="quick-q" onclick="quickAsk('商机漏斗什么样')">商机漏斗什么样</button>
-      <button class="quick-q" onclick="quickAsk('最近一周跟进记录')">最近一周跟进记录</button>
-    </div>
     {% else %}
     <div class="nh-sidebar-section"><h3>快捷查询</h3>
       <button class="quick-q" onclick="quickAsk('今日菜单')">今日菜单</button>
@@ -97,7 +90,7 @@
     </div>
     {% endif %}
 
-    <div class="nh-sidebar-footer">{% if role == 'company' %}huha CRM<br>销售管理 v0.1{% else %}杭州社会福利院<br>AI 养老院院长 v0.1{% endif %}</div>
+    <div class="nh-sidebar-footer">杭州社会福利院<br>AI 养老院院长 v0.1</div>
   </aside>
 
   <div class="nh-chat-main">
@@ -106,14 +99,11 @@
       {% elif role == 'nursing_dept' %}护理工作台
       {% elif role == 'logistics_dept' %}总务工作台
       {% elif role == 'family' %}家属服务
-      {% elif role == 'company' %}销售工作台
       {% elif role in ('building', 'floor') %}{% if building %}{{ building }}{% endif %}{% if floor %} {{ floor }}{% endif %} 工作台
       {% else %}工作台 — {{ dept or '综合' }}{% endif %}
     </div>
     <div class="nh-chat-messages" id="chat-messages">
-      {% if role == 'company' %}
-      <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 销售助手</div>您好，{{ nursing_user.name }}！我是公司销售管理助手，可以帮您查询客户、商机、跟进记录和销售业绩，请问想了解什么？</div>
-      {% elif role == 'family' %}
+      {% if role == 'family' %}
       <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI 家属助手</div>您好，{{ nursing_user.name }}！我是养老院 AI 家属助手，可以帮您了解家里老人的照护、健康、用餐和费用情况，请问想了解什么？</div>
       {% else %}
       <div class="nh-msg nh-msg-ai"><div class="nh-msg-meta">AI {{ role_label }}助手</div>您好，{{ nursing_user.name }}！我是 AI 养老院{{ role_label }}助手，请问有什么可以帮您的？</div>

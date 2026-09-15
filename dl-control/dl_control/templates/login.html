@@ -29,7 +29,6 @@
 
     <div class="login-modes">
       <a href="#" id="family-link">家属入口</a>
-      <a href="#" id="crm-link">公司入口</a>
       <a href="#" id="admin-link">管理员入口</a>
     </div>
   </div>
@@ -53,11 +52,10 @@
   else if (h < 18) g.textContent = '下午好，今天也辛苦了';
   else             g.textContent = '晚上好，夜班请注意安全';
 
-  // 四态切换：员工(默认) / 管理员 / 家属 / 公司。家属与公司的身份
-  // 分别在 nursing-erp / huha-crm 侧校验（dl-control 只委托不落库）。
+  // 三态切换：员工(默认) / 管理员 / 家属。家属用手机号登录，
+  // 身份在 nursing-erp 侧校验（dl-control 只委托不落库）。
   var admin  = document.getElementById('admin-link');
   var family = document.getElementById('family-link');
-  var crm    = document.getElementById('crm-link');
   var form   = document.getElementById('login-form');
   var uLabel = document.getElementById('login-user-label');
   var uInput = document.getElementById('login-user');
@@ -69,28 +67,18 @@
       uInput.placeholder = '';
       admin.textContent = '返回登录';
       family.textContent = '家属入口';
-      crm.textContent = '公司入口';
     } else if (mode === 'family') {
       form.action = '/auth/family-login';
       uLabel.textContent = '手机号';
       uInput.placeholder = '请输入家属手机号';
       admin.textContent = '管理员入口';
       family.textContent = '返回员工登录';
-      crm.textContent = '公司入口';
-    } else if (mode === 'company') {
-      form.action = '/auth/crm-login';
-      uLabel.textContent = 'CRM 账号';
-      uInput.placeholder = '公司销售系统账号';
-      admin.textContent = '管理员入口';
-      family.textContent = '家属入口';
-      crm.textContent = '返回员工登录';
     } else {
       form.action = '/auth/nursing-login';
       uLabel.textContent = '用户名';
       uInput.placeholder = '';
       admin.textContent = '管理员入口';
       family.textContent = '家属入口';
-      crm.textContent = '公司入口';
     }
   }
 
@@ -101,10 +89,6 @@
   family.addEventListener('click', function(e) {
     e.preventDefault();
     setMode(form.action.endsWith('/auth/family-login') ? 'nursing' : 'family');
-  });
-  crm.addEventListener('click', function(e) {
-    e.preventDefault();
-    setMode(form.action.endsWith('/auth/crm-login') ? 'nursing' : 'company');
   });
 
   // 3D tilt + parallax

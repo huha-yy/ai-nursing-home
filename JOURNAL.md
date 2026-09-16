@@ -2353,3 +2353,38 @@ GET 是 405，页面在 /login）。
   --lang en`（内含楼栋 UPDATE）→`echo en > logs/demo_lang`→楼长/院长重新登录；
   恢复中文=停服→ERP 默认重灌→两脚本 `--lang zh`（楼栋回译）→
   `echo zh > logs/demo_lang`→重新登录。两脚本必须同语言跑，单边切=楼长 400。
+
+## 2026-09-15 · 界面暖色提亮（运营剪视频需求）+ CTO 仓库 ysy/ 分支
+
+**背景**：运营剪视频时反馈界面观感——一轮对话式微调，全部即时生效
+（模板 bind-mount + CSS 静态文件）。已提交 `47749c06` 推 origin；CTO 仓库
+同步 `ysy/ai-nursing-home`。
+
+- **背景统一**：护理端 `/dashboard` `/reports` `/alerts` 整页背景对齐对话页
+  可视区（body 加 `dash-page` 类 → `#FFF8F0` 奶油白；原 `body.nursing-page`
+  统一 `#F5EDE3` 米色偏深）。对话区 `.nh-chat-main` 改纯白 `#FFFFFF` 试验中
+  （原 `var(--nh-bg)`）。
+- **交班卡**：`.nh-dash-handover` 卡面奶白渐变 → 并入页面背景同色
+  （边框/文字未动）。
+- **提亮四件套**（用户反馈"某些地方偏暗"）：① 护理等级饼图色板砍掉深棕两档
+  `#A04000`/`#6E2C00`，新色板 `#FDEBD0→#FAD7A0→#F5B041→#EC9A4E→#D9805A→#C9AE8C`
+  （仍是深浅=轻重，封顶中暖棕）；② 状态条去绿/黄/红底色，只留徽章表意；
+  ③ 重点关注分组标题底色近白（`#FFFBFA`/`#FFFDF8`/`#FDFBF8`）；④ KPI 五图标
+  底色各调淡一档。
+- **admin 后台仪表盘浅色化**：`/admin` 加 `body.theme-light`（styles.css 变量
+  整体切换奶油白暖色系，对齐护理端）；其余 admin 页（Agent/工作流/审计）保持
+  暗棕黑不变，`h1/h2/.brand/.stat-value` 白字规则做了浅色覆盖。
+- **回归修复（P4 双语化遗留）**：天气代码表 key 漏 `js.` 前缀（注入字典剥掉
+  页面前缀后是 `js.wx.clear`，JS 拿裸 `wx.clear` 查不到 → 中英文都裸显
+  "wx.clear"）——19 个天气码+4 条温度提醒+loading 全补前缀。顺带日期本地化：
+  写死 ISO `2026-09-15` → `toLocaleDateString(tr('js.locale'))`（中文
+  「2026年9月15日 星期二」）。其余 6 页 tr() 全量排查无同类问题。
+- **生产演示数据回中文**（英文演练验收后）：备份 `db.sqlite3.bak-en-live-
+  20260915-1756` → ERP `--force` 重灌 zh（runserver 守卫误报 crm 进程，ERP 由
+  systemd `nursing-erp.service` 托管，`systemctl --user stop/start` 才是真停启）
+  → PG 双脚本 `--lang zh`（楼栋回译+activities/complaints/工单 397 条）→
+  `echo zh > logs/demo_lang`。楼长需重新登录。
+- **CTO 仓库（oriionai/dato_prod）**：两仓库按个人前缀惯例（已有 `ljl/`、
+  `wqx/`、`ysy/weknora-integration`）推分支——ai 仓 `ysy/ai-nursing-home`
+  （旧无前缀 `ai-nursing-home` 分支按方案 B 删除）；erp 仓本地新加 `cto`
+  remote 推 `ysy/nursing-erp`。日常同步：`git push cto main:refs/heads/ysy/<名>`。

@@ -32,6 +32,9 @@ body.nursing-page {
   min-height: 100vh;
 }
 
+/* 大屏/报表/告警页背景对齐对话页可视区（--nh-bg 奶油白, 2026-09-15 运营剪视频需求） */
+body.nursing-page.dash-page { background: var(--nh-bg); }
+
 /* =================================================================
 
 /* =================================================================
@@ -464,7 +467,7 @@ body.login-page::after {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--nh-bg);
+  background: #FFFFFF; /* 对话区改纯白（2026-09-15 运营剪视频试验，原 var(--nh-bg) 奶油白） */
   min-width: 0;
 }
 
@@ -724,9 +727,10 @@ body.login-page::after {
   font-size: 0.9rem;
 }
 
-.nh-dash-status.status-ok     { background: #EAF5EA; border: 1px solid #B8D8B8; }
-.nh-dash-status.status-warning { background: #FEF9ED; border: 1px solid #F0D890; }
-.nh-dash-status.status-danger  { background: #FEF0EF; border: 1px solid #E8B4B0; }
+/* 状态条去色底（2026-09-15 运营剪视频需求）：底色并入背景，状态语义只由徽章表达 */
+.nh-dash-status.status-ok     { background: var(--nh-bg); border: 1px solid var(--nh-border); }
+.nh-dash-status.status-warning { background: var(--nh-bg); border: 1px solid #F0D890; }
+.nh-dash-status.status-danger  { background: var(--nh-bg); border: 1px solid #E8B4B0; }
 
 .nh-status-text {
   color: #4A3728;
@@ -784,12 +788,13 @@ body.login-page::after {
   font-size: 1.2rem;
 }
 
-/* KPI 图标与饼图同一暖色家族，深浅=轻重（告警最深）；绿/紫/红跳色退场 */
-.nh-kpi-icon-people   { background: #FDEBD0; color: #E67E22; } /* 主橙 */
-.nh-kpi-icon-duty     { background: #FCF3CF; color: #D68910; } /* 金（原绿） */
-.nh-kpi-icon-inventory{ background: #FEF9E7; color: #F39C12; } /* 琥珀 */
-.nh-kpi-icon-assess   { background: #F2E8DA; color: #8B5A2B; } /* 棕（原紫） */
-.nh-kpi-icon-alert    { background: #FAE5D3; color: #A04000; } /* 焦橙=最紧急（原红） */
+/* KPI 图标与饼图同一暖色家族，深浅=轻重（告警最深）；绿/紫/红跳色退场
+   2026-09-15 底色调淡一档（原 #FDEBD0/#FCF3CF/#FEF9E7/#F2E8DA/#FAE5D3） */
+.nh-kpi-icon-people   { background: #FEF4E4; color: #E67E22; } /* 主橙 */
+.nh-kpi-icon-duty     { background: #FEF9E6; color: #D68910; } /* 金（原绿） */
+.nh-kpi-icon-inventory{ background: #FEFBF0; color: #F39C12; } /* 琥珀 */
+.nh-kpi-icon-assess   { background: #F8F1E9; color: #8B5A2B; } /* 棕（原紫） */
+.nh-kpi-icon-alert    { background: #FDF1E8; color: #A04000; } /* 焦橙=最紧急（原红） */
 
 /* Simple shape icons via CSS (no emoji, no images) */
 .nh-kpi-icon-people::after   { content: ''; width: 10px; height: 10px; border-radius: 50%; background: currentColor; box-shadow: 8px 0 0 currentColor, -8px 0 0 currentColor, 0 10px 0 currentColor; }
@@ -915,9 +920,10 @@ body.login-page::after {
   margin-bottom: 0.35rem;
 }
 
-.nh-focus-group-head[data-sev="danger"]  { color: var(--nh-danger);  background: #FEF0EF; }
-.nh-focus-group-head[data-sev="warning"] { color: var(--nh-warning); background: #FEF9ED; }
-.nh-focus-group-head[data-sev="info"]    { color: var(--nh-info);    background: #F4EFE9; }
+/* 分组标题提亮（2026-09-15 运营剪视频需求，原 #FEF0EF/#FEF9ED/#F4EFE9 色带感重） */
+.nh-focus-group-head[data-sev="danger"]  { color: var(--nh-danger);  background: #FFFBFA; }
+.nh-focus-group-head[data-sev="warning"] { color: var(--nh-warning); background: #FFFDF8; }
+.nh-focus-group-head[data-sev="info"]    { color: var(--nh-info);    background: #FDFBF8; }
 
 .nh-focus-group-dot {
   width: 8px;
@@ -1008,7 +1014,7 @@ body.login-page::after {
 
 /* -- Shift handover（上移到 KPI 行下方的时间锚点）-- */
 .nh-dash-handover {
-  background: linear-gradient(135deg, #FDF8F0, #FBF2E4);
+  background: var(--nh-bg); /* 卡面融入页面背景（2026-09-15 运营剪视频需求，原奶白渐变） */
   border: 1px solid #E8D5C4;
   border-radius: var(--nh-radius);
   padding: 1rem 1.25rem;

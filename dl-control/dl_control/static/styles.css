@@ -560,3 +560,22 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   right: 1.25rem;
   z-index: 10;
 }
+
+/* -- light theme (admin dashboard 奶油白暖色系, 对齐护理端 nursing.css) ---- */
+body.theme-light {
+  --bg: #F5EDE3;
+  --surface: #FFFFFF;
+  --surface-2: #FAF3EA;
+  --border: #E8D5C4;
+  --text: #4A3728;
+  --text-dim: #6B5A45;
+  --danger: #C0392B;
+  --ok: #1E8449;
+  --warn: #B9770E;
+}
+body.theme-light .brand,
+body.theme-light h1,
+body.theme-light h2,
+body.theme-light .stat-value { color: #4A3728; }
+body.theme-light .primary-btn { color: #FFFFFF; }
+body.theme-light .error { background: rgba(248, 81, 73, 0.08); color: #C0392B; }

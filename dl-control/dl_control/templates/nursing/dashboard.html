@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ t("nursing.dashboard.title") }}{% endblock %}
+{% block body_class %}dash-page{% endblock %}
 {% block body %}
 <script src="/static/echarts.min.js"></script>
 
@@ -302,7 +303,7 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
     data.forEach(function(d) { valMap[d.name] = d.value; total += d.value; });
     // 护理强度暖色阶（与主题同族）：越深=照护越重，浅杏→琥珀→主橙→焦橙→
     // 深棕，未定用中性暖灰。取代绿/紫/蓝高饱和跳色（与暖橙主题违和）
-    var palette = ['#FAD7A1', '#F39C12', '#E67E22', '#A04000', '#6E2C00', '#C9AE8C'];
+    var palette = ['#FDEBD0', '#FAD7A0', '#F5B041', '#EC9A4E', '#D9805A', '#C9AE8C']; /* 深棕两档提亮（2026-09-15 运营剪视频需求，原 #A04000/#6E2C00 偏暗） */
     var persons = function(n) { return tr('js.persons').replace('{n}', n); };
     var option = {
       title: {
@@ -349,10 +350,8 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
     var el = document.querySelector('.nh-dash-date');
     if (!el) return;
     var now = new Date();
-    var y = now.getFullYear();
-    var m = String(now.getMonth() + 1).padStart(2, '0');
-    var d = String(now.getDate()).padStart(2, '0');
-    el.textContent = y + '-' + m + '-' + d;
+    el.textContent = now.toLocaleDateString(tr('js.locale'),
+      { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   }
 
   function updateCompletionChart(rateStr) {
@@ -452,23 +451,23 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
   }
 
   function fetchWeather() {
-    var codes = {0:'wx.clear',1:'wx.few',2:'wx.cloudy',3:'wx.overcast',45:'wx.fog',48:'wx.rime',
-      51:'wx.drizzle',53:'wx.drizzle',55:'wx.rain',61:'wx.shower',63:'wx.rain',65:'wx.heavy_rain',
-      71:'wx.snow_light',73:'wx.snow',75:'wx.snow_heavy',80:'wx.shower',82:'wx.downpour',
-      95:'wx.storm',99:'wx.storm_severe'};
+    var codes = {0:'js.wx.clear',1:'js.wx.few',2:'js.wx.cloudy',3:'js.wx.overcast',45:'js.wx.fog',48:'js.wx.rime',
+      51:'js.wx.drizzle',53:'js.wx.drizzle',55:'js.wx.rain',61:'js.wx.shower',63:'js.wx.rain',65:'js.wx.heavy_rain',
+      71:'js.wx.snow_light',73:'js.wx.snow',75:'js.wx.snow_heavy',80:'js.wx.shower',82:'js.wx.downpour',
+      95:'js.wx.storm',99:'js.wx.storm_severe'};
     fetch('https://api.open-meteo.com/v1/forecast?latitude=30.25&longitude=120.17&current=temperature_2m,weather_code&timezone=Asia/Shanghai')
       .then(function(r) { return r.json(); })
       .then(function(d) {
         var t = Math.round(d.current.temperature_2m);
         var w = codes[d.current.weather_code] ? tr(codes[d.current.weather_code]) : '--';
         var adv = '';
-        if (t >= 38) adv = tr('wx.adv_red');
-        else if (t >= 35) adv = tr('wx.adv_orange');
-        else if (t <= 0) adv = tr('wx.adv_cold');
-        else if (t <= 5) adv = tr('wx.adv_chilly');
+        if (t >= 38) adv = tr('js.wx.adv_red');
+        else if (t >= 35) adv = tr('js.wx.adv_orange');
+        else if (t <= 0) adv = tr('js.wx.adv_cold');
+        else if (t <= 5) adv = tr('js.wx.adv_chilly');
         document.getElementById('weather-widget').textContent = t + '°C ' + w + adv;
       })
-      .catch(function() { document.getElementById('weather-widget').textContent = tr('wx.loading'); });
+      .catch(function() { document.getElementById('weather-widget').textContent = tr('js.wx.loading'); });
   }
 
   function updateShiftHandover(data) {

@@ -2388,3 +2388,12 @@ GET 是 405，页面在 /login）。
   `wqx/`、`ysy/weknora-integration`）推分支——ai 仓 `ysy/ai-nursing-home`
   （旧无前缀 `ai-nursing-home` 分支按方案 B 删除）；erp 仓本地新加 `cto`
   remote 推 `ysy/nursing-erp`。日常同步：`git push cto main:refs/heads/ysy/<名>`。
+
+## 2026-09-22 · 公网访问复刻手册沉淀（内部知识库）
+
+- 新增 `docs/运维/公网体验环境复刻手册.md`：frp 内网穿透公网体验全流程
+  （云端 frps/证书/DNS → 内网 Caddy+frpc → 应用放行 → 验证 → 安全加固 →
+  排障 → 新项目模板步骤 + 验收单）。参数全部实测取证（frpc.toml/systemd/
+  Caddyfile/openssl 证书），同事或 AI 可照抄给新客户复刻。
+- 实参速记：云 43.137.7.133，frp 0.61.1，通配符证书 ZeroSSL *.eldcare.cn
+  **2026-11-11 到期**（续期在云端，日历事项）。

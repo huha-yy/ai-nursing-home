@@ -2492,3 +2492,32 @@ GET 是 405，页面在 /login）。
   168 绿。
 - **遗留**：旧中文 run 仍在 reports 侧栏可点（历史数据）；如需清场，
   DELETE FROM workflow_run WHERE created_at < 切英文时间点。
+
+## 2026-10-08（续二）· 周报 runId 泄漏修复——_ctx() 信封裁剪
+
+- **现象**：英文周报正文出现内部标识——"Compiled from: Nursing Dept
+  schedule (runId 0d15578e…)""Source schedule: runId
+  0d15578e-946a-4034-…（Building 3 caregivers）"。
+- **根因**：workflow_step.output 存的是 agent 完整回执信封（runId /
+  result.meta 用量统计 / 全过程 payloads）；runs.load_outputs 整包返回，
+  prepare 把整包 f-string 进下游 prompt → LLM 把 runId 当数据回显进报告，
+  meta 块还白吃数千 token。
+- **修复（nursing_ops.py v1.1.0 内改，不动版本号——prompt 哈希逐次
+  生成无钉子问题）**：
+  1. 新增 `_ctx(envelope)`：只取 payloads 最后一条非空文本（agent 最终
+    答案），异常回落 str()；logistics/finance/director 三步的上游数据
+    全部过 _ctx。
+  2. _OPS_PREFIX 双语各加一行禁令：报告正文禁止出现 runId/会话 ID 等
+    内部标识（en: never mention runId or session IDs）。
+  3. en 翻译指示补 做六休一→work 6 days then rest 1（SKILL.md 术语
+    曾漏进报告 prose）。
+- **测试**：test_workflow_unit 新增 TestCtx 三例（末条提取/空 payload
+  跳过/畸形回落），63 绿。
+- **实测**：run d2004ad5 终验通过——全文无 runId、无外源 UUID、终报
+  全英文 6180 字符。残留 CJK 仅 排班 JSON 键 白班/夜班（by design，
+  LLM 拿来当表头）；finance 中间步 LLM 自加双语人名括注
+  "Sun Zhiming (孙志明)"（非数据层问题，偶发）。
+- **新踩坑**：当日 4 轮 run 有 2 轮 agent 侧 flake——①timeout（终答=
+  超时文案）；②只回 narration 单 payload 就停（无报告正文）。均标
+  succeeded（receiver 把异常文本当最终答案存了），workflow 无感知。
+  属 MiniMax 延迟/截断老问题，演示前建议多跑一轮备用。

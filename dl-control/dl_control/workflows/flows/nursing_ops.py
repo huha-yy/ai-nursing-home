@@ -45,6 +45,7 @@ _OPS_PREFIX = {
         "⚡ 无人值守多智能体协作任务。你的部门被分配了一个具体任务。\n"
         "铁律：禁止询问用户、禁止等待确认、禁止输出\"是否需要\"等提问。\n"
         "直接执行，完成后输出结果。遇到错误自动修复一次，失败则返回错误信息。\n"
+        "报告正文中禁止出现 runId/会话 ID 等内部标识。\n"
         "你的输出将作为下一个部门智能体的输入。\n\n"
     ),
     "en": (
@@ -54,10 +55,12 @@ _OPS_PREFIX = {
         "never output phrases like \"Do you need\".\n"
         "Execute directly and output the result when done. On errors, "
         "self-recover once; if that fails, return the error message.\n"
+        "Never mention internal identifiers such as runId or session IDs in "
+        "the report body.\n"
         "Your output will be the input of the next department's agent.\n"
         "If source data contains Chinese department/role names, render them in "
         "English (院长→Director, 护理科→Nursing Dept, 总务科→Logistics Dept, "
-        "财务科→Finance Dept, 餐饮→Catering).\n\n"
+        "财务科→Finance Dept, 餐饮→Catering, 做六休一→work 6 days then rest 1).\n\n"
     ),
 }
 
@@ -73,6 +76,21 @@ def _lang() -> str:
         return i18n.demo_lang() or "zh"
     except Exception:
         return "zh"
+
+
+def _ctx(envelope: Any) -> str:
+    """下游步骤的输入上下文：只取 agent 最终回答文本。
+
+    workflow_step.output 存的是完整回执信封（runId / result.meta 用量
+    统计 / 过程 payloads）——整包塞进下一步 prompt 会把内部 runId 带进
+    LLM 产出的报告正文（2026-10-08 演示踩坑），且 meta 块白白吃数千
+    token。取 payloads 最后一条非空文本（agent 的最终答案）。
+    """
+    try:
+        texts = [p["text"] for p in envelope["result"]["payloads"] if p.get("text")]
+        return texts[-1] if texts else str(envelope)
+    except Exception:
+        return str(envelope)
 
 
 def _resolve_agent(input: dict[str, Any], key: str, precreated_id: str):
@@ -146,7 +164,7 @@ def _prepare_nursing_schedule(input: dict[str, Any], outputs: dict[str, Any]) ->
 def _prepare_logistics(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
     agent_id = _resolve_agent(input, "logistics_agent_id", "logistics-dept")
     building = input.get("building", "3号楼")
-    schedule_result = outputs.get("nursing-schedule-step", "{}")
+    schedule_result = _ctx(outputs.get("nursing-schedule-step", "{}"))
     if _lang() == "en":
         msg = (
             _OPS_PREFIX["en"]
@@ -187,8 +205,8 @@ def _prepare_logistics(input: dict[str, Any], outputs: dict[str, Any]) -> AgentT
 
 def _prepare_finance(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
     agent_id = _resolve_agent(input, "general_agent_id", "general-assistant")
-    schedule = outputs.get("nursing-schedule-step", "")
-    logistics = outputs.get("logistics-step", "")
+    schedule = _ctx(outputs.get("nursing-schedule-step", ""))
+    logistics = _ctx(outputs.get("logistics-step", ""))
     if _lang() == "en":
         msg = (
             _OPS_PREFIX["en"]
@@ -224,9 +242,9 @@ def _prepare_finance(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTas
 
 def _prepare_director_report(input: dict[str, Any], outputs: dict[str, Any]) -> AgentTask:
     agent_id = _resolve_agent(input, "director_agent_id", "director")
-    schedule = outputs.get("nursing-schedule-step", "")
-    logistics = outputs.get("logistics-step", "")
-    finance = outputs.get("finance-step", "")
+    schedule = _ctx(outputs.get("nursing-schedule-step", ""))
+    logistics = _ctx(outputs.get("logistics-step", ""))
+    finance = _ctx(outputs.get("finance-step", ""))
     if _lang() == "en":
         msg = (
             _OPS_PREFIX["en"]

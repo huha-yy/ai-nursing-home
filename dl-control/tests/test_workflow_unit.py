@@ -20,6 +20,7 @@ import pytest
 from dl_control.workflows import config_cache
 from dl_control.workflows.flows.nursing_ops import (
     _OPS_PREFIX,
+    _ctx,
     _prepare_director_report,
     _prepare_finance,
     _prepare_logistics,
@@ -47,6 +48,42 @@ _DIRECTOR_UUID = UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 # ===================================================================
 # 1. _resolve_agent — agent resolution priority
 # ===================================================================
+
+
+class TestCtx:
+    """_ctx extracts only the agent's final answer text from the envelope.
+
+    workflow_step.output stores the full agent reply envelope (runId /
+    result.meta usage stats / process payloads). Downstream prompts must
+    receive only the last non-empty payload text — otherwise runId leaks
+    into LLM-generated report bodies (2026-10-08 演示踩坑).
+    """
+
+    def test_extracts_last_payload_text(self):
+        env = {
+            "runId": "0d15578e-946a-4034-a104-e25624b7707a",
+            "result": {"payloads": [
+                {"text": "calling skill..."},
+                {"text": '{"staff_count": 10}'},
+            ], "meta": {"tokens": 1234}},
+        }
+        out = _ctx(env)
+        assert out == '{"staff_count": 10}'
+        assert "runId" not in out
+        assert "0d15578e" not in out
+
+    def test_skips_empty_payloads(self):
+        env = {"result": {"payloads": [
+            {"text": ""},
+            {"other": 1},
+            {"text": "final answer"},
+        ]}}
+        assert _ctx(env) == "final answer"
+
+    def test_malformed_envelope_falls_back_to_str(self):
+        assert _ctx("plain string") == "plain string"
+        assert _ctx(None) == "None"
+        assert _ctx({"result": {}}) == "{'result': {}}"
 
 
 class TestResolveAgent:

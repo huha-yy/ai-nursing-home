@@ -90,6 +90,11 @@ class ProvisioningConfig:
     openclaw_image: str
     llm_api_key: str
     site_host: str
+    # 供应商三元组之基地址（from_settings 从 Settings.llm_base_url 映射；
+    # 2026-09-03 只加了调用方 cfg.llm_base_url 引用，漏加本字段导致
+    # reconcile/reprovision AttributeError、消失的 agent 无法自愈重建）
+    llm_base_url: str = "https://api.moonshot.cn/v1"
+    llm_model: str = "kimi-k2.6"
     pexels_api_key: str | None = None
     tavily_api_key: str | None = None
     xiaomi_mimo_api_key: str | None = None
@@ -115,6 +120,8 @@ class ProvisioningConfig:
             templates_root=s.templates_root,
             openclaw_image=s.openclaw_image,
             llm_api_key=s.llm_api_key.get_secret_value(),
+            llm_base_url=str(s.llm_base_url),
+            llm_model=s.llm_model,
             site_host=s.site_host,
             pexels_api_key=s.pexels_api_key.get_secret_value() if s.pexels_api_key else None,
             tavily_api_key=s.tavily_api_key.get_secret_value() if s.tavily_api_key else None,

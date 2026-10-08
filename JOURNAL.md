@@ -2620,3 +2620,18 @@ GET 是 405，页面在 /login）。
   无重叠。测试 171 绿 + 10 skip。
 - **已知局限**：仅实时回答展示——历史消息回放时 chat_log 无此元数据
   （未持久化 provenance），刷新后旧回答无溯源条。
+
+### 续七（2026-10-08 · en 库存问句 category 漏中文修复）
+
+- **问题**：en 模式库存问句回答的表格 Category 列仍是中文（护理耗材等）。
+- **根因**：en 版 chat prompt 靠 `enum_terms_clause()` 指令让 LLM 翻译
+  中文枚举，词表 `ENUM_ZH_EN` 漏收库存分类——
+  operations/models.py `InventoryItem.Category` 的 5 个值从未进表。
+- **修法**：ENUM_ZH_EN 补 5 值（护理耗材→Care Consumables / 医疗器械→
+  Medical Devices / 防护用品→Protective Equipment / 清洁消毒→
+  Cleaning & Disinfection / 辅助器具→Assistive Devices），
+  ENUM_TERM_GROUPS 加 "inventory categories" 组（prompt 指令自动跟随，
+  单一事实源不漂移）。同时 nursing 页面 enum_display 路径若渲染到
+  这些值也会自动翻译。
+- 验证：重启 dato-control 后实测 "Which supplies are low on stock?" —
+  表格 Category 列全英文，溯源条正常。test_i18n 11 绿。

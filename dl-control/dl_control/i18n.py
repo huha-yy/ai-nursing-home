@@ -1725,6 +1725,11 @@ ENUM_ZH_EN: dict[str, str] = {
     "危急": "Critical", "紧急": "Urgent", "一般": "General",
     # 班次
     "白班": "Day Shift", "夜班": "Night Shift",
+    # 库存分类（operations/models.py InventoryItem.Category 5 值；
+    # 2026-10-08 用户实测 en 模式库存表 category 漏中文）
+    "护理耗材": "Care Consumables", "医疗器械": "Medical Devices",
+    "防护用品": "Protective Equipment", "清洁消毒": "Cleaning & Disinfection",
+    "辅助器具": "Assistive Devices",
     # 工单类型（nursing_work_orders.type 24 种，seed_work_orders_demo.TYPE_EN）
     "出入量记录": "Intake/Output Record", "协助排便": "Bowel Assistance",
     "口腔护理": "Oral Care", "吸氧": "Oxygen Therapy",
@@ -1748,6 +1753,7 @@ ENUM_TERM_GROUPS: dict[str, tuple[str, ...]] = {
     "gender": ("男", "女"),
     "incident categories": ("摔倒", "突发不适", "情绪异常"),
     "shifts": ("白班", "夜班"),
+    "inventory categories": ("护理耗材", "医疗器械", "防护用品", "清洁消毒", "辅助器具"),
 }
 
 

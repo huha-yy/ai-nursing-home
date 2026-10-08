@@ -2467,3 +2467,28 @@ GET 是 405，页面在 /login）。
 - 测试：test_i18n.py 追加 normalize_lang marker 兜底用例。
 - **当前生产 = 英文演示态**（logs/demo_lang=en）；切回
   `bash scripts/switch_demo_lang.sh zh`，切后楼长/院长需重新登录。
+
+## 2026-10-08（续）· 周报 workflow 英文化——双语 prompt + PG 数据层补漏
+
+- **现象**：/reports 页周报内容全中文（run 是 09-03/09-07 中文时代产物，
+  且 workflow prompt 本身全中文，重跑也产中文）。
+- **nursing_ops.py 双语 prompt**（v1.0.0→1.1.0）：prepare 每次调度读
+  demo_lang marker 选 zh/en prompt（切语言免重启）；en 下任务指令/输出
+  要求全英文 + 科室名翻译指示（院长→Director 等）。**口径红线**：排班步
+  JSON 键（白班/夜班）保持中文原串——reports 页 JS 按中文键取值。
+- **版本钉子坑**：flow 版本升 1.1.0 但 catalog.py 描述符还钉 1.0.0 →
+  run 报 "loaded flow 1.1.0 != pinned 1.0.0"。catalog 同步 1.1.0 后
+  registry 正常 upsert（latest_version 推进）。
+- **PG 数据层补漏（seed_pg_demo_en.py）**：周报上游三张表此前漏英化——
+  ①nursing_residents 36 老人名（R001-R036，与 ERP 档案层同映射值）；
+  ②nursing_schedules 19 护工名；③nursing_inventory 15 品名+5 类别+
+  9 单位（单位用互异英文复数 pcs/pieces/tubes… 保反向单射；即广交会
+  遗留清单里的"库存品名"项）。全部可逆（--lang zh 反向回译）。
+- **实测**（marker=en，MiniMax-M3）：三轮生成验证——终版 run 四步
+  CJK 扫描仅剩排班 JSON 键（by design）；director 报告 "Prepared by:
+  Director"、人名 Wu Xiuli/Sun Zhiming/Zhou Yuying、库存英文品名全落位。
+  每轮 ~5 分钟（4 步 LLM 串行）。
+- **测试**：test_workflow_unit 两断言跟进（prefix 双语 dict、版本 1.1.0），
+  168 绿。
+- **遗留**：旧中文 run 仍在 reports 侧栏可点（历史数据）；如需清场，
+  DELETE FROM workflow_run WHERE created_at < 切英文时间点。

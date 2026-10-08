@@ -150,6 +150,93 @@ def user_name_overlay_sql() -> str:
     ) + "\n"
 
 
+# ── 库存品名/类别/单位 + 排班护工名双语（2026-10-08 英文周报收口）────
+# 库存与排班是周报 workflow 的上游数据源：残留中文会整段进 LLM 产出。
+# 排班护工名与 ERP rebuild NAME 表同值（19 人全量，含 3 位 ERP 表外）；
+# 单位用互异英文复数（pcs/pieces/tubes/...）保反向回译单射。
+INVENTORY_ZH_EN = {
+    "names": {
+        "一次性手套": "Disposable Gloves", "一次性注射器": "Disposable Syringes",
+        "医用胶带": "Medical Tape", "口罩": "Face Masks",
+        "吸痰管": "Suction Catheters", "尿不湿 L码": "Diapers (L)",
+        "尿不湿 M码": "Diapers (M)", "尿不湿 S码": "Diapers (S)",
+        "护理垫": "Nursing Pads", "消毒液": "Disinfectant",
+        "纸尿裤": "Adult Diapers", "胃管": "Feeding Tubes",
+        "血压计": "Blood Pressure Monitors", "血糖试纸": "Glucose Test Strips",
+        "轮椅": "Wheelchairs",
+    },
+    "categories": {
+        "护理耗材": "Care Consumables", "医疗器械": "Medical Devices",
+        "防护用品": "Protective Supplies", "清洁消毒": "Cleaning & Disinfection",
+        "辅助器具": "Mobility Aids",
+    },
+    "units": {
+        "只": "pcs", "支": "pieces", "根": "tubes", "卷": "rolls",
+        "包": "packs", "片": "pads", "瓶": "bottles", "盒": "boxes", "台": "units",
+    },
+}
+
+STAFF_NAME_ZH_EN = {
+    "侯玉芬": "Hou Yufen", "冯德才": "Feng Decai", "刘小梅": "Liu Xiaomei",
+    "吴秀丽": "Wu Xiuli", "周玉英": "Zhou Yuying", "姚士杰": "Yao Shijie",
+    "孙志明": "Sun Zhiming", "张敏": "Zhang Min", "方永刚": "Fang Yonggang",
+    "李芳": "Li Fang", "杨桂兰": "Yang Guilan", "潘丽丽": "Pan Lili",
+    "王强": "Wang Qiang", "蒋秀兰": "Jiang Xiulan", "赵丽华": "Zhao Lihua",
+    "郑文斌": "Zheng Wenbin", "钱玉兰": "Qian Yulan", "陈建国": "Chen Jianguo",
+    "韩立明": "Han Liming",
+}
+
+# nursing_residents 36 人（R001-R036，03-seed 基线）——residence/query 技能、
+# 周报 finance 步、chat「本楼老人情况」的上游。R001/R002 与 ERP 档案层
+# 张国栋/李秀兰同映射值（Zhang Guodong / Li Xiulan），跨库同语言。
+RESIDENT_NAME_ZH_EN = {
+    "张国栋": "Zhang Guodong", "李秀兰": "Li Xiulan", "陈永发": "Chen Yongfa",
+    "赵玉芬": "Zhao Yufen", "王淑珍": "Wang Shuzhen", "刘明德": "Liu Mingde",
+    "吴桂英": "Wu Guiying", "周德胜": "Zhou Desheng", "黄美华": "Huang Meihua",
+    "杨国华": "Yang Guohua", "徐秀英": "Xu Xiuying", "马德才": "Ma Decai",
+    "沈桂花": "Shen Guihua", "朱长福": "Zhu Changfu", "许美玲": "Xu Meiling",
+    "郑国平": "Zheng Guoping", "吕玉兰": "Lyu Yulan", "何伟民": "He Weimin",
+    "胡秀珍": "Hu Xiuzhen", "林德茂": "Lin Demao", "孙玉梅": "Sun Yumei",
+    "高建平": "Gao Jianping", "郭秀英": "Guo Xiuying", "彭国栋": "Peng Guodong",
+    "唐玉芬": "Tang Yufen", "宋长贵": "Song Changgui", "田桂花": "Tian Guihua",
+    "范德明": "Fan Deming", "曹美凤": "Cao Meifeng", "廖永强": "Liao Yongqiang",
+    "许桂兰": "Xu Guilan", "袁建华": "Yuan Jianhua", "邓秀珍": "Deng Xiuzhen",
+    "苏国平": "Su Guoping", "万玉梅": "Wan Yumei", "石明远": "Shi Mingyuan",
+}
+
+
+def _flip(mapping: dict) -> dict:
+    return {v: k for k, v in mapping.items()}
+
+
+def inventory_schedule_overlay_sql() -> str:
+    """nursing_inventory（品名/类别/单位）+ nursing_schedules.staff_name 切换。"""
+    names = INVENTORY_ZH_EN["names"]
+    cats = INVENTORY_ZH_EN["categories"]
+    units = INVENTORY_ZH_EN["units"]
+    if LANG != "en":
+        names, cats, units = _flip(names), _flip(cats), _flip(units)
+    staff = STAFF_NAME_ZH_EN if LANG == "en" else _flip(STAFF_NAME_ZH_EN)
+    residents = RESIDENT_NAME_ZH_EN if LANG == "en" else _flip(RESIDENT_NAME_ZH_EN)
+    stmts = [
+        f"UPDATE nursing_inventory SET item_name='{new}' WHERE item_name='{old}';"
+        for old, new in names.items()
+    ] + [
+        f"UPDATE nursing_inventory SET category='{new}' WHERE category='{old}';"
+        for old, new in cats.items()
+    ] + [
+        f"UPDATE nursing_inventory SET unit='{new}' WHERE unit='{old}';"
+        for old, new in units.items()
+    ] + [
+        f"UPDATE nursing_schedules SET staff_name='{new}' WHERE staff_name='{old}';"
+        for old, new in staff.items()
+    ] + [
+        f"UPDATE nursing_residents SET name='{new}' WHERE name='{old}';"
+        for old, new in residents.items()
+    ]
+    return "\n".join(stmts) + "\n"
+
+
 def build_activity_rows(today: date, until: date) -> list[tuple]:
     spec = ACTIVITIES[LANG]
     rows: list[tuple] = []
@@ -200,6 +287,7 @@ def main() -> None:
     sql = (
         building_overlay_sql()
         + user_name_overlay_sql()
+        + inventory_schedule_overlay_sql()
         + "DELETE FROM nursing_activities;\n"
         + "INSERT INTO nursing_activities (title, date, time, location) VALUES\n"
         f"  {act_values};\n"

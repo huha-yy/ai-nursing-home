@@ -167,7 +167,9 @@ class TestPrepareNursingSchedule:
         task = _prepare_nursing_schedule(
             {"nursing_agent_id": str(_NURSING_UUID)}, {}
         )
-        assert _OPS_PREFIX in task.message
+        # _OPS_PREFIX 是 zh/en 双语 dict（demo_lang marker 选边）；无 marker
+        # 测试态走中文串
+        assert _OPS_PREFIX["zh"] in task.message
 
     def test_default_building_is_3hao(self):
         task = _prepare_nursing_schedule(
@@ -327,7 +329,7 @@ class TestFlowModel:
 
     def test_flow_id_and_version(self):
         assert nursing_ops_flow.id == "nursing.ops"
-        assert nursing_ops_flow.version == "1.0.0"
+        assert nursing_ops_flow.version == "1.1.0"  # 1.1.0：prepare 双语 prompt
 
     def test_exactly_four_steps(self):
         assert len(nursing_ops_flow.steps) == 4

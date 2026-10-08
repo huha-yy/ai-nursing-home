@@ -26,7 +26,7 @@ SHIPPED_FLOWS = [
     ),
     FlowDescriptor(
         id="nursing.ops",
-        version="1.0.0",
+        version="1.1.0",
         code_ref="dl_control.workflows.flows.nursing_ops:nursing_ops_flow",
         display_name="护理运营流程",
         default_trigger="event",

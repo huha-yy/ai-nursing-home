@@ -2635,3 +2635,21 @@ GET 是 405，页面在 /login）。
   这些值也会自动翻译。
 - 验证：重启 dato-control 后实测 "Which supplies are low on stock?" —
   表格 Category 列全英文，溯源条正常。test_i18n 11 绿。
+
+### 续八（2026-10-08 · 溯源条持久化——历史回放不再丢）
+
+- **问题**：切换对话回来，溯源条消失。续六已知局限——source 元数据只在
+  实时 done 事件/响应里带，没存进 chat 历史。
+- **修法**：chat 历史本就存 Redis `chat_msgs:{chat_id}`（30 天 TTL，
+  {role, content} 列表）——assistant 条目追加可选 `source` 键：
+  - 流式 `_save_history(reply, source=None)` 签名扩展，agent/direct
+    两个 done 落盘点传入 source_footer；周报 workflow 路径不传（无溯源）。
+  - 非流式 agent/direct 两个落盘点同款。
+  - `/api/nursing/chats/{id}/messages` 原样透传（无需改）。
+  - 前端 switchChat 回放循环：assistant 消息带 m.source → appendSourceBar。
+- **兼容性**：LLM 上下文沿用 history[-20:] 原样（source 键随 attachment
+  同款先例，OpenAI 兼容端点容忍额外键，未剥离）；旧消息无 source 键
+  自然无条。
+- 验证：playwright 全 UI 流——新对话问库存 → 实时条 1 → 切走归 0 →
+  切回 **条仍在**（文本/深链完整），零 pageerror；截图确认布局无重叠。
+  171 绿 + 10 skip。

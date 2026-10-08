@@ -1448,7 +1448,10 @@ async def build_app() -> FastAPI:
                 if had_attachment:
                     user_entry["attachment"] = {"filename": file_name, "filetype": file_type}
                 history.append(user_entry)
-                history.append({"role": "assistant", "content": agent_reply})
+                asst_entry = {"role": "assistant", "content": agent_reply}
+                if source_footer:
+                    asst_entry["source"] = source_footer
+                history.append(asst_entry)
                 await _save_chat_msgs(chat_id, history[-40:])
                 chats = await _get_user_chats(sess.user_id)
                 for c in chats:
@@ -1551,7 +1554,10 @@ async def build_app() -> FastAPI:
         if file_b64:
             user_entry["attachment"] = {"filename": file_name, "filetype": file_type}
         history.append(user_entry)
-        history.append({"role": "assistant", "content": reply})
+        asst_entry = {"role": "assistant", "content": reply}
+        if source_footer:
+            asst_entry["source"] = source_footer
+        history.append(asst_entry)
         try:
             await _save_chat_msgs(chat_id, history[-40:])
             # Update chat title if first exchange
@@ -1612,11 +1618,14 @@ async def build_app() -> FastAPI:
         async def _sse(obj) -> str:
             return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
-        async def _save_history(reply: str):
+        async def _save_history(reply: str, source=None):
             try:
                 history = await _get_chat_msgs(chat_id)
                 history.append({"role": "user", "content": message})
-                history.append({"role": "assistant", "content": reply})
+                asst_entry = {"role": "assistant", "content": reply}
+                if source:
+                    asst_entry["source"] = source
+                history.append(asst_entry)
                 await _save_chat_msgs(chat_id, history[-40:])
                 chats = await _get_user_chats(sess.user_id)
                 for c in chats:
@@ -1788,7 +1797,7 @@ async def build_app() -> FastAPI:
             if holder:
                 yield await _sse({"type": "done", "chat_id": chat_id, "reply": holder[0],
                                   "source": source_footer})
-                await _save_history(holder[0])
+                await _save_history(holder[0], source_footer)
                 return
             yield await _sse({"type": "error", "message": "空响应"})
 
@@ -1836,7 +1845,7 @@ async def build_app() -> FastAPI:
                     reply = reply_holder[0]
                     yield await _sse({"type": "done", "chat_id": chat_id, "reply": reply,
                                       "source": source_footer})
-                    await _save_history(reply)
+                    await _save_history(reply, source_footer)
                     return
 
                 # ── 非 agent 角色：直连 LLM 流式（系统提示词同非流式端点） ──

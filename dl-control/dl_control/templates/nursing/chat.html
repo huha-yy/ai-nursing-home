@@ -321,7 +321,8 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
         if (m.attachment) {
           label = m.attachment.filetype.startsWith('image/') ? tr('js.attach_image') : tr('js.attach_file').replace('{f}', m.attachment.filename);
         }
-        addMessage(m.content + label, m.role === 'user');
+        var div = addMessage(m.content + label, m.role === 'user');
+        if (m.role !== 'user' && m.source) appendSourceBar(div, m.source);
       });
       msgs.scrollTop = msgs.scrollHeight;
     }).catch(function() {

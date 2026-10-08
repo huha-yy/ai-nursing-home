@@ -180,7 +180,7 @@ def test_nursing_dashboard_bilingual_titles():
 
 
 def test_nursing_chat_bilingual_titles():
-    """chat 页 zh/en 冒烟：侧栏标题、placeholder 双语；快捷查询 prompt 保持中文。"""
+    """chat 页 zh/en 冒烟：侧栏标题、placeholder 双语；快捷查询问句走 i18n。"""
     zh_html = TEMPLATES.get_template("nursing/chat.html").render(
         _nursing_ctx("zh", "nursing.chat.")
     )
@@ -197,8 +197,10 @@ def test_nursing_chat_bilingual_titles():
     assert ">Send</button>" in en_html
     assert "您好，王建国！" in zh_html
     assert "Hello, 王建国!" in en_html
-    # 快捷查询 prompt 是发给后端的中文语义，不随界面语言切换（P4 另做）
-    assert "quickAsk('全院在院老人总数')" in en_html
+    # 快捷查询问句走 i18n（q.<key>.ask）：zh 中文、en 英文踩意图关键词
+    assert "quickAsk(tr('q.total_residents.ask'))" in zh_html
+    assert "quickAsk(tr('q.total_residents.ask'))" in en_html
+    assert "quickAsk('" not in en_html  # 硬编码问句已清零
     # 家属角色分支：en 下欢迎语走 family 文案
     fam_html = TEMPLATES.get_template("nursing/chat.html").render(
         _nursing_ctx("en", "nursing.chat.", {"nursing_user": {"role": "family", "name": "李家属"}})

@@ -46,44 +46,45 @@
       <div id="session-list" style="max-height:200px;overflow-y:auto;margin-top:8px"></div>
     </div>
 
-    {# 快捷查询：按钮显示文案走 i18n；onclick 里的 prompt 是发给后端的中文语义，不迁（P4 英文语义层另做） #}
+    {# 快捷查询：按钮文案与 quickAsk 问句都走 i18n（q.<key> 与 q.<key>.ask），
+       en 问句已踩 _INTENT_KEYWORDS 英文关键词，保意图命中（P4 英文语义层） #}
     {% if role == 'director' %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('全院在院老人总数')">{{ t("nursing.chat.q.total_residents") }}</button>
-      <button class="quick-q" onclick="quickAsk('今日排班情况')">{{ t("nursing.chat.q.schedule_status") }}</button>
-      <button class="quick-q" onclick="quickAsk('库存预警物资')">{{ t("nursing.chat.q.low_stock") }}</button>
-      <button class="quick-q" onclick="quickAsk('未处理健康告警')">{{ t("nursing.chat.q.unhandled_alerts") }}</button>
-      <button class="quick-q" onclick="quickAsk('本日护理完成率')">{{ t("nursing.chat.q.care_completion") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.total_residents.ask'))">{{ t("nursing.chat.q.total_residents") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.schedule_status.ask'))">{{ t("nursing.chat.q.schedule_status") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.low_stock.ask'))">{{ t("nursing.chat.q.low_stock") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.unhandled_alerts.ask'))">{{ t("nursing.chat.q.unhandled_alerts") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.care_completion.ask'))">{{ t("nursing.chat.q.care_completion") }}</button>
     </div>
     {% elif role == 'nursing_dept' %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('今日排班表')">{{ t("nursing.chat.q.today_schedule") }}</button>
-      <button class="quick-q" onclick="quickAsk('工单完成率')">{{ t("nursing.chat.q.workorder_rate") }}</button>
-      <button class="quick-q" onclick="quickAsk('某楼栋当班人员')">{{ t("nursing.chat.q.onduty_by_building") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.today_schedule.ask'))">{{ t("nursing.chat.q.today_schedule") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.workorder_rate.ask'))">{{ t("nursing.chat.q.workorder_rate") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.onduty_by_building.ask'))">{{ t("nursing.chat.q.onduty_by_building") }}</button>
     </div>
     {% elif role == 'logistics_dept' %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('库存盘点')">{{ t("nursing.chat.q.inventory_check") }}</button>
-      <button class="quick-q" onclick="quickAsk('低于安全线的物资')">{{ t("nursing.chat.q.below_safety") }}</button>
-      <button class="quick-q" onclick="quickAsk('采购建议')">{{ t("nursing.chat.q.purchase_advice") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.inventory_check.ask'))">{{ t("nursing.chat.q.inventory_check") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.below_safety.ask'))">{{ t("nursing.chat.q.below_safety") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.purchase_advice.ask'))">{{ t("nursing.chat.q.purchase_advice") }}</button>
     </div>
     {% elif role in ('building', 'floor') %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('本楼老人情况')">{{ t("nursing.chat.q.my_building_residents") }}</button>
-      <button class="quick-q" onclick="quickAsk('今天谁当班')">{{ t("nursing.chat.q.whos_on_duty") }}</button>
-      <button class="quick-q" onclick="quickAsk('本日菜单和活动')">{{ t("nursing.chat.q.menu_and_activities") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.my_building_residents.ask'))">{{ t("nursing.chat.q.my_building_residents") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.whos_on_duty.ask'))">{{ t("nursing.chat.q.whos_on_duty") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.menu_and_activities.ask'))">{{ t("nursing.chat.q.menu_and_activities") }}</button>
     </div>
     {% elif role == 'family' %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('我家老人最近怎么样')">{{ t("nursing.chat.q.hows_my_elder") }}</button>
-      <button class="quick-q" onclick="quickAsk('这周吃饭情况怎么样')">{{ t("nursing.chat.q.meals_this_week") }}</button>
-      <button class="quick-q" onclick="quickAsk('本月账单和费用')">{{ t("nursing.chat.q.monthly_bill") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.hows_my_elder.ask'))">{{ t("nursing.chat.q.hows_my_elder") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.meals_this_week.ask'))">{{ t("nursing.chat.q.meals_this_week") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.monthly_bill.ask'))">{{ t("nursing.chat.q.monthly_bill") }}</button>
     </div>
     {% else %}
     <div class="nh-sidebar-section"><h3>{{ t("nursing.chat.quick") }}</h3>
-      <button class="quick-q" onclick="quickAsk('今日菜单')">{{ t("nursing.chat.q.today_menu") }}</button>
-      <button class="quick-q" onclick="quickAsk('活动安排')">{{ t("nursing.chat.q.activities") }}</button>
-      <button class="quick-q" onclick="quickAsk('院内通知')">{{ t("nursing.chat.q.notices") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.today_menu.ask'))">{{ t("nursing.chat.q.today_menu") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.activities.ask'))">{{ t("nursing.chat.q.activities") }}</button>
+      <button class="quick-q" onclick="quickAsk(tr('q.notices.ask'))">{{ t("nursing.chat.q.notices") }}</button>
     </div>
     {% endif %}
 

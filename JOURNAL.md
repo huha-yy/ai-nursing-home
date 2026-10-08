@@ -2544,3 +2544,23 @@ GET 是 405，页面在 /login）。
   聊天记录 DELETE（语言快照数据，英文态残留中文），保会话历史全英文。
 - 测试：test_i18n 11 绿。**注意**：b1_liu/院长的部分历史会话已删，
   演示前如需会话历史可现场再问两句。
+
+### 续四（2026-10-08 · chat 快捷查询英文化）
+
+- **bug**：英文界面下 Quick queries 按钮点击后，对话栏插入的是中文问句
+  （`quickAsk('全院在院老人总数')` 硬编码 onclick）。P4 之前这是刻意保留
+  （中文问句踩关键词保意图命中），但英文意图关键词已并入
+  `_INTENT_KEYWORDS/_skill_queries`，中文硬编码成了纯 bug。
+- **修法**：问句本体迁进 i18n——`nursing.chat.q.<key>.ask` 键 en/zh 各 20 条
+  （en 问句逐一对照 `_match_skill_rows` 验证意图命中：residents→resident-query、
+  schedule/duty→nursing-schedule、supplies/stock/purchase→logistics-inventory、
+  alerts→alert-query、completion rate→nursing-work-order、menu+activities 组合
+  白名单、家属三问走 family 表与 zh 完全同构）。onclick 改
+  `quickAsk(tr('q.<key>.ask'))`，`i18n_page` blob（dump_prefixed 前缀剥离）
+  自动携带。
+- 验证：playwright 实测 5 个院长按钮插入英文问句；E2E 点 "Low-stock
+  supplies" → 英文问句发出 → 英文回答带真实库存表（Adult Diapers L 28/50
+  等 4 项预警）。test_i18n 11 绿（旧断言"prompt 保持中文"翻转为新契约）。
+- 已知残留：`院内通知/Notices and announcements` 与 zh 一样不命中任何意图行
+  （原本就无通知技能，行为一致非回归）。ruff E501 line 186 为 HEAD 既有错误
+  （workflows.default_agent_desc），未动。

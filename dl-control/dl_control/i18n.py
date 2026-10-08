@@ -8,6 +8,7 @@ in the context processor and i18n_routes.py that call into here.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 
 LANGS: tuple[str, ...] = ("en", "zh")
@@ -1720,14 +1721,34 @@ def enum_terms_clause() -> str:
     )
 
 
-def normalize_lang(raw: str | None) -> str:
+def demo_lang() -> str | None:
+    """演示数据语言标记（与 keepfresh cron 同一文件，见 scripts/demo_data_keepfresh.sh）。
+
+    cookie 缺省时 UI/chat 语言跟随演示态：标记 en → 界面与对话缺省英文，
+    标记 zh / 缺失 / 非法 → 走各自原缺省。文件路径经 DL_DEMO_LANG_FILE 覆盖
+    （容器内为 /app/logs/demo_lang，宿主机测试可用仓库内路径）。
+    """
+    path = os.environ.get("DL_DEMO_LANG_FILE", "/app/logs/demo_lang")
+    try:
+        with open(path, encoding="utf-8") as f:
+            v = f.read().strip()
+    except OSError:
+        return None
+    return v if v in LANGS else None
+
+
+def normalize_lang(raw: str | None, default: str | None = None) -> str:
     """Map a raw cookie value to a supported language code.
 
-    Unknown / missing / malformed → DEFAULT_LANG. Never raises.
+    Priority: cookie 合法值 > 演示标记 demo_lang() > default > DEFAULT_LANG.
+    Never raises.
     """
     if raw in LANGS:
         return raw  # type: ignore[return-value]
-    return DEFAULT_LANG
+    marked = demo_lang()
+    if marked is not None:
+        return marked
+    return default if default in LANGS else DEFAULT_LANG
 
 
 def translate(lang: str, key: str) -> str:

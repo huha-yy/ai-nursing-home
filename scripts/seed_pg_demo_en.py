@@ -112,6 +112,44 @@ def building_overlay_sql() -> str:
     return "\n".join(stmts) + "\n"
 
 
+# ── 员工姓名双语（2026-10-08 英文态残留收口）───────────────────────
+# 键= username（刘主任 在 b1/b5 重名，name 字符串做键会撞）；
+# UPDATE 恒定写目标语言值、WHERE username 命中——天然幂等且 zh 可逆。
+USER_NAME_ZH_EN = {
+    "admin_liu": ("刘行政", "Admin Liu"),
+    "b1f1_wang": ("王组长", "Team Lead Wang"),
+    "b1_liu": ("刘主任", "Director Liu"),
+    "b2f1_chen": ("陈组长", "Team Lead Chen"),
+    "b2_zhang": ("张主任", "Director Zhang"),
+    "b3f2_zhao": ("赵小明", "Zhao Xiaoming"),
+    "b3_li_weidong": ("李卫东", "Li Weidong"),
+    "b4f1_sun": ("孙组长", "Team Lead Sun"),
+    "b4_wu": ("吴主任", "Director Wu"),
+    "b5f2_qian": ("钱小红", "Qian Xiaohong"),
+    "b5_liu_zhuren": ("刘主任", "Director Liu"),
+    "b6f1_huang": ("黄组长", "Team Lead Huang"),
+    "b6_zhou": ("周主任", "Director Zhou"),
+    "fin_sun": ("孙财务", "Finance Sun"),
+    "logi_chen": ("陈总务", "Logistics Chen"),
+    "logi_zhao": ("赵总务", "Logistics Zhao"),
+    "med_feng": ("冯医务", "Dr. Feng"),
+    "nurse_li": ("李护士", "Nurse Li"),
+    "nurse_wang": ("王护士", "Nurse Wang"),
+    "nurse_zhang": ("张护士", "Nurse Zhang"),
+    "sec_zhou": ("周安保", "Security Zhou"),
+    "wang_jianguo": ("王建国", "Wang Jianguo"),
+}
+
+
+def user_name_overlay_sql() -> str:
+    """nursing_users.name 按 username 直写目标语言值（幂等）。"""
+    idx = 1 if LANG == "en" else 0
+    return "\n".join(
+        f"UPDATE nursing_users SET name='{en}' WHERE username='{u}';"
+        for u, (_zh, en) in USER_NAME_ZH_EN.items()
+    ) + "\n"
+
+
 def build_activity_rows(today: date, until: date) -> list[tuple]:
     spec = ACTIVITIES[LANG]
     rows: list[tuple] = []
@@ -161,6 +199,7 @@ def main() -> None:
     comp_values = ",\n  ".join("(" + ", ".join(_lit(v) for v in r) + ")" for r in comps)
     sql = (
         building_overlay_sql()
+        + user_name_overlay_sql()
         + "DELETE FROM nursing_activities;\n"
         + "INSERT INTO nursing_activities (title, date, time, location) VALUES\n"
         f"  {act_values};\n"

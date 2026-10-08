@@ -54,13 +54,13 @@ def _page_i18n(request: _Request, prefixes: tuple[str, ...]) -> str:
 
 
 def _req_lang(request: _Request) -> str:
-    """chat 语义层语言（P4 英文问答）：读 lang cookie 归一，缺省 zh。
+    """chat 语义层语言（P4 英文问答）：cookie > 演示标记 > 缺省 zh。
 
-    与 i18n.DEFAULT_LANG（en，界面文案兜底）刻意不同——chat 的预取数据、
-    会话历史、agent 上下文现状是中文，cookie 未设置时对话行为必须保持中文。
+    与 i18n.DEFAULT_LANG（en，界面文案兜底）刻意不同——预取数据、会话
+    历史、agent 上下文的实际语言由演示态决定（switch_demo_lang.sh 切到
+    en 后数据即英文），cookie 未设置时跟随 demo_lang 标记而非写死 zh。
     """
-    raw = request.cookies.get(i18n.LANG_COOKIE)
-    return raw if raw in i18n.LANGS else "zh"
+    return i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE), default="zh")
 
 
 TEMPLATES = Jinja2Templates(

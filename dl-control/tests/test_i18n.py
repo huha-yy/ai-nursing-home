@@ -224,3 +224,26 @@ def test_lang_toggle_in_nursing_topbar():
         _nursing_ctx("zh", "nursing.alerts.")
     )
     assert 'class="lang-toggle"' in html
+
+
+def test_normalize_lang_demo_marker_fallback(tmp_path, monkeypatch):
+    """cookie 缺省时语言跟随 demo_lang 标记；显式 cookie 优先（switch_demo_lang.sh）。"""
+    marker = tmp_path / "demo_lang"
+    marker.write_text("en\n", encoding="utf-8")
+    monkeypatch.setenv("DL_DEMO_LANG_FILE", str(marker))
+    assert i18n.normalize_lang(None) == "en"          # 无 cookie → 跟标记
+    assert i18n.normalize_lang("zh") == "zh"          # 显式 cookie 优先
+    assert i18n.normalize_lang("garbage") == "en"     # 非法 cookie → 落标记
+    assert i18n.normalize_lang(None, default="zh") == "en"  # chat 语义层同样跟标记
+
+    marker.write_text("zh\n", encoding="utf-8")
+    assert i18n.normalize_lang(None) == "zh"
+    assert i18n.normalize_lang(None, default="zh") == "zh"
+
+    marker.write_text("en_US junk\n", encoding="utf-8")  # 非法标记 → 各回各缺省
+    assert i18n.normalize_lang(None) == i18n.DEFAULT_LANG
+    assert i18n.normalize_lang(None, default="zh") == "zh"
+
+    marker.unlink()                                   # 标记缺失 → 各回各缺省
+    assert i18n.normalize_lang(None) == i18n.DEFAULT_LANG
+    assert i18n.normalize_lang(None, default="zh") == "zh"

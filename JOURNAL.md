@@ -2398,3 +2398,72 @@ GET 是 405，页面在 /login）。
   Caddyfile/openssl 证书），同事或 AI 可照抄给新客户复刻。
 - 实参速记：云 43.137.7.133，frp 0.61.1，通配符证书 ZeroSSL *.eldcare.cn
   **2026-11-11 到期**（续期在云端，日历事项）。
+
+## 2026-09-27 · P0 修复:院长等 4 agent 容器消失致 chat 无响应(ProvisioningConfig 漏字段)
+
+- **现象**:chat.eldcare.cn `/chat` 页面正常但发消息无回复。dato-control 日志每次
+  请求报 `chat stream error: [Errno -3] Temporary failure in name resolution`。
+- **根因**(两层叠加):① 院长/2号楼/4号楼/5号楼 4 个 agent 容器不知何时消失;
+  ② 启动自愈撞 bug —— 2026-09-03"chat 延迟治理"给调用方加了
+  `cfg.llm_base_url`/`cfg.llm_model`(供应商三元组),但 `ProvisioningConfig`
+  (agents/provisioning/service.py)漏加这两个字段 → reconcile/reprovision 一律
+  AttributeError → 消失的 agent 永远无法重建,且失败后 agents.status 被打成
+  error,自愈器后续连尝试都不再尝试(只认 active)。
+- **修复**:ProvisioningConfig 补 `llm_base_url`/`llm_model` 两字段(默认值沿
+  settings.py 同款兜底,运行时真值由 from_settings 从 infra/.env 传入,供应商
+  不变)→ `--build` 重建 dato-control → UPDATE 4 个 agent status='active' →
+  重启触发 reconcile:`recreated: 4, failed: 0`,15 agent 全员在编。
+- **验证**:wang_jianguo 登录 → POST /api/nursing/chat/stream 真实流式回复正常
+  (走 agent 网关 → MiniMax-M3,新 agent config/.env 实测 minimaxi.com)。
+- **误诊教训**:vozeb-pro-standalone-*(沃通)是同事 huha-dy 的独立项目
+  (/home/huha-dy/vozeb-h3-station),共住本机但与 nursing chat **零链路关系**;
+  排障时勿被同时段启停误导。
+- **遗留**:service.py 改动未提交 git;agent config/.env 的 LLM_BASE_URL 双行
+  同值(已知无害模式,未动)。
+
+### 追记(同日):重建 agent 的 LLM 配置回归 → "chat 变慢"二次修复
+
+- **现象**:上午修复后 chat 恢复但明显偏慢(实测首 token 5.5s)。用户反馈变慢。
+- **根因**:今天 reconcile 重建的 4 个 agent,首启 setup-llm.sh 写出的 provider
+  布局是错的 —— M3 挂在 `openai` provider(openai-completions 路径,思考关闭
+  包装器不生效)+ minimax 块指向 .io 旧目录(M2.7 列表)。09-03 的"原生 minimax
+  anthropic 路径"修只打在了存量 agent 上,**没进 setup-llm.sh 的全新制备路径**。
+  未重建的 agent(护理科等 11 个)配置正确所以快 —— 速度差 = 配置差。
+- **修复**(对 4 个重建 agent):openclaw.json `models.providers` 整块移植健康
+  样本(minimax@**api.minimaxi.com/anthropic** + models 数组必带,漏了会
+  crash-loop)+ models.json 整体移植 + `primary` 从 `openai/MiniMax-M3` 改为
+  `minimax/MiniMax-M3` + 保留 `.llm-configured` 标记防 setup-llm 重写。
+- **验证**:两轮实测,热路径首 token 1.2s / 整轮 2.0s(优于 09-07 基线)。
+- **遗留(下次修)**:setup-llm.sh/config_gen 的全新制备路径仍会写出错误布局
+  —— 下次任何 agent 重建都会复发,需要把 provider 块生成逻辑对齐本日手工
+  修复的最终形态(openclaw.json.j2 的 providers.baseUrl 写死 moonshot 问题
+  CLAUDE.md 已记录,一并处理)。
+- **当前 chat 服役形态(2026-09-27 定格)**:MiniMax-M3,原生 `minimax` provider @
+  `api.minimaxi.com/anthropic`(anthropic-messages 路径,思考关闭包装器生效),
+  M3 条目无 reasoning 标记,primary=`minimax/MiniMax-M3`。实测热路径首 token
+  ~1.2s / 整轮 ~2s。智谱 GLM-5.3(coding-plan)A/B 试验**挂起待定** —— 用户
+  先体验修复后速度;若试,按供应商切换 runbook 做可回退对比,注意 coding-plan
+  条款/限流及 GLM 思考开关需先行摸清。
+
+## 2026-10-08 · 英文演示态一键切换 + dl-control 英文残留收口
+
+- **`scripts/switch_demo_lang.sh en|zh [--until]`**（ERP+AI 两仓联动，详见
+  nursing-erp 仓 JOURNAL 同日篇）：ERP rebuild --lang → 本仓
+  seed_work_orders_demo.py + seed_pg_demo_en.py --lang X →
+  sync_pg_meals_from_erp.py（新脚本：ERP WeekMenu→PG nursing_meals，真实
+  staging 表方案——TEMP 表活不过第二次 docker exec 会话；幂等保留旧历史）→
+  写 logs/demo_lang marker → 起服验证。DRY_RUN=1 可预演。
+- **i18n.py**：`demo_lang()` 读 DL_DEMO_LANG_FILE marker；`normalize_lang()`
+  优先级 cookie > marker > default——UI 语言跟数据语言走，切英文后新浏览器
+  免手动点切换。main.py `_req_lang` 换用之。compose 挂载 `../logs/:/app/logs:ro`。
+- **seed_pg_demo_en.py**：+`USER_NAME_ZH_EN` 22 人员工名 overlay（**username
+  键控**——刘主任在 b1/b5 重名，按 name 字符串做键会撞；恒写目标语言值天然
+  可逆）。修 chat 顶栏 "Hello, 刘主任！" → "Hello, Director Liu!"。
+- **reports.html**：排班明细表星期后缀硬编码"周X"改 `toLocaleDateString(
+  tr('js.locale'))`（与 dashboard wdLabel 同法，en→Wed）。
+- 英文残留扫描口径：curl 全页面 + 过滤注释后 CJK 正则。确认无需改：chat
+  快捷按钮 onclick 发中文问句（演示纪律：踩关键词保意图命中）、dashboard
+  餐次/菜类中文只作 CSS 主题键不显示、切换器"中文"标签惯例保留。
+- 测试：test_i18n.py 追加 normalize_lang marker 兜底用例。
+- **当前生产 = 英文演示态**（logs/demo_lang=en）；切回
+  `bash scripts/switch_demo_lang.sh zh`，切后楼长/院长需重新登录。

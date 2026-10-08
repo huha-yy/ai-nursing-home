@@ -213,6 +213,8 @@ services:
       - ../templates/:/app/templates:ro
       - ../dl-control/dl_control/:/app/dl_control/:ro
       - ../dl-control/precreated_agents/:/app/precreated_agents/:ro
+      # 演示语言标记（logs/demo_lang）：UI/chat 语言 cookie 缺省时跟随演示态
+      - ../logs/:/app/logs:ro
     tmpfs:
       - /tmp
     expose:

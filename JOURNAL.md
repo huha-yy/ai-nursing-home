@@ -2521,3 +2521,26 @@ GET 是 405，页面在 /login）。
   超时文案）；②只回 narration 单 payload 就停（无报告正文）。均标
   succeeded（receiver 把异常文本当最终答案存了），workflow 无感知。
   属 MiniMax 延迟/截断老问题，演示前建议多跑一轮备用。
+
+## 2026-10-08（续三）· 宣传页双语切换 + 英文态全量重截
+
+- **/intro/ 宣传页中英文切换**（单文件 data-en 方案）：13 页 slide 约
+  130 处文案元素加 `data-en` 属性（含 HTML 标记的整段 innerHTML），右上
+  角新增 中/EN 胶囊切换（localStorage 记忆、`<html lang>`/`<title>` 同步）。
+  切换 JS 泛化：`[data-en]` 元素首切时快照原 innerHTML 进 data-zh，可逆。
+  playwright 实测：EN 模式 13 页 CJK 扫描零残留、zh↔en 往返无损、reload
+  后语言保持。Caddy 目录级挂载，改完即生效。
+- **10 张系统截图英文态重截并替换 base64**：chat 院长（库存问答）、chat
+  楼长（当班问答）、dashboard、reports、alerts、work-orders、ERP 后台
+  首页（全页 3200×5828）、排班台账、库存台账。尺寸与原图逐一一致
+  （2000×1125 / 3200×1800）。截图脚本 playwright headless（chromium
+  headless_shell-1234 需显式 executable_path）。
+- **截图带出的三个真 bug 顺手修**：
+  1. chat 发送按钮渲染成 "js.send"——`nursing.chat.js.send` 键在 en/zh
+     目录都缺失，补齐（初始模板走 t() 正常，流式结束后 JS 重设文案才暴露）；
+  2. dashboard "1 beds free" 复数错误 → "{f} free bed(s)"；
+  3. ERP 库存 "28pack left" 缺空格 → po msgstr 补空格 + msgfmt + 重启。
+- **旧中文会话标题清理**（截图前）：院长/楼长账号历史会话里 zh 标题的
+  聊天记录 DELETE（语言快照数据，英文态残留中文），保会话历史全英文。
+- 测试：test_i18n 11 绿。**注意**：b1_liu/院长的部分历史会话已删，
+  演示前如需会话历史可现场再问两句。

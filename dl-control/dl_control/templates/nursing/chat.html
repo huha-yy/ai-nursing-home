@@ -121,6 +121,7 @@
 var LABEL = '{{ role_label }}';
 var I18N = JSON.parse({{ i18n_page|tojson }});
 function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 (function() {
   var ta = document.getElementById('chat-input');
   var btn = document.getElementById('chat-send');
@@ -269,6 +270,28 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
     autoScroll();
   }
 
+  // 溯源条（2026-10-08）：后端确定性下发的数据来源（意图→ERP 台账/行数/
+  // 查询时间），LLM 之前已知、不可能被编造。挂在气泡后面而非内部——
+  // 不随增量重渲染被抹掉；仅实时回答展示（历史回放无此元数据）。
+  function appendSourceBar(bubble, src) {
+    if (!bubble || !src || !src.skills || !src.skills.length) return;
+    var bar = document.createElement('div');
+    bar.className = 'nh-source-bar';
+    var chips = src.skills.map(function(s) {
+      var label = esc(s.label) +
+        (s.rows != null ? ' · ' + tr('js.source_rows').replace('{n}', s.rows) : '');
+      if (s.url) {
+        return '<a class="nh-src-chip nh-src-link" href="' + esc(s.url) +
+               '" target="_blank" rel="noopener">🗄 ' + label + ' ↗</a>';
+      }
+      return '<span class="nh-src-chip">🗄 ' + label + '</span>';
+    }).join('');
+    bar.innerHTML = '<span class="nh-src-verified">✔ ' + tr('js.source_verified') + '</span>' +
+      chips + '<span class="nh-src-time">' + esc(src.queried_at || '') + '</span>';
+    bubble.after(bar);
+    autoScroll();
+  }
+
   function loadChatList() {
     fetch('/api/nursing/chats').then(function(r) { return r.json(); }).then(function(data) {
       var list = document.getElementById('session-list');
@@ -360,7 +383,8 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
       }).then(function(r) { return r.json(); })
         .then(function(data) {
           var t = document.getElementById('typing-indicator'); if (t) t.remove();
-          addMessage(data.reply || tr('js.no_reply'), false);
+          var div = addMessage(data.reply || tr('js.no_reply'), false);
+          appendSourceBar(div, data.source);
           if (data.chat_id && !currentChatId) { currentChatId = data.chat_id; loadChatList(); }
         })
         .catch(function(err) {
@@ -428,6 +452,7 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
           if (ev.reply) acc = ev.reply;
           finishing = true;
           startDrain();
+          appendSourceBar(bubble, ev.source);
           if (ev.chat_id && !currentChatId) { currentChatId = ev.chat_id; loadChatList(); }
         } else if (ev.type === 'error') {
           ensureBubble();

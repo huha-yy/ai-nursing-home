@@ -846,6 +846,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "nursing.chat.placeholder": "Type your question… images can be dragged or pasted",
         "nursing.chat.send": "Send",
         "nursing.chat.js.send": "Send",
+        # 溯源条（确定性数据来源，main.py _source_footer 下发）
+        "nursing.chat.js.source_verified": "Verified against ERP",
+        "nursing.chat.js.source_rows": "{n} rows",
         "nursing.chat.js.new_chat": "New chat",
         "nursing.chat.js.confirm_delete": "Delete this conversation?",
         "nursing.chat.js.meta_assistant": "AI Assistant",
@@ -1662,6 +1665,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "nursing.chat.placeholder": "输入您的问题… 支持拖拽/粘贴图片",
         "nursing.chat.send": "发送",
         "nursing.chat.js.send": "发送",
+        # 溯源条（确定性数据来源，main.py _source_footer 下发）
+        "nursing.chat.js.source_verified": "数据核自 ERP",
+        "nursing.chat.js.source_rows": "{n} 条",
         "nursing.chat.js.new_chat": "新对话",
         "nursing.chat.js.confirm_delete": "删除这个对话？",
         "nursing.chat.js.meta_assistant": "AI 助手",

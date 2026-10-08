@@ -368,18 +368,19 @@ def test_followup_time_fragment_reuses_prev_intent(monkeypatch):
         {"role": "assistant", "content": "……"},
     ]
     monkeypatch.setattr(m, "_prefetch_skill_data", fake_prefetch)
-    out = asyncio.run(
+    out, prov = asyncio.run(
         m._collect_skill_data("明天后天呢", None, None, is_family=False, history=history)
     )
     assert out == [{"stub": True}]
+    assert prov == [("nursing-schedule", 1)]  # 溯源元数据随行带回
     assert captured[0][0] == "nursing-schedule"  # 沿用上一句意图
     assert captured[0][1] == "明天后天呢"  # 时间词取自本句
     # 无时间词的追问碎片不回退（零注入保持）
     captured.clear()
-    out2 = asyncio.run(
+    out2, prov2 = asyncio.run(
         m._collect_skill_data("然后呢", None, None, is_family=False, history=history)
     )
-    assert out2 is None and not captured
+    assert out2 is None and not captured and prov2 == []
 
 
 # ---- _erp_items（2026-08-24 模块级化，支撑 billing 响应形状）----

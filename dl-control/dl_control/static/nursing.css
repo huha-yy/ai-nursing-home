@@ -1344,6 +1344,17 @@ html { scrollbar-width: thin; scrollbar-color: #D8BE9F transparent; }
   vertical-align: -2px; background: #E67E22; animation: cursor-blink 1s steps(1) infinite; }
 @keyframes cursor-blink { 50% { opacity: 0; } }
 
+/* Source bar — 确定性数据溯源条（Verified against ERP · 台账 · 行数 · 时间） */
+.nh-source-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: -6px 0 10px 0; padding: 6px 14px; font-size: 12px; color: #8a7f76; }
+.nh-src-verified { font-weight: 600; color: #2E8B57; white-space: nowrap; }
+.nh-src-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px;
+  background: #F5F1EC; border: 1px solid #E5DDD3; border-radius: 999px;
+  color: #6b6158; white-space: nowrap; }
+a.nh-src-link { text-decoration: none; cursor: pointer; }
+a.nh-src-link:hover { border-color: #E67E22; color: #E67E22; background: #FFF8F0; }
+.nh-src-time { margin-left: auto; color: #b3a89d; white-space: nowrap; }
+
 /* Typing indicator — ensure visible */
 #typing-indicator { padding: 12px 16px; margin: 4px 0; min-height: 44px; background: #FFF8F0; border-radius: 12px; }
 

@@ -635,6 +635,11 @@ async def _collect_skill_data(
 
     单意图 → 该行数据的列表；组合问句 → {中文标签: 行} dict（两个意图
     的数据并排可辨）；未命中或全部拉取失败 → None。
+
+    2026-10-08 溯源条：返回值改为 (payload, provenance) 二元组——
+    provenance 是 [(skill_name, rows)] 的确定性元数据（LLM 之前就已知，
+    不可能被编造），供前端渲染「数据核自 ERP · 某台账 · N 条」；
+    payload 语义与旧返回值完全一致（None 时 provenance 为空列表）。
     """
     table = _family_skill_queries() if is_family else _skill_queries()
     matched = _match_skill_rows(message, table)
@@ -649,10 +654,53 @@ async def _collect_skill_data(
         if r is not None:
             results.append((sname, r))
     if not results:
-        return None
+        return None, []
+    provenance = [(s, len(r) if isinstance(r, list) else None) for s, r in results]
     if len(results) == 1:
-        return results[0][1]
-    return {_COMBO_LABELS.get(s, s): r for s, r in results}
+        return results[0][1], provenance
+    return {_COMBO_LABELS.get(s, s): r for s, r in results}, provenance
+
+
+# 溯源条元数据（2026-10-08）：意图 → (中文标签, 英文标签, ERP 后台台账路径)。
+# path 为空 = 本侧 PG 数据（无 ERP 台账页，只显示不深链）；家属四行同理。
+_ERP_ADMIN_BASE = "https://admin.eldcare.cn:8443/admin/"
+_SKILL_META = {
+    "nursing-schedule": ("排班台账", "Staff Schedule", "staff/schedule/"),
+    "nursing-work-order": ("护理工单台账", "Work-Order Ledger", "incidents/incidentreport/"),
+    "assessment-query": ("评估台账", "Assessment Ledger", "assessments/assessment/"),
+    "logistics-inventory": ("库存台账", "Inventory Ledger", "operations/inventoryitem/"),
+    "alert-query": ("健康告警台账", "Health Alert Ledger", "incidents/incidentreport/"),
+    "finance-query": ("账单台账", "Billing Ledger", "billing/monthlybill/"),
+    "complaint-query": ("投诉记录", "Complaints", ""),
+    "resident-query": ("老人档案", "Resident Records", "residents/resident/"),
+    "beds-occupancy": ("床位台账", "Bed Occupancy", "beds/bed/"),
+    "meal-query": ("本周菜单", "Weekly Menu", "meals/weekmenu/"),
+    "activity-query": ("文娱活动", "Activities", ""),
+    "staff-query": ("员工台账", "Staff Directory", "staff/employee/"),
+    "family-billing": ("家属账单", "Family Billing", ""),
+    "family-meals": ("家属点餐", "Family Meals", ""),
+    "family-care": ("照护摘要", "Care Summary", ""),
+    "family-overview": ("老人总览", "Resident Overview", ""),
+}
+
+
+def _source_footer(provenance: list, lang: str) -> dict | None:
+    """(skill, rows) 原始溯源 → 前端可渲染的本地化结构；无命中返回 None。"""
+    if not provenance:
+        return None
+    skills = []
+    for sname, rows in provenance:
+        zh, en, path = _SKILL_META.get(sname, (sname, sname, ""))
+        skills.append({
+            "skill": sname,
+            "label": en if lang == "en" else zh,
+            "rows": rows,
+            "url": (_ERP_ADMIN_BASE + path) if path else "",
+        })
+    return {
+        "skills": skills,
+        "queried_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
 
 
 def _family_skill_queries() -> list:
@@ -1338,9 +1386,10 @@ async def build_app() -> FastAPI:
                 logging.getLogger(__name__).warning(f"workflow trigger failed: {_we}")
 
         # ── Skill intent detection (run first) ────────────────────
-        skill_result = await _collect_skill_data(
+        skill_result, _src_raw = await _collect_skill_data(
             message, sess, db, is_family, history=await _get_chat_msgs(chat_id)
         )
+        source_footer = _source_footer(_src_raw, lang)
 
         # ── Agent routing (with skill data injected) ──────────────
         agent_reply = None
@@ -1408,7 +1457,8 @@ async def build_app() -> FastAPI:
                         await _save_user_chats(sess.user_id, chats)
                         break
             except Exception: pass
-            return JSONResponse({"reply": agent_reply, "chat_id": chat_id}, 200)
+            return JSONResponse(
+                {"reply": agent_reply, "chat_id": chat_id, "source": source_footer}, 200)
 
         # Build system prompt with skill data (direct path fallback for non-agent roles)
         today_str = _today_str(lang)
@@ -1514,7 +1564,8 @@ async def build_app() -> FastAPI:
         except Exception:
             pass
 
-        return JSONResponse({"reply": reply, "chat_id": chat_id}, 200)
+        return JSONResponse(
+            {"reply": reply, "chat_id": chat_id, "source": source_footer}, 200)
 
     @app.post("/api/nursing/chat/stream")
     async def nursing_chat_stream_post(request: _Request):
@@ -1610,9 +1661,10 @@ async def build_app() -> FastAPI:
                 yield chunk
 
         # ── Skill intent detection（与非流式端点同款预取，组合问句双行注入） ──
-        skill_result = await _collect_skill_data(
+        skill_result, _src_raw = await _collect_skill_data(
             message, sess, db, is_family, history=await _get_chat_msgs(chat_id)
         )
+        source_footer = _source_footer(_src_raw, lang)
 
         agent_msg = message
         if skill_result is not None:
@@ -1734,7 +1786,8 @@ async def build_app() -> FastAPI:
                 async for ev in _relay_sse(resp.aiter_lines(), holder):
                     yield ev
             if holder:
-                yield await _sse({"type": "done", "chat_id": chat_id, "reply": holder[0]})
+                yield await _sse({"type": "done", "chat_id": chat_id, "reply": holder[0],
+                                  "source": source_footer})
                 await _save_history(holder[0])
                 return
             yield await _sse({"type": "error", "message": "空响应"})
@@ -1781,7 +1834,8 @@ async def build_app() -> FastAPI:
 
                 if reply_holder:
                     reply = reply_holder[0]
-                    yield await _sse({"type": "done", "chat_id": chat_id, "reply": reply})
+                    yield await _sse({"type": "done", "chat_id": chat_id, "reply": reply,
+                                      "source": source_footer})
                     await _save_history(reply)
                     return
 

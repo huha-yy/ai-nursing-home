@@ -2589,3 +2589,34 @@ GET 是 405，页面在 /login）。
 - 验证：playwright 实机三轮（低库存/告警问句）——终态 9 行表格无
   cursor 残留无裸竖线；流中快照 152 个采样表格逐行增长零重排；
   上翻后 scrollTop=0 全程未被强拉。test_i18n 11 绿。
+
+### 续六（2026-10-08 · chat 回答确定性溯源条——对标 WeKnora 引用样式）
+
+- **问题**：对比 WeKnora 知识库回答（"引用了4篇文档"+内联来源 chip），
+  我们 chat 回答显得单调，看不出数据来自 ERP、可核实性弱。
+- **方案（确定性溯源，优于 WeKnora 的 LLM 侧引用）**：数据源元信息
+  （意图 skill、ERP 端点、行数、查询时间）在 **LLM 调用之前**就由
+  `_collect_skill_data` 确定——不可能幻觉，且可带台账深链供现场当场核对。
+- **改动**：
+  - `main.py`：`_collect_skill_data` 返回值改 `(payload, provenance)`
+    二元组（provenance = [(skill, rows)]）；新增 `_SKILL_META`
+    （skill→中英标签+ERP admin 台账路径）与 `_source_footer()`
+    （组装 label/rows/url/queried_at，按 lang 切换中英）。流式 done
+    事件与非流式响应均带 `source` 字段。
+  - `chat.html`：`appendSourceBar()`——绿色 ✔ "Verified against ERP /
+    数据核自 ERP" + 灰底 chip（台账名 · N rows ↗ 深链
+    admin.eldcare.cn:8443/admin/...）+ 右对齐查询时间；`esc()` 本文件
+    原先不存在（family_care.html 才有），补局部定义。
+  - `nursing.css`：`.nh-source-bar/.nh-src-chip/.nh-src-link` 样式；
+  - `i18n.py`：`js.source_verified`/`js.source_rows` 双语键。
+  - `test_nursing_erp_headers.py`：适配二元组返回。
+- **关键 bug**：初版 `esc is not defined` pageerror 静默炸掉整个渲染
+  tick——溯源条不出现**且**续五的流式光标也从未显示过（同一渲染函数）。
+  补 esc 定义后两者同时修复。教训：内嵌 JS 引用未定义函数不报错于控制台
+  可见面，pageerror 监听是唯一线索。
+- **验证**：playwright 实测——库存问句出条
+  "✔ Verified against ERP · 🗄 Inventory Ledger · 15 rows ↗ · 时间"，
+  深链可点；闲聊（"Thanks"）正确无条；零 pageerror；截图视觉确认
+  无重叠。测试 171 绿 + 10 skip。
+- **已知局限**：仅实时回答展示——历史消息回放时 chat_log 无此元数据
+  （未持久化 provenance），刷新后旧回答无溯源条。

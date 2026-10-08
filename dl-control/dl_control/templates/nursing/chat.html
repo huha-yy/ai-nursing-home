@@ -241,11 +241,32 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
     return div;
   }
 
-  // 流式增量更新：复用同一气泡重渲染（simpleMarkdown 是纯函数，整段重跑）
+  // 终态整段渲染（error / 流中断兜底共用）
   function updateMessage(div, text) {
     var label = '{{ role_label }}';
     div.innerHTML = '<div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', label) + '</div>' + simpleMarkdown(text);
-    msgs.scrollTop = msgs.scrollHeight;
+    autoScroll();
+  }
+
+  // 智能贴底：仅当用户本来就在底部附近时才跟随滚动（上翻阅读不被强拉）
+  function autoScroll() {
+    if (msgs.scrollTop + msgs.clientHeight >= msgs.scrollHeight - 48) {
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  }
+
+  // 流式稳定边界渲染（2026-10-08）：完成行（含结尾换行）走 markdown，
+  // 进行中的最后一行走纯文本+光标。半截表格/未闭合 ** 不再反复重排——
+  // 每行只在换行到达那一刻完成一次"定稿"，与主流聊天产品观感一致。
+  function renderStreaming(div, partial) {
+    var cut = partial.lastIndexOf('\n') + 1;
+    var html = simpleMarkdown(partial.slice(0, cut));
+    var tail = partial.slice(cut);
+    if (tail) {
+      html += '<p>' + esc(tail) + '<span class="stream-cursor"></span></p>';
+    }
+    div.innerHTML = '<div class="nh-msg-meta">' + tr('js.meta_role').replace('{role}', LABEL) + '</div>' + html;
+    autoScroll();
   }
 
   function loadChatList() {
@@ -367,7 +388,7 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
       var reader = r.body.getReader();
       var dec = new TextDecoder();
       var bubble = null, acc = '', buf = '';
-      var shown = 0, drainTimer = null;
+      var shown = 0, drainTimer = null, finishing = false;
       function ensureBubble() {
         if (bubble) return;
         var t = document.getElementById('typing-indicator'); if (t) t.remove();
@@ -376,15 +397,22 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
       // 平滑排空（2026-09-07）：上游出块节奏实测不均（中位 97ms、p90 314ms、
       // 偶发 2.8s 停顿），"到多少显多少"会一阵一阵跳字。这里按 33fps 匀速
       // 吐字，积压越多步长越大（≤6 帧≈0.2s 内追平），既顺滑又不明显拖后。
+      // 2026-10-08：渲染走 renderStreaming 稳定边界；done 后 finishing=true
+      // 加速追平（≤4 帧）并在追平时以整段 markdown 定稿，不再瞬间 snap。
       function startDrain() {
         if (drainTimer) return;
         drainTimer = setInterval(function() {
           if (!bubble) return;
           var remain = acc.length - shown;
-          if (remain <= 0) return;
-          var step = Math.max(1, Math.ceil(remain / 6));
+          if (remain <= 0) {
+            if (finishing) { updateMessage(bubble, acc); stopDrain(); }
+            return;
+          }
+          var step = finishing
+            ? Math.max(3, Math.ceil(remain / 4))
+            : Math.max(1, Math.ceil(remain / 6));
           shown = Math.min(acc.length, shown + step);
-          updateMessage(bubble, acc.slice(0, shown));
+          renderStreaming(bubble, acc.slice(0, shown));
         }, 30);
       }
       function stopDrain() {
@@ -397,10 +425,9 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
           startDrain();
         } else if (ev.type === 'done') {
           ensureBubble();
-          stopDrain();
           if (ev.reply) acc = ev.reply;
-          shown = acc.length;
-          updateMessage(bubble, acc);
+          finishing = true;
+          startDrain();
           if (ev.chat_id && !currentChatId) { currentChatId = ev.chat_id; loadChatList(); }
         } else if (ev.type === 'error') {
           ensureBubble();
@@ -413,9 +440,10 @@ function tr(k){ return I18N[k] !== undefined ? I18N[k] : k; }
         return reader.read().then(function(res) {
           if (res.done) {
             ensureBubble();
-            stopDrain();
-            if (acc && shown < acc.length) { shown = acc.length; updateMessage(bubble, acc); }
+            // 不再硬 snap：done 事件已置 finishing，drain 会加速追平并定稿；
+            // 流异常中断（无 done/error 事件）时才兜底补全
             if (!acc) updateMessage(bubble, tr('js.no_reply'));
+            else if (!finishing) { stopDrain(); shown = acc.length; updateMessage(bubble, acc); }
             return;
           }
           buf += dec.decode(res.value, { stream: true });

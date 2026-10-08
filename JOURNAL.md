@@ -2564,3 +2564,28 @@ GET 是 405，页面在 /login）。
 - 已知残留：`院内通知/Notices and announcements` 与 zh 一样不命中任何意图行
   （原本就无通知技能，行为一致非回归）。ruff E501 line 186 为 HEAD 既有错误
   （workflows.default_agent_desc），未动。
+
+### 续五（2026-10-08 · chat 流式渲染「稳定边界」改造）
+
+- **问题**：流式输出观感不自然，四个前端根因——
+  1. updateMessage 每 30ms 对**整段累积文本**重跑 simpleMarkdown，半截
+     `**` 显示字面星号、闭合瞬间跳变粗体；表格流到一半是竖线纯文本，
+     凑齐后整块重排跳布局；
+  2. 每帧 `scrollTop=scrollHeight` 强拉底部，用户上翻阅读被反复拽回；
+  3. drain 步长 `max(1, remain/6)`——上游停顿后积压爆发式快进，
+     一阵快一阵慢；
+  4. done 事件瞬间 `shown=acc.length` 全量 snap，剩余文字瞬间糊满。
+- **修法**（chat.html + nursing.css，纯前端）：
+  - **renderStreaming 稳定边界渲染**：完成行（含结尾 \n）走 markdown，
+    进行中最后一行以转义纯文本+橙色闪烁光标（`.stream-cursor`）显示。
+    每行只在换行到达时定稿一次，半截表格/未闭合 ** 不再反复重排；
+  - **autoScroll 智能贴底**：仅当视口本就在底部 48px 内才跟随滚动；
+  - **done 平滑收尾**：done 后 `finishing=true`，drain 加速
+    （step=max(3, remain/4)，≤4 帧）追平并以整段 markdown 定稿，
+    不再瞬间 snap；drain 自停（remain≤0 && finishing 时定稿+clear）。
+    流异常中断（无 done/error 事件）保留全量兜底。
+  - 实测注意：agent 网关出块多为整行，tail 常为空 → 光标很少现身，
+    这正是无闪烁的表征；错误路径仍走 updateMessage 整段渲染。
+- 验证：playwright 实机三轮（低库存/告警问句）——终态 9 行表格无
+  cursor 残留无裸竖线；流中快照 152 个采样表格逐行增长零重排；
+  上翻后 scrollTop=0 全程未被强拉。test_i18n 11 绿。

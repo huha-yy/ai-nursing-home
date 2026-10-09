@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from redis.asyncio import Redis
 
+from dl_control import i18n
 from dl_control.audit.service import write_event
 from dl_control.auth.middleware import (
     COOKIE_NAME,
@@ -47,9 +48,17 @@ def make_router(
     r = APIRouter()
     csrf = require_csrf(sessions, site_host=settings.site_host)
 
+    def _login_ctx(request: Request, error: str | None = None) -> dict:
+        """login.html 渲染上下文：nursing.login.* blob（问候语/三态切换 JS 用）"""
+        lang = i18n.normalize_lang(request.cookies.get(i18n.LANG_COOKIE))
+        ctx = {"i18n_page": i18n.dump_prefixed(lang, ("nursing.login.",))}
+        if error:
+            ctx["error"] = error
+        return ctx
+
     @r.get("/login", response_class=HTMLResponse)
     async def login_get(request: Request):
-        return templates.TemplateResponse(request, "login.html", {})
+        return templates.TemplateResponse(request, "login.html", _login_ctx(request))
 
     @r.post("/login")
     async def login_post(
@@ -69,11 +78,10 @@ def make_router(
                 rate_limit_window=settings.login_rate_limit_window_seconds,
             )
         except LoginError:
-            t = translator_for(request)
             return templates.TemplateResponse(
                 request,
                 "login.html",
-                {"error": t("auth.err.invalid")},
+                _login_ctx(request, error=translator_for(request)("auth.err.invalid")),
                 status_code=401,
             )
         sess = await sessions.create(
@@ -105,11 +113,10 @@ def make_router(
                 rate_limit_window=settings.login_rate_limit_window_seconds,
             )
         except LoginError:
-            t = translator_for(request)
             return templates.TemplateResponse(
                 request,
                 "login.html",
-                {"error": t("auth.err.invalid")},
+                _login_ctx(request, error=translator_for(request)("auth.err.invalid")),
                 status_code=401,
             )
         sess = await sessions.create(
@@ -146,11 +153,10 @@ def make_router(
                 rate_limit_window=settings.login_rate_limit_window_seconds,
             )
         except LoginError:
-            t = translator_for(request)
             return templates.TemplateResponse(
                 request,
                 "login.html",
-                {"error": t("auth.err.invalid")},
+                _login_ctx(request, error=translator_for(request)("auth.err.invalid")),
                 status_code=401,
             )
         sess = await sessions.create(

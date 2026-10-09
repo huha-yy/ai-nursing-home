@@ -2653,3 +2653,24 @@ GET 是 405，页面在 /login）。
 - 验证：playwright 全 UI 流——新对话问库存 → 实时条 1 → 切走归 0 →
   切回 **条仍在**（文本/深链完整），零 pageerror；截图确认布局无重叠。
   171 绿 + 10 skip。
+
+### 续九（2026-10-09 · 登录页双语化——切换"没生效"根因是全页硬编码）
+
+- **问题**：/login 的 EN/中文切换"没生效"。根因：切换器与 /lang cookie
+  机制本身正常（context processor 全局注入 lang/t），但 login.html 全页
+  硬编码中文、零 {{ t() }}——切了语言文字纹丝不动。
+- **修法**：
+  - i18n.py 新增 nursing.login.* 19 键（title/brand/sub/表单/三态切换
+    链接/产品介绍/五段问候语）en+zh；
+  - login.html 全部换 {{ t() }}；JS 问候语+三态切换文案走 i18n_page
+    blob（chat.html 同款 `JSON.parse({{ i18n_page|tojson }})`）；
+  - auth/routes.py 新增 _login_ctx()，GET/POST×3 共 4 个渲染点统一
+    注入 blob（错误分支的 auth.err.invalid 经 translator_for 保持
+    cookie 语言）。
+- **坑**：dump_prefixed 剥完整前缀 nursing.login. → blob 键是
+  "username" 而非 "login.username"，JS 引用首版写错读 undefined
+  （问候语空白）；Playwright inner_text 连带空值误导排查。
+- 验证：playwright——en 问候语正常、家属态切换（Phone number/
+  placeholder/两个链接）、点中文浮切后整页（含 JS 问候语）翻中文；
+  title/brand/intro 双语 curl 验证；零 pageerror。test_i18n 11 绿。
+  test_dashboard_widgets 2 failed 为 HEAD 既有（周菜单数据态）。

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AI 养老院院长 — 登录{% endblock %}
+{% block title %}{{ t("nursing.login.title") }}{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="/static/nursing.css">
 {% endblock %}
@@ -8,28 +8,28 @@
 <div class="login-stage" id="login-stage">
 
   <div class="login-card" id="login-card">
-    <h1 class="login-brand">AI 养老院院长</h1>
-    <p class="login-sub">杭州社会福利院</p>
+    <h1 class="login-brand">{{ t("nursing.login.brand") }}</h1>
+    <p class="login-sub">{{ t("nursing.login.sub") }}</p>
     <p class="login-greeting" id="greeting"></p>
 
     {% if error %}<p class="login-error">{{ error }}</p>{% endif %}
 
     <form method="post" action="/auth/nursing-login" id="login-form">
       <div class="login-field">
-        <label for="login-user" id="login-user-label">用户名</label>
+        <label for="login-user" id="login-user-label">{{ t("nursing.login.username") }}</label>
         <input id="login-user" type="text" name="username" autocomplete="username"
                pattern="[A-Za-z0-9_]{1,32}" required autofocus>
       </div>
       <div class="login-field">
-        <label for="login-pass">密码</label>
+        <label for="login-pass">{{ t("nursing.login.password") }}</label>
         <input id="login-pass" type="password" name="password" autocomplete="current-password" required>
       </div>
-      <button type="submit" class="login-btn">登录</button>
+      <button type="submit" class="login-btn">{{ t("nursing.login.signin") }}</button>
     </form>
 
     <div class="login-modes">
-      <a href="#" id="family-link">家属入口</a>
-      <a href="#" id="admin-link">管理员入口</a>
+      <a href="#" id="family-link">{{ t("nursing.login.family_link") }}</a>
+      <a href="#" id="admin-link">{{ t("nursing.login.admin_link") }}</a>
     </div>
   </div>
 
@@ -37,20 +37,21 @@
   <a href="/intro/" target="_blank" rel="noopener"
      style="position:absolute;left:24px;bottom:18px;z-index:5;font-size:13px;
             color:rgba(255,248,240,.55);text-decoration:none;border-bottom:1px dotted rgba(255,248,240,.35);">
-    产品介绍 ↗
+    {{ t("nursing.login.intro") }} ↗
   </a>
 
 </div>
 
 <script>
+var I18N_LOGIN = JSON.parse({{ i18n_page|tojson }});
 (function() {
   var h = new Date().getHours();
   var g = document.getElementById('greeting');
-  if      (h < 8)  g.textContent = '早上好，早班辛苦了';
-  else if (h < 12) g.textContent = '上午好，请注意查房安排';
-  else if (h < 14) g.textContent = '中午好，午间别忘了巡查';
-  else if (h < 18) g.textContent = '下午好，今天也辛苦了';
-  else             g.textContent = '晚上好，夜班请注意安全';
+  if      (h < 8)  g.textContent = I18N_LOGIN['greet_early'];
+  else if (h < 12) g.textContent = I18N_LOGIN['greet_morning'];
+  else if (h < 14) g.textContent = I18N_LOGIN['greet_noon'];
+  else if (h < 18) g.textContent = I18N_LOGIN['greet_afternoon'];
+  else             g.textContent = I18N_LOGIN['greet_evening'];
 
   // 三态切换：员工(默认) / 管理员 / 家属。家属用手机号登录，
   // 身份在 nursing-erp 侧校验（dl-control 只委托不落库）。
@@ -63,22 +64,22 @@
   function setMode(mode) {
     if (mode === 'admin') {
       form.action = '/login';
-      uLabel.textContent = '用户名';
+      uLabel.textContent = I18N_LOGIN['username'];
       uInput.placeholder = '';
-      admin.textContent = '返回登录';
-      family.textContent = '家属入口';
+      admin.textContent = I18N_LOGIN['back_login'];
+      family.textContent = I18N_LOGIN['family_link'];
     } else if (mode === 'family') {
       form.action = '/auth/family-login';
-      uLabel.textContent = '手机号';
-      uInput.placeholder = '请输入家属手机号';
-      admin.textContent = '管理员入口';
-      family.textContent = '返回员工登录';
+      uLabel.textContent = I18N_LOGIN['phone'];
+      uInput.placeholder = I18N_LOGIN['phone_ph'];
+      admin.textContent = I18N_LOGIN['admin_link'];
+      family.textContent = I18N_LOGIN['back_staff'];
     } else {
       form.action = '/auth/nursing-login';
-      uLabel.textContent = '用户名';
+      uLabel.textContent = I18N_LOGIN['username'];
       uInput.placeholder = '';
-      admin.textContent = '管理员入口';
-      family.textContent = '家属入口';
+      admin.textContent = I18N_LOGIN['admin_link'];
+      family.textContent = I18N_LOGIN['family_link'];
     }
   }
 

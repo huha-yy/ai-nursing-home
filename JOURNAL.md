@@ -2674,3 +2674,13 @@ GET 是 405，页面在 /login）。
   placeholder/两个链接）、点中文浮切后整页（含 JS 问候语）翻中文；
   title/brand/intro 双语 curl 验证；零 pageerror。test_i18n 11 绿。
   test_dashboard_widgets 2 failed 为 HEAD 既有（周菜单数据态）。
+
+### 续十（2026-10-10 · 评审反馈第 9 条——会话标题词边界截断）
+
+- 姚文龙评审（同 nursing-erp 7d0581e 批次）：侧栏会话标题
+  "Which supplies are l" 裸首字母结尾不专业，应作 "Which supplies are…"。
+- 修法：main.py `_chat_title()`——>20 字符且切断 ASCII 单词中段时回退
+  上一个空格再加 "…"；中文无空格不受影响（原样 20 字截断+省略号）。
+  8 处 `message[:20]` 调用点统一替换（标题 insert + 首轮改名 + 改名匹配
+  条件）；存量旧标题不回填。CSS ellipsis 原本就有，问题纯在服务端切片。
+- 验证：实测发长问句，新标题 'Which supplies are…'；171 绿+10 skip。

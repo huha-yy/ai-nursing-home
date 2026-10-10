@@ -1174,6 +1174,20 @@ async def build_app() -> FastAPI:
     # ── Chat history helpers ──────────────────────────────────────────
     import json as _json
 
+    def _chat_title(message: str, limit: int = 20) -> str:
+        """会话侧栏标题：词边界截断 + 省略号（2026-10-10 评审反馈：
+        "Which supplies are l" 裸首字母结尾不专业，应为 "Which supplies are…"）。
+        中文无空格不受影响——仅在切断 ASCII 单词中段时回退到上一空格。"""
+        if len(message) <= limit:
+            return message
+        cut = message[:limit]
+        nxt, last = message[limit], cut[-1]
+        if nxt.isascii() and nxt.isalnum() and last.isascii() and last.isalnum():
+            sp = cut.rfind(" ")
+            if sp > 0:
+                cut = cut[:sp]
+        return cut.rstrip() + "…"
+
     async def _get_user_chats(user_id: str) -> list[dict]:
         raw = await redis.get(f"user_chats:{user_id}")
         return _json.loads(raw) if raw else []
@@ -1270,7 +1284,7 @@ async def build_app() -> FastAPI:
             import uuid
             chat_id = str(uuid.uuid4())[:8]
             chats = await _get_user_chats(sess.user_id)
-            chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
+            chats.insert(0, {"id": chat_id, "title": _chat_title(message), "created_at": time.time()})
             await _save_user_chats(sess.user_id, chats)
 
         # ── File handling: OCR images before skill detection ──
@@ -1455,8 +1469,8 @@ async def build_app() -> FastAPI:
                 await _save_chat_msgs(chat_id, history[-40:])
                 chats = await _get_user_chats(sess.user_id)
                 for c in chats:
-                    if c["id"] == chat_id and c.get("title") in ("新对话", original_message[:20]):
-                        c["title"] = message[:20]
+                    if c["id"] == chat_id and c.get("title") in ("新对话", _chat_title(original_message)):
+                        c["title"] = _chat_title(message)
                         await _save_user_chats(sess.user_id, chats)
                         break
             except Exception: pass
@@ -1563,8 +1577,8 @@ async def build_app() -> FastAPI:
             # Update chat title if first exchange
             chats = await _get_user_chats(sess.user_id)
             for c in chats:
-                if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
-                    c["title"] = message[:20]
+                if c["id"] == chat_id and c.get("title") in ("新对话", _chat_title(message)):
+                    c["title"] = _chat_title(message)
                     await _save_user_chats(sess.user_id, chats)
                     break
         except Exception:
@@ -1610,7 +1624,7 @@ async def build_app() -> FastAPI:
             import uuid
             chat_id = str(uuid.uuid4())[:8]
             chats = await _get_user_chats(sess.user_id)
-            chats.insert(0, {"id": chat_id, "title": message[:20], "created_at": time.time()})
+            chats.insert(0, {"id": chat_id, "title": _chat_title(message), "created_at": time.time()})
             await _save_user_chats(sess.user_id, chats)
 
         is_family = sess.role == "family"
@@ -1629,8 +1643,8 @@ async def build_app() -> FastAPI:
                 await _save_chat_msgs(chat_id, history[-40:])
                 chats = await _get_user_chats(sess.user_id)
                 for c in chats:
-                    if c["id"] == chat_id and c.get("title") in ("新对话", message[:20]):
-                        c["title"] = message[:20]
+                    if c["id"] == chat_id and c.get("title") in ("新对话", _chat_title(message)):
+                        c["title"] = _chat_title(message)
                         await _save_user_chats(sess.user_id, chats)
                         break
             except Exception:

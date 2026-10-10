@@ -2684,3 +2684,19 @@ GET 是 405，页面在 /login）。
   8 处 `message[:20]` 调用点统一替换（标题 insert + 首轮改名 + 改名匹配
   条件）；存量旧标题不回填。CSS ellipsis 原本就有，问题纯在服务端切片。
 - 验证：实测发长问句，新标题 'Which supplies are…'；171 绿+10 skip。
+
+### 续十一（2026-10-10 · MiniMax sk-cp 额度耗尽→全站换 PAYG key）
+
+- **症状**：chat 只有溯源条无回答。根因：MiniMax Token Plan 用尽，
+  API 402 insufficient_balance → agent 网关 200 但流出空内容 →
+  done reply=""（溯源条走 ERP 预取与 LLM 无关，所以还在——反而成了
+  排障指路牌）。
+- **切换**（用户确认换 PAYG sk-api）：infra/.env、ERP .env、15 agent
+  config/.env + auth-profiles.json + models.json（JSON 是裸 key，直接
+  sed+docker restart agents，无需删 .llm-configured marker）、
+  dato-control `up -d --force-recreate --build`（project-directory
+  必须 infra，repo 根会 Dockerfile 找不到——踩过重记）、ERP systemctl
+  整体重启。备份 .bak-payg-20261010；minimax.env 的 MINIMAX_API_KEY
+  仍是死 sk-cp，将来 switch_llm.sh minimax 前先改。
+- 验证：新 key curl 直连 200；chat E2E 完整表格回答（英文分类+复数
+  单位同帧生效）；dato-control/ERP /proc environ 均 sk-api。
